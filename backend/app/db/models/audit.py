@@ -43,8 +43,8 @@ class ChangeLog(CreatedAtMixin, Base):
     entity: Mapped[str] = mapped_column(String(50))  # table name, e.g. "recurring_blocks"
     entity_id: Mapped[int]
     op: Mapped[ChangeOp] = mapped_column(str_enum(ChangeOp, "change_op"))
-    before_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    after_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    before_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+    after_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
     agent_id: Mapped[str | None] = mapped_column(String(50))
     message_id: Mapped[int | None] = mapped_column(
         ForeignKey("messages.id", ondelete="SET NULL"), index=True

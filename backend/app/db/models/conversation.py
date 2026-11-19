@@ -35,7 +35,7 @@ class Message(CreatedAtMixin, Base):
     agent_id: Mapped[str | None] = mapped_column(String(50), index=True)
     content: Mapped[str] = mapped_column(Text, default="", server_default="")
     # Normalized tool calls requested by the assistant (see llm/router), or the tool result.
-    tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB(none_as_null=True))
     tool_call_id: Mapped[str | None] = mapped_column(String(100))
     # Undo handle: every change made while answering this message shares this id.
     change_set_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
