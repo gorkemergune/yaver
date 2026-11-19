@@ -3,6 +3,7 @@ which splits the message and delegates to yavers. Everything changed while answe
 message shares one change_set_id, so a single undo reverts all of it."""
 
 import datetime as dt
+import logging
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.context import ToolContext
 from app.agent.loop import AgentRun, Emit, LLMClient, run_agent
+from app.agent.reply import dedupe_questions
 from app.agent.team import Member, Team
 from app.config import Settings
 from app.core.change_log import ChangeRecorder, describe_changes
@@ -24,6 +26,9 @@ from app.llm.types import ChatMessage
 
 HISTORY_MESSAGES = 10
 _ADDRESS = re.compile(r"^\s*([^\s,:;!?]+)\s*[,:;!]\s*(.+)$", re.DOTALL)
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -206,6 +211,9 @@ class Coordinator:
                 stream_text=True,
             )
 
+        reply_text = dedupe_questions(final.reply)
+        if reply_text != final.reply:
+            logger.info("Dropped a repeated question from the final answer: %r", final.reply)
         changed = bool(ctx.recorder.entries)
         stored_set = change_set_id if changed else None
         session.add(Message(conversation_id=conversation.id, role=MessageRole.USER, content=text))
@@ -224,7 +232,7 @@ class Coordinator:
                 conversation_id=conversation.id,
                 role=MessageRole.ASSISTANT,
                 agent_id=final.agent_id,
-                content=final.reply,
+                content=reply_text,
                 change_set_id=stored_set,
             )
         )
@@ -234,7 +242,7 @@ class Coordinator:
 
         return ChatReply(
             conversation_id=conversation.id,
-            reply=final.reply,
+            reply=reply_text,
             speaker=final.agent_id,
             change_set_id=stored_set,
             agents=[{"agent_id": r.agent_id, "name": r.name, "reply": r.reply} for r in runs],
