@@ -71,6 +71,17 @@ class MessageRole(StrEnum):
     SYSTEM = "system"
 
 
+class ConversationMode(StrEnum):
+    CHAT = "chat"
+    ONBOARDING = "onboarding"
+
+
+class ProposalStatus(StrEnum):
+    PENDING = "pending"
+    APPLIED = "applied"
+    DISCARDED = "discarded"
+
+
 class ChangeOp(StrEnum):
     CREATE = "create"
     UPDATE = "update"

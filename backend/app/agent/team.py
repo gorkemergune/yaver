@@ -15,6 +15,18 @@ from app.llm.config import ProvidersConfig, load_providers_config
 from app.llm.types import ToolSpec
 
 DELEGATE = "delegate"
+ONBOARDING_TOOLS = (
+    "resolve_date",
+    "add_term",
+    "add_holiday",
+    "propose_schedule",
+    "apply_schedule",
+    "set_absence_limit",
+    "add_recurring_block",
+    "remember",
+    "get_week_plan",
+    "finish_onboarding",
+)
 # Every specialist can read dates and the plan, whatever agents.yaml lists.
 COMMON_TOOLS = ("resolve_date", "get_day_plan")
 PROMPTS_DIR = Path(__file__).with_name("prompts")
@@ -110,6 +122,7 @@ class Member:
 class Team:
     coordinator: Member
     agents: tuple[Member, ...]
+    onboarding: Member | None = None  # first-run setup assistant (speaks as the coordinator)
 
     def get(self, agent_id: str) -> Member | None:
         return next((a for a in self.agents if a.id == agent_id), None)
@@ -168,7 +181,7 @@ def build_team(
             raise ValueError(f"agents.yaml uses unknown tier(s): {', '.join(unknown)}")
     env = _environment()
     context: dict[str, Any] = {
-        "user_name": user_name or "kullanıcı",
+        "user_name": user_name,
         "coordinator": config.coordinator,
         "agents": config.agents,
     }
@@ -197,7 +210,16 @@ def build_team(
         )
         for index, agent in enumerate(config.agents)
     )
-    return Team(coordinator, agents)
+    onboarding = Member(
+        id="onboarding",
+        name=config.coordinator.name,
+        tier=config.coordinator.tier,
+        system_prompt=env.get_template("onboarding.md.j2").render(**context).strip(),
+        tools=_tools(list(ONBOARDING_TOOLS), ()),
+        model=config.coordinator.model,
+        color=coordinator.color,
+    )
+    return Team(coordinator, agents, onboarding)
 
 
 def model_overrides(config: TeamConfig, providers: ProvidersConfig) -> list[tuple[str, str, str]]:

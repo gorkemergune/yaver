@@ -143,6 +143,7 @@ def _load_tool_modules() -> None:
         memory,
         planning,
         schedule,
+        setup,
         undo,
     )
 

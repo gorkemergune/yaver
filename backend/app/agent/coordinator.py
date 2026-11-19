@@ -19,7 +19,7 @@ from app.config import Settings
 from app.core.change_log import ChangeRecorder, describe_changes
 from app.core.time_resolver import WEEKDAY_NAMES_TR, build_calendar_context, format_calendar_context
 from app.db.models import Conversation, Memory, Message
-from app.db.models.enums import MessageRole
+from app.db.models.enums import ConversationMode, MessageRole
 from app.llm.types import ChatMessage
 
 HISTORY_MESSAGES = 10
@@ -91,10 +91,11 @@ class Coordinator:
         conversation_id: int | None = None,
         now: dt.datetime | None = None,
         emit: Emit | None = None,
+        mode: ConversationMode = ConversationMode.CHAT,
     ) -> ChatReply:
         """`emit` receives progress events (see app.agent.loop) for streaming clients."""
         try:
-            reply = await self._handle(session, text, conversation_id, now, emit)
+            reply = await self._handle(session, text, conversation_id, now, emit, mode)
         except BaseException:
             await session.rollback()
             raise
@@ -108,8 +109,9 @@ class Coordinator:
         conversation_id: int | None,
         now: dt.datetime | None,
         emit: Emit | None,
+        mode: ConversationMode = ConversationMode.CHAT,
     ) -> ChatReply:
-        conversation = await self._conversation(session, conversation_id, text)
+        conversation = await self._conversation(session, conversation_id, text, mode)
         history = await self._history(session, conversation.id)
         change_set_id = uuid.uuid4()
         ctx = ToolContext(
@@ -119,13 +121,26 @@ class Coordinator:
             change_set_id=change_set_id,
             recorder=ChangeRecorder(session, change_set_id),
             clock=self.settings.clock,
+            conversation_id=conversation.id,
+            llm=self.llm,
         )
         memories = list((await session.scalars(select(Memory.content).where(Memory.active))).all())
         suffix = system_suffix(ctx, memories)
         runs: list[AgentRun] = []
 
         addressed = self.addressed_member(text)
-        if addressed is not None:
+        if conversation.mode is ConversationMode.ONBOARDING and self.team.onboarding is not None:
+            final = await run_agent(
+                self.llm,
+                self.team.onboarding,
+                [*history, ChatMessage("user", text)],
+                ctx,
+                system_suffix=suffix,
+                max_steps=self.max_steps,
+                emit=emit,
+                stream_text=True,
+            )
+        elif addressed is not None:
             member, rest = addressed
             final = await run_agent(
                 self.llm,
@@ -241,13 +256,17 @@ class Coordinator:
         )
 
     async def _conversation(
-        self, session: AsyncSession, conversation_id: int | None, text: str
+        self,
+        session: AsyncSession,
+        conversation_id: int | None,
+        text: str,
+        mode: ConversationMode = ConversationMode.CHAT,
     ) -> Conversation:
         if conversation_id is not None:
             existing = await session.get(Conversation, conversation_id)
             if existing is not None:
                 return existing
-        conversation = Conversation(title=text[:80])
+        conversation = Conversation(title=text[:80], mode=mode)
         session.add(conversation)
         await session.flush()
         return conversation

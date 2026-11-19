@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, CreatedAtMixin, TimestampMixin
-from app.db.models.enums import MessageRole
+from app.db.models.enums import ConversationMode, MessageRole
 from app.db.types import str_enum
 
 
@@ -17,6 +17,12 @@ class Conversation(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str | None] = mapped_column(String(200))
+    # "onboarding": messages go to the setup assistant until it calls finish_onboarding.
+    mode: Mapped[ConversationMode] = mapped_column(
+        str_enum(ConversationMode, "conversation_mode"),
+        default=ConversationMode.CHAT,
+        server_default=ConversationMode.CHAT.value,
+    )
 
 
 class Message(CreatedAtMixin, Base):

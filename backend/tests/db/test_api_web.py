@@ -173,3 +173,17 @@ async def test_team_activity(client: httpx2.AsyncClient, llm: ScriptedLLM) -> No
     assert activity["academic"][0]["data"]["title"] == "EE211 Lab"
     assert activity["discipline"][0]["data"]["title"] == "Spor"
     assert activity["agenda"] == []
+
+
+async def test_onboarding_status_and_mode(client: httpx2.AsyncClient, llm: ScriptedLLM) -> None:
+    before = (await client.get("/api/onboarding/status")).json()
+
+    llm.add("onboarding", say("Merhaba! Adın ne?"))
+    events = await stream(client, "Kuruluma başlayalım", mode="onboarding")
+    during = (await client.get("/api/onboarding/status")).json()
+    team = (await client.get("/api/team")).json()
+
+    assert before == {"needed": True, "open_conversation_id": None}
+    assert events[-1]["speaker"] == "onboarding"
+    assert during == {"needed": False, "open_conversation_id": events[-1]["conversation_id"]}
+    assert team["onboarding"]["name"] == "Yaver"

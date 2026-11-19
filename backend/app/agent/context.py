@@ -1,6 +1,7 @@
 import datetime as dt
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,8 @@ class ToolContext:
     recorder: ChangeRecorder
     clock: ClockConvention = DEFAULT_CLOCK
     agent_id: str = "yaver"
+    conversation_id: int | None = None
+    llm: Any = None  # LLM client for tools that need a model themselves (schedule parsing)
     # Action log for the reply ("Friday: EE211 lab eklendi"), filled by the tool runner.
     actions: list[dict[str, object]] = field(default_factory=list)
     # Every tool call (reads too) with its arguments, for debugging and prompt tuning.

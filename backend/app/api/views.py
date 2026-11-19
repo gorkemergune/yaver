@@ -13,8 +13,8 @@ from app.agent.team import Team, get_team
 from app.config import get_settings
 from app.core.change_log import describe_changes
 from app.core.time_resolver import week_start
-from app.db.models import ChangeLog, Conversation, Message
-from app.db.models.enums import MessageRole
+from app.db.models import ChangeLog, Conversation, Message, RecurringBlock, Term
+from app.db.models.enums import ConversationMode, MessageRole
 from app.db.session import get_session
 from app.services.attendance import all_course_summaries
 from app.services.plan_view import plan_to_dict
@@ -41,6 +41,7 @@ async def team(members: Team = Depends(get_team)) -> dict[str, Any]:
     return {
         "coordinator": view(members.coordinator),
         "agents": [view(agent) for agent in members.agents],
+        "onboarding": view(members.onboarding) if members.onboarding else None,
         "user_name": get_settings().app_user_name,
     }
 
@@ -69,6 +70,24 @@ async def team_activity(
             change["at"] = entry.created_at
         activity[member.id] = changes
     return {"activity": activity}
+
+
+@router.get("/onboarding/status")
+async def onboarding_status(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    """First run = nothing set up and nothing said yet: the web app offers the setup chat."""
+    has_term = await session.scalar(select(Term.id).limit(1)) is not None
+    has_blocks = await session.scalar(select(RecurringBlock.id).limit(1)) is not None
+    has_messages = await session.scalar(select(Message.id).limit(1)) is not None
+    open_setup = await session.scalar(
+        select(Conversation.id)
+        .where(Conversation.mode == ConversationMode.ONBOARDING)
+        .order_by(Conversation.id.desc())
+        .limit(1)
+    )
+    return {
+        "needed": not (has_term or has_blocks or has_messages),
+        "open_conversation_id": open_setup,  # setup started but not finished
+    }
 
 
 @router.get("/plan/day")

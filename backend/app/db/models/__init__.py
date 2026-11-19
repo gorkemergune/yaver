@@ -3,6 +3,7 @@
 from app.db.models.academic import Course, Holiday, Term
 from app.db.models.audit import ChangeLog, LlmUsage
 from app.db.models.conversation import Conversation, Message
+from app.db.models.onboarding import ScheduleProposal
 from app.db.models.planning import Followup, Memory, Task
 from app.db.models.schedule import Attendance, BlockOverride, Event, RecurringBlock
 
@@ -19,6 +20,7 @@ __all__ = [
     "Memory",
     "Message",
     "RecurringBlock",
+    "ScheduleProposal",
     "Task",
     "Term",
 ]

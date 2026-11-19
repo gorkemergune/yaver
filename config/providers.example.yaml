@@ -51,6 +51,7 @@ routing:
     weekly_plan: smart
     study_sheet: smart
     syllabus_parse: smart
+    schedule_parse: smart          # long pasted schedules (onboarding)
   max_tool_steps: 6
   max_invalid_tool_calls: 2      # same tier this many times, then fail over
   rate_limit_max_wait_seconds: 3 # 429 "try again in <=3s": wait on the same tier

@@ -17,6 +17,7 @@ from app.agent.coordinator import ChatReply, Coordinator
 from app.agent.team import get_team
 from app.config import get_settings
 from app.core.change_log import NothingToUndoError, undo_change_set
+from app.db.models.enums import ConversationMode
 from app.db.session import get_session, get_sessionmaker
 from app.llm.router import LLMUnavailableError, get_router
 
@@ -35,8 +36,10 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=4000)
+    message: str = Field(min_length=1, max_length=20000)  # pasted schedules can be long
     conversation_id: int | None = None
+    # A new conversation in "onboarding" mode goes to the setup assistant.
+    mode: ConversationMode = ConversationMode.CHAT
 
 
 class ChatResponse(BaseModel):
@@ -69,7 +72,9 @@ async def chat(
     session: AsyncSession = Depends(get_session),
     coordinator: Coordinator = Depends(get_coordinator),
 ) -> ChatResponse:
-    reply = await coordinator.handle(session, body.message, conversation_id=body.conversation_id)
+    reply = await coordinator.handle(
+        session, body.message, conversation_id=body.conversation_id, mode=body.mode
+    )
     return _response(reply)
 
 
@@ -95,7 +100,11 @@ async def chat_stream(
         try:
             async with session_factory() as session:
                 reply = await coordinator.handle(
-                    session, body.message, conversation_id=body.conversation_id, emit=emit
+                    session,
+                    body.message,
+                    conversation_id=body.conversation_id,
+                    emit=emit,
+                    mode=body.mode,
                 )
             await emit({"type": "done", **_response(reply).model_dump(mode="json")})
         except LLMUnavailableError:
