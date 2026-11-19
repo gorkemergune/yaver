@@ -5,9 +5,22 @@ description = "Yaver API: FastAPI + Postgres/pgvector + LLM agent team"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
+    "pydantic-settings>=2.6",
+    "pyyaml>=6.0",
+    "tzdata>=2024.1",
     "uvicorn[standard]>=0.32",
 ]
 
 [tool.uv]
 # The backend is an application, not a library: uv only installs its dependencies.
 package = false
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16",
+    "pytest>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
