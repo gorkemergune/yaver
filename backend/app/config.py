@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # --- Budget guard ---
     claude_monthly_budget_usd: float = 4.0
 
+    # --- LLM ---
+    # Check on startup that the configured models exist (logs only, never blocks startup).
+    llm_check_models_on_startup: bool = True
+
     # --- Web Push (Phase 1) ---
     vapid_public_key: str | None = None
     vapid_private_key: SecretStr | None = None

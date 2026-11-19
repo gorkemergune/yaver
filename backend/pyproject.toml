@@ -5,8 +5,10 @@ description = "Yaver API: FastAPI + Postgres/pgvector + LLM agent team"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.14",
+    "anthropic>=2.10",
     "asyncpg>=0.30",
     "fastapi>=0.115",
+    "openai>=3.55",
     "pydantic-settings>=2.6",
     "pyyaml>=6.0",
     "sqlalchemy[asyncio]>=2.0.36",
@@ -33,7 +35,9 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = ["--strict-markers", "--strict-config"]
+# Live tests call real LLM APIs (cost money): excluded by default, run with `pytest -m live`.
+addopts = ["--strict-markers", "--strict-config", "-m", "not live"]
+markers = ["live: calls real LLM provider APIs and records spend in llm_usage"]
 filterwarnings = ["error"]
 
 [tool.ruff]

@@ -1,0 +1,41 @@
+# USD per 1M tokens, keyed by provider then model ("*" = any model of that provider).
+# input = uncached input, cache_read / cache_write = prompt-cache reads / writes (5-min TTL).
+# Prices change: verify against each provider's pricing page before relying on the totals.
+# Last checked: 2026-11-19.
+#
+# A provider with `reports_cost: true` in providers.yaml (OpenRouter) bills from the
+# cost it returns per request; these numbers are only a fallback there.
+
+anthropic:
+  # Anthropic API pricing (first-party). Cache write = 1.25x input; cache read ~0.1x input
+  # for Haiku (assumed), $0.10 for Sonnet 5.5 (documented).
+  claude-haiku-5-5:
+    input: 0.10
+    output: 0.50
+    cache_read: 0.01
+    cache_write: 0.125
+    long_context:              # whole prompt above this many input tokens -> these rates
+      threshold_tokens: 100000
+      input: 0.50
+      output: 2.50
+      cache_read: 0.05
+      cache_write: 0.625
+  claude-sonnet-5-5:
+    input: 2.00
+    output: 10.00
+    cache_read: 0.10
+    cache_write: 2.50
+
+groq:
+  # From third-party price trackers (morphllm.com, computeprices.com); confirm in the Groq console.
+  openai/gpt-oss-120b:
+    input: 0.15
+    output: 0.60
+    cache_read: 0.075
+
+openrouter: {}                 # cost reported per request (usage.cost)
+
+ollama:
+  "*":                         # local, free
+    input: 0
+    output: 0

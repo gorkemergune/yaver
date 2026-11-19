@@ -1,5 +1,7 @@
 # ÖRNEK dosya. Kendi kurulumun için config/providers.yaml olarak kopyala (o dosya .gitignore'da).
 # Model IDs change often — check each provider's console and update here, never in code.
+# Verify the models exist with:  docker compose exec api python -m app.llm.check_models
+
 tiers:
   fast:
     provider: groq
@@ -7,9 +9,15 @@ tiers:
   fallback:
     provider: anthropic
     model: claude-haiku-5-5
+    # Haiku 5.5 bills prompts above 100K tokens at 5x; the router trims history above this.
+    max_prompt_tokens: 90000
+    options:
+      thinking: {type: disabled}   # cheap, fast tool routing (allowed at effort <= high)
   smart:
     provider: anthropic
     model: claude-sonnet-5-5
+    options:
+      effort: medium               # Sonnet 5.5 can't disable thinking; effort controls depth
   local:
     provider: ollama
     model: qwen3:8b
@@ -23,9 +31,13 @@ providers:
     type: openai_compat
     base_url: https://openrouter.ai/api/v1
     api_key_env: OPENROUTER_API_KEY
+    default_model: openai/gpt-oss-120b   # used by model checks / live tests when no tier uses it
+    reports_cost: true                   # OpenRouter returns usage.cost per request
   ollama:
     type: openai_compat
     base_url_env: OLLAMA_BASE_URL
+    base_url_suffix: /v1
+    optional: true                       # not running locally is fine
   anthropic:
     type: anthropic
     api_key_env: ANTHROPIC_API_KEY
@@ -38,4 +50,13 @@ routing:
     study_sheet: smart
     syllabus_parse: smart
   max_tool_steps: 6
-  max_prompt_tokens: 90000
+  max_invalid_tool_calls: 2      # same tier this many times, then fail over
+
+# Monthly limit comes from CLAUDE_MONTHLY_BUDGET_USD in .env.
+budget:
+  provider: anthropic            # spend of this provider counts toward the limit
+  downgrade_at: 0.8              # >= 80%: tiers below are downgraded
+  downgrade:
+    smart: fallback
+  limit_at: 1.0                  # >= 100%: only these tiers may be used
+  allowed_at_limit: [fast, local]
