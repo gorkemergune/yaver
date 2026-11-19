@@ -36,7 +36,9 @@ class ProviderConfig(_Strict):
     reports_cost: bool = False
     optional: bool = False
     timeout_seconds: float = 60.0
-    max_retries: int = 1  # SDK-level retries before the router fails over
+    # SDK-level retries. 0: the router decides (short 429 waits, then failover); SDK retries
+    # would wait as long as the provider says.
+    max_retries: int = 0
 
 
 class RoutingConfig(_Strict):
@@ -45,6 +47,8 @@ class RoutingConfig(_Strict):
     purposes: dict[str, str] = Field(default_factory=dict)
     max_tool_steps: int = 6
     max_invalid_tool_calls: int = 2
+    rate_limit_max_wait_seconds: float = 3.0  # 429 asking for a longer wait -> fail over
+    rate_limit_max_waits: int = 2
 
 
 class BudgetConfig(_Strict):

@@ -7,6 +7,7 @@ from typing import Any, cast
 import openai
 from openai import AsyncOpenAI
 
+from app.llm.retry import parse_retry_after
 from app.llm.types import (
     ChatMessage,
     LLMRequest,
@@ -99,6 +100,7 @@ class OpenAICompatProvider:
                 exc.message,
                 retryable=exc.status_code == 429 or exc.status_code >= 500,
                 status_code=exc.status_code,
+                retry_after=_retry_after(exc),
                 invalid_tool_call=_is_tool_call_rejection(exc),
             ) from exc
         except openai.APIConnectionError as exc:  # includes timeouts
@@ -147,6 +149,13 @@ class OpenAICompatProvider:
 
     async def has_model(self, model: str) -> bool:
         return model in await self.list_models()
+
+
+def _retry_after(exc: Any) -> float | None:
+    if exc.status_code != 429:
+        return None
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    return parse_retry_after(dict(headers) if headers is not None else None, exc.message)
 
 
 def to_openai_messages(request: LLMRequest) -> list[dict[str, Any]]:

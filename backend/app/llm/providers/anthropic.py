@@ -10,6 +10,7 @@ from typing import Any
 import anthropic
 from anthropic import AsyncAnthropic
 
+from app.llm.retry import parse_retry_after
 from app.llm.types import (
     ChatMessage,
     LLMRequest,
@@ -80,6 +81,7 @@ class AnthropicProvider:
                 exc.message,
                 retryable=exc.status_code == 429 or exc.status_code >= 500,
                 status_code=exc.status_code,
+                retry_after=_retry_after(exc),
             ) from exc
         except anthropic.APIConnectionError as exc:  # includes timeouts
             raise ProviderError(self.name, str(exc), retryable=True) from exc
@@ -114,6 +116,13 @@ class AnthropicProvider:
         except anthropic.APIConnectionError as exc:
             raise ProviderError(self.name, str(exc), retryable=True) from exc
         return True
+
+
+def _retry_after(exc: Any) -> float | None:
+    if exc.status_code != 429:
+        return None
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    return parse_retry_after(dict(headers) if headers is not None else None, exc.message)
 
 
 def build_request_kwargs(

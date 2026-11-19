@@ -104,6 +104,7 @@ class ProviderError(Exception):
         retryable: bool,
         status_code: int | None = None,
         invalid_tool_call: bool = False,
+        retry_after: float | None = None,
     ) -> None:
         super().__init__(f"{provider}: {message}")
         self.provider = provider
@@ -112,6 +113,7 @@ class ProviderError(Exception):
         # The provider rejected the tool call the model generated (Groq validates arguments
         # server-side and answers 400): the router treats it like an invalid tool call.
         self.invalid_tool_call = invalid_tool_call
+        self.retry_after = retry_after  # seconds the provider asked us to wait (429)
 
 
 class ProviderNotConfiguredError(ProviderError):

@@ -2,17 +2,20 @@
 
 complete() picks a tier (explicit, or from the purpose), applies the budget guard, then walks
 the failover chain:
+- 429 with a retry-after <= rate_limit_max_wait_seconds -> wait and retry the same tier
+  (at most rate_limit_max_waits times); longer waits fail over
 - retryable provider errors (429, 5xx, network, provider not configured) -> next tier
 - invalid tool calls `max_invalid_tool_calls` times on one tier -> next tier
 - other errors (400, 401, ...) are raised
 Every attempt, failed or not, is written to llm_usage with its cost.
 """
 
+import asyncio
 import json
 import logging
 import os
 import time
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import replace
 from decimal import Decimal
 from functools import lru_cache
@@ -135,12 +138,14 @@ class LLMRouter:
         prices: PriceTable,
         store: UsageStore,
         budget: BudgetGuard,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self.config = config
         self.providers = providers
         self.prices = prices
         self.store = store
         self.budget = budget
+        self._sleep = sleep
 
     async def aclose(self) -> None:
         for provider in self.providers.values():
@@ -192,7 +197,9 @@ class LLMRouter:
             return None
         fitted = fit_prompt(request, tier.max_prompt_tokens)
 
-        for _ in range(max(self.config.routing.max_invalid_tool_calls, 1)):
+        routing = self.config.routing
+        invalid, waits = 0, 0
+        while True:
             started = time.monotonic()
             try:
                 response = await provider.complete(fitted, tier.model, dict(tier.options))
@@ -213,7 +220,20 @@ class LLMRouter:
                     )
                 if exc.invalid_tool_call:
                     logger.warning("Tier %s: provider rejected the tool call (%s)", tier_name, exc)
-                    continue  # same as an invalid tool call: retry, then fail over
+                    invalid += 1  # same as an invalid tool call: retry, then fail over
+                    if invalid >= max(routing.max_invalid_tool_calls, 1):
+                        break
+                    continue
+                if (
+                    exc.status_code == 429
+                    and exc.retry_after is not None
+                    and exc.retry_after <= routing.rate_limit_max_wait_seconds
+                    and waits < routing.rate_limit_max_waits
+                ):
+                    waits += 1  # a short wait is cheaper than paying the next tier
+                    logger.info("Tier %s rate limited; waiting %.2fs", tier_name, exc.retry_after)
+                    await self._sleep(exc.retry_after)
+                    continue
                 if not exc.retryable:
                     raise
                 attempts.append(f"{tier_name}: {exc}")
@@ -244,6 +264,9 @@ class LLMRouter:
             if not problems:
                 return response
             logger.warning("Tier %s returned invalid tool calls: %s", tier_name, problems)
+            invalid += 1
+            if invalid >= max(routing.max_invalid_tool_calls, 1):
+                break
 
         attempts.append(f"{tier_name}: invalid tool calls")
         return None
