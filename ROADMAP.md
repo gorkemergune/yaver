@@ -31,6 +31,11 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 
 - Scheduler: sabah brifingi (ilk açılışta catch-up), akşam yarın önizlemesi, followup kontrolü, devamsızlık limiti uyarısı, sınav geri sayımı
 - Pazar akşamı haftalık planlama seansı (`smart` tier): taslak hafta önerir, onaylanınca task'lara yazar
+- Akşam check-in: her akşam 21:00'de (config: `CHECKIN_TIME`) tek bir özet mesajı - günün dersleri, sporu, görevleri
+  - Dersler varsayılan "katıldı" sayılır; kullanıcı "EE211'e gitmedim" derse devamsızlık yazılır (`log_attendance`, `direction="past"`)
+  - Spor ve görevler için durum sorulur; tek cümleyle cevaplanabilir ("spor hariç hepsi tamam")
+  - Mesajda hızlı cevap butonları: "✓ Hepsi tamam" ve "Düzenle" (UI'deki "Geri al" dışındaki tek buton istisnası; ikisi de sohbete mesaj olarak gider)
+  - Cevapsız kalırsa ertesi sabah brifinginde bir kez hatırlatılır, ısrar edilmez
 - PWA + Web Push (iPhone'da ana ekrana ekle, iOS push)
 - Tailscale ile telefondan erişim + HTTPS (`tailscale serve`)
 - Basit auth: tek kullanıcı parolası + httpOnly session cookie
@@ -39,6 +44,8 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 - [ ] Windows açılınca o günün brifingi geliyor ("Günaydın Görkem, bugün...")
 - [ ] Hackathon followup'ı her gün soruluyor, "kabul geldi" deyince kapanıyor ve event'e dönüşüyor
 - [ ] iPhone'a push bildirimi düşüyor
+- [ ] 21:00'de check-in geliyor; "✓ Hepsi tamam" dersler + spor + görevleri tek change_set ile işaretliyor, "spor hariç hepsi tamam" sporu açık bırakıyor
+- [ ] Check-in'e cevap verilmezse ertesi sabah brifinginde tek satırla hatırlatılıyor, ikinci gün tekrar edilmiyor
 
 ## Faz 2 — Ses
 - Mikrofon butonu (web) → Groq Whisper → ajan
