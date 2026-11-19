@@ -10,8 +10,9 @@ the end the failover rate and invalid tool calls, so prompt changes can be compa
 
 import datetime as dt
 import os
+import time
 from collections import Counter
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from decimal import Decimal
 
 import pytest
@@ -36,9 +37,10 @@ IST_OFFSET = dt.timedelta(hours=3)
 
 @pytest.fixture
 async def router(session: AsyncSession) -> AsyncIterator[LLMRouter]:
-    if not env_value(get_settings(), "GROQ_API_KEY"):
-        pytest.skip("GROQ_API_KEY not set")
     config = load_providers_config()
+    fast = config.providers[config.tiers["fast"].provider]  # Groq or, with own key, Claude
+    if fast.api_key_env and not env_value(get_settings(), fast.api_key_env):
+        pytest.skip(f"{fast.api_key_env} not set")
     # Measurement mode: LIVE_RATE_LIMIT_WAIT=30 waits out Groq's per-minute limits instead
     # of failing over, so tool-call accuracy of the Groq models is measured on its own.
     wait = os.environ.get("LIVE_RATE_LIMIT_WAIT")
@@ -80,12 +82,17 @@ async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
     coordinator = Coordinator(router, get_team(), get_settings())
     replies: list[ChatReply] = []
 
+    durations: list[float] = []
+
     async def send(step: str, text: str) -> ChatReply:
+        started = time.monotonic()
         reply = await coordinator.handle(
             session, text, conversation_id=replies[0].conversation_id if replies else None, now=NOW
         )
+        durations.append(time.monotonic() - started)
         replies.append(reply)
         _report(step, reply)
+        print(f"  took {durations[-1]:.1f}s")
         return reply
 
     try:
@@ -152,10 +159,10 @@ async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
         assert await _count(session, Event) == 1
         assert await _count(session, BlockOverride) == len(found_overrides)
     finally:
-        await _summary(session, replies)
+        await _summary(session, replies, durations)
 
 
-async def _summary(session: AsyncSession, replies: list[ChatReply]) -> None:
+async def _summary(session: AsyncSession, replies: list[ChatReply], durations: list[float]) -> None:
     calls = [call for reply in replies for call in reply.llm_calls]
     rows = (await session.scalars(select(LlmUsage).order_by(LlmUsage.id))).all()
     errors = [row for row in rows if row.error]
@@ -175,3 +182,26 @@ async def _summary(session: AsyncSession, replies: list[ChatReply]) -> None:
     for row in errors:
         print(f"  [{row.tier}/{row.provider}] {row.error}")
     print(f"total cost: ${total} over {len(rows)} attempts")
+    for (tier, provider), group in _group(rows).items():
+        cost = sum((r.cost_usd for r in group), Decimal(0))
+        print(
+            f"  {tier}/{provider}: {len(group)} attempts, ${cost},"
+            f" input {sum(r.input_tokens for r in group)}"
+            f" + cache read {sum(r.cached_input_tokens for r in group)}"
+            f" + cache write {sum(r.cache_write_tokens for r in group)},"
+            f" output {sum(r.output_tokens for r in group)}"
+        )
+    latencies = sorted(r.latency_ms for r in rows if r.latency_ms is not None and not r.error)
+    if latencies:
+        print(
+            f"LLM call latency: median {latencies[len(latencies) // 2]} ms, max {latencies[-1]} ms"
+        )
+    steps = ", ".join(f"{d:.1f}s" for d in durations)
+    print(f"message wall time: {sum(durations):.1f}s total ({steps})")
+
+
+def _group(rows: Sequence[LlmUsage]) -> dict[tuple[str, str], list[LlmUsage]]:
+    groups: dict[tuple[str, str], list[LlmUsage]] = {}
+    for row in rows:
+        groups.setdefault((row.tier, row.provider), []).append(row)
+    return groups
