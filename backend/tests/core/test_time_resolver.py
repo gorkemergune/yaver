@@ -914,3 +914,62 @@ def test_to_dict_with_time_range_and_time_candidates() -> None:
         "end_time": "13:00",
     }
     assert res("cuma 7-9").to_dict()["time_candidates"] == ["07:00-09:00", "19:00-21:00"]
+
+
+# --- dates written with their weekday (notices, posters, messages) ----------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "27 Kasım Cuma",
+        "Cuma 27 Kasım",
+        "cuma, 27 kasım",
+        "27 kasım cuması",
+        "cuma 27 kasımda",
+        "27 Kasım 2026 Cuma",
+        "27.11",
+        "27/11",
+        "27.11 Cuma",
+        "cuma 27/11",
+        "Cuma, 27.11.2026",
+    ],
+)
+def test_day_month_with_weekday(text: str) -> None:
+    assert_day(res(text), "2026-11-27")
+
+
+def test_day_month_weekday_and_time() -> None:
+    result = res("27 Kasım Cuma 14:00")
+
+    assert_day(result, "2026-11-27")
+    assert result.time == dt.time(14)
+
+
+@pytest.mark.parametrize(
+    ("text", "candidates"),
+    [
+        ("28 Kasım Cuma", ("2026-11-27", "2026-11-28")),  # 28 Kasım is a Saturday
+        ("Perşembe 27 Kasım", ("2026-11-26", "2026-11-27")),
+        ("27.11 Pazar", ("2026-11-27", "2026-11-29")),
+    ],
+)
+def test_weekday_that_does_not_fit_is_asked_back(text: str, candidates: tuple[str, str]) -> None:
+    assert_ambiguous(res(text), Reason.WEEKDAY_MISMATCH, *candidates)
+
+
+def test_weekday_picks_the_year_when_it_is_open() -> None:
+    # "19 mayıs" alone is half a year away either way (Reason.YEAR); the weekday decides
+    assert_day(res("19 Mayıs Salı"), "2026-05-19")
+    assert_day(res("19 Mayıs Çarşamba"), "2027-05-19")
+
+
+def test_weekday_does_not_pull_a_date_into_another_year() -> None:
+    # 28 Kasım 2025 was a Friday, but "28 Kasım" next week is the date meant
+    result = resolve("28 Kasım Cuma", dt.date(2026, 11, 23), direction="future")
+
+    assert_ambiguous(result, Reason.WEEKDAY_MISMATCH, "2026-11-27", "2026-11-28")
+
+
+def test_impossible_date_with_weekday() -> None:
+    assert_unresolved(res("31 Kasım Pazartesi"), Reason.INVALID_DATE)

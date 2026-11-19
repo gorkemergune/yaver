@@ -83,6 +83,7 @@ class Reason(StrEnum):
     PAST_THIS_MONTH = "past_this_month"  # "ayın 15'i" on the 19th
     YEAR = "year"  # "19 mayıs" in November
     MORNING_TODAY_OR_TOMORROW = "morning_today_or_tomorrow"  # bare "sabah"
+    WEEKDAY_MISMATCH = "weekday_mismatch"  # "28 kasım cuma" when 28 Kasım is a Saturday
 
 
 class PartOfDay(StrEnum):
@@ -721,6 +722,49 @@ def _numeric_date(match: re.Match[str], ctx: _Context) -> _Outcome:
 def _iso_date(match: re.Match[str], ctx: _Context) -> _Outcome:
     value = _safe_date(int(match["year"]), int(match["m"]), int(match["d"]))
     return _day(value) if value else _Unresolved(Reason.INVALID_DATE)
+
+
+# --- dates with their weekday: "27 kasım cuma", "cuma 27 kasım", "27.11 cuma" ---------
+# The weekday is a check: it picks the year when that is open ("19 mayıs salı"), and a
+# weekday that does not fit the date is asked back with both readings.
+
+_DM_NAMED = rf"(?P<d>\d{{1,2}})\s*{_MON}(?:\s+(?P<year>\d{{4}}))?"
+_DM_NUMERIC = r"(?P<d>\d{1,2})[./](?P<m>\d{1,2})(?:[./](?P<year>\d{4}|\d{2}))?"
+
+
+def _weekday_checked(match: re.Match[str], ctx: _Context) -> _Outcome:
+    day = int(match["d"])
+    month = _MONTHS[match["mon"]] if match.groupdict().get("mon") else int(match["m"])
+    if not 1 <= month <= 12:
+        return _Unresolved(Reason.INVALID_DATE)
+    weekday = _weekday(match)
+    # The date is read as without the weekday; the weekday only confirms it, or picks
+    # between the years it could be - it never pulls the date to a year further away.
+    written = _dated(day, month, match["year"], ctx)
+    if isinstance(written, _Unresolved):
+        return written
+    readings = [written] if isinstance(written, DateSpan) else list(written.candidates)
+    fitting = [span for span in readings if span.start.weekday() == weekday]
+    if len(fitting) == 1:
+        return fitting[0]
+    if fitting:
+        return _Ambiguous(Reason.YEAR, tuple(fitting))
+    first = readings[0].start
+    return _ambiguous(Reason.WEEKDAY_MISMATCH, *sorted((first, _closest_weekday(first, weekday))))
+
+
+def _closest_weekday(value: dt.date, weekday: int) -> dt.date:
+    ahead = (weekday - value.weekday()) % 7
+    return value + dt.timedelta(days=ahead) if ahead <= 3 else value - dt.timedelta(days=7 - ahead)
+
+
+for _pattern in (
+    rf"{_DM_NAMED}\s+{_WD}",
+    rf"{_WD}\s+{_DM_NAMED}",
+    rf"{_DM_NUMERIC}\s+{_WD}",
+    rf"{_WD}\s+{_DM_NUMERIC}",
+):
+    _rule(_pattern)(_weekday_checked)
 
 
 # --- ranges: "28-29 kasım", "30 kasım - 2 aralık", "28 kasımdan 2 aralığa" ------------

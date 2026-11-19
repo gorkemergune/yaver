@@ -15,7 +15,6 @@ Anything unreadable or unresolvable is listed as "Belirsiz", never guessed.
 
 import datetime as dt
 import logging
-import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -30,7 +29,7 @@ from app.agent.tools.setup import (
     events_table,
     schedule_table,
 )
-from app.core.time_resolver import Resolution, Status, normalize, resolve
+from app.core.time_resolver import Reason, Resolution, Status, resolve
 from app.db.models import Proposal
 from app.db.models.enums import ProposalKind
 from app.llm.router import LLMUnavailableError
@@ -190,36 +189,15 @@ async def _events(
     return _with_unclear(f"{header}\n{events_table(entries)}", unclear)
 
 
-_WEEKDAY_WORD = re.compile(r"\b(pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar)\b")
-_WEEKDAY_INDEX = {
-    "pazartesi": 0,
-    "sali": 1,
-    "carsamba": 2,
-    "persembe": 3,
-    "cuma": 4,
-    "cumartesi": 5,
-    "pazar": 6,
-}
-
-
 def resolve_notice_date(
     text: str, today: dt.date, ctx: ToolContext
 ) -> tuple[Resolution | None, str]:
     """A notice's date as written ("27 Kasım Cuma 10:00", "27.11.2026") -> one day, or
-    (None, why). A whole month ("Aralık") or a weekday that does not match the date is not
-    a date: it is reported, never guessed."""
+    (None, why). A weekday that does not fit the date, a whole month ("Aralık") or no date
+    is reported, never guessed."""
     resolution = resolve(text, today, direction="future", clock=ctx.clock)
-    if resolution.status is not Status.RESOLVED:
-        # "27 Kasım Cuma": the weekday is a check, not part of the date
-        folded = normalize(text)
-        match = _WEEKDAY_WORD.search(folded)
-        if match is None:
-            return None, "tarih okunamadı"
-        rest = (folded[: match.start()] + folded[match.end() :]).strip(" ,")
-        resolution = resolve(rest, today, direction="future", clock=ctx.clock)
-        resolved = resolution.status is Status.RESOLVED and resolution.start is not None
-        if resolved and resolution.start.weekday() != _WEEKDAY_INDEX[match.group(1)]:  # type: ignore[union-attr]
-            return None, "gün adı tarihle uyuşmuyor"
+    if resolution.reason is Reason.WEEKDAY_MISMATCH:
+        return None, "gün adı tarihle uyuşmuyor"
     if resolution.status is not Status.RESOLVED or resolution.span is None:
         return None, "tarih okunamadı"
     if not resolution.span.is_single_day:
