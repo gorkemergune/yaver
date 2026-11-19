@@ -68,6 +68,9 @@ def system_suffix(ctx: ToolContext, memories: list[str]) -> str:
     ]
     if memories:
         lines += ["Kullanıcı hakkında bilinenler:", *(f"- {m}" for m in memories)]
+    # The last line the model reads before answering: the rules above are English and Haiku
+    # then sometimes answers in English.
+    lines.append("Cevabını Türkçe yaz.")
     return "\n".join(lines)
 
 
