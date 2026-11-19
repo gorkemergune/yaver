@@ -223,3 +223,12 @@ def test_no_fast_path_means_no_fast_path_rule() -> None:
 
     assert "Fast path" not in team.coordinator.system_prompt
     assert "cancel_block_on" not in [t.name for t in team.coordinator.tools]
+
+
+def test_prompts_allow_only_today_and_tomorrow_from_the_calendar() -> None:
+    team = example_team()
+
+    for prompt in (team.coordinator.system_prompt, team.agents[0].system_prompt):
+        assert '"bugün"' in prompt
+        assert '"yarın"' in prompt
+        assert "resolve_date" in prompt

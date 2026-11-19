@@ -57,7 +57,8 @@ def system_suffix(ctx: ToolContext, memories: list[str]) -> str:
     local = ctx.now.astimezone(ctx.tz)
     lines = [
         f"Şu an: {local:%Y-%m-%d %H:%M} {WEEKDAY_NAMES_TR[local.weekday()]} ({ctx.tz.key})",
-        "Takvim (bugün + 14 gün; tarih hesaplamak için yine resolve_date kullan):",
+        "Takvim (bugün + 14 gün). Sadece düz 'bugün' / 'yarın' buradan okunur; diğer her ifade "
+        "için resolve_date kullan:",
         format_calendar_context(build_calendar_context(local.date())),
     ]
     if memories:
