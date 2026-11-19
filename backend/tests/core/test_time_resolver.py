@@ -720,10 +720,10 @@ def test_format_calendar_context() -> None:
     text = format_calendar_context(build_calendar_context(THU))
     lines = text.splitlines()
 
-    assert len(lines) == 15
-    assert lines[0] == "2026-11-19 Perşembe (bugün, bu hafta)"
-    assert lines[1] == "2026-11-20 Cuma (yarın, bu hafta)"
-    assert lines[4] == "2026-11-23 Pazartesi (gelecek hafta)"
+    assert lines[:3] == ["[bu hafta]", "2026-11-19 Per bugün", "2026-11-20 Cum yarın"]
+    assert lines[3] == "2026-11-21 Cmt öbür gün"
+    assert lines[5:7] == ["[gelecek hafta]", "2026-11-23 Pzt"]
+    assert sum(1 for line in lines if not line.startswith("[")) == 15
 
 
 # --- direction: future / past ----------------------------------------------------------

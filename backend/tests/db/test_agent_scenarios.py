@@ -83,7 +83,7 @@ def week_setup_script() -> ScriptedLLM:
                     "weekdays": ["monday"],
                     "start_time": "09:00",
                     "end_time": "11:00",
-                    "course_name": "Linear Algebra",
+                    "course": "Linear Algebra",
                 },
             ),
             (
@@ -94,7 +94,7 @@ def week_setup_script() -> ScriptedLLM:
                     "weekdays": ["wednesday"],
                     "start_time": "13:00",
                     "end_time": "15:00",
-                    "course_code": "EE211",
+                    "course": "EE211",
                 },
             ),
         ),

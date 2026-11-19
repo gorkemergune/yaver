@@ -1050,10 +1050,22 @@ def build_calendar_context(today: dt.date, days: int = 14) -> list[CalendarDay]:
     return calendar
 
 
+WEEKDAY_SHORT_TR = ("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
+
+
 def format_calendar_context(calendar: list[CalendarDay]) -> str:
-    """One line per day for the system prompt, e.g. '2026-11-19 Perşembe (bugün, bu hafta)'."""
-    lines = []
+    """Compact lines for the system prompt (sent on every call, so every token counts):
+
+    [bu hafta]
+    2026-11-19 Per bugün
+    2026-11-20 Cum yarın
+    """
+    lines: list[str] = []
+    week = None
     for day in calendar:
-        labels = ", ".join(label for label in (day.relative, day.week) if label)
-        lines.append(f"{day.date.isoformat()} {day.weekday_name} ({labels})")
+        if day.week != week:
+            week = day.week
+            lines.append(f"[{week}]")
+        label = f" {day.relative}" if day.relative else ""
+        lines.append(f"{day.date.isoformat()} {WEEKDAY_SHORT_TR[day.date.weekday()]}{label}")
     return "\n".join(lines)

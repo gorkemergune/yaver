@@ -59,21 +59,17 @@ async def get_week_plan(args: DayArgs, ctx: ToolContext) -> ToolResult:
 
 class AddBlockArgs(BaseModel):
     kind: BlockKindName
-    title: str = Field(description="e.g. 'Linear Algebra', 'EE211 Lab', 'Spor', 'Medipol'")
-    weekdays: list[Weekday] = Field(min_length=1, description="one block per weekday")
-    start_time: dt.time = Field(description="HH:MM, 24h")
-    end_time: dt.time = Field(description="HH:MM, 24h")
+    title: str
+    weekdays: list[Weekday] = Field(min_length=1)
+    start_time: dt.time
+    end_time: dt.time
     location: str | None = None
-    course_code: str | None = Field(None, description="for class/lab, e.g. 'EE211'")
-    course_name: str | None = Field(None, description="for class/lab, e.g. 'Linear Algebra'")
-    valid_from: dt.date | None = None
-    valid_to: dt.date | None = None
+    course: str | None = Field(None, description="class/lab: code or name, e.g. EE211")
 
 
 @tool(
     "add_recurring_block",
-    "Add a weekly repeating block (class, lab, sport, work...) on one or more weekdays. "
-    "For class/lab the course is found or created from course_code / course_name.",
+    "Add a weekly block (class, lab, sport, work...) on one or more weekdays.",
     AddBlockArgs,
     mutates=True,
 )
@@ -84,9 +80,7 @@ async def add_recurring_block(args: AddBlockArgs, ctx: ToolContext) -> ToolResul
     course_created = False
     kind = BlockKind(args.kind)
     if kind in ACADEMIC_BLOCK_KINDS:
-        course, course_created = await find_or_create_course(
-            ctx, args.course_code, args.course_name or args.title
-        )
+        course, course_created = await find_or_create_course(ctx, args.course, args.title)
         course_id = course.id
     created, existing = [], []
     for weekday_name in dict.fromkeys(args.weekdays):
@@ -109,8 +103,6 @@ async def add_recurring_block(args: AddBlockArgs, ctx: ToolContext) -> ToolResul
             end_time=args.end_time,
             location=args.location,
             course_id=course_id,
-            valid_from=args.valid_from,
-            valid_to=args.valid_to,
         )
         ctx.session.add(block)
         await ctx.recorder.created(block)

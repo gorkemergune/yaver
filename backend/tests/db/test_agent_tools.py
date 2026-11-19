@@ -47,7 +47,7 @@ async def add_linear(session: AsyncSession) -> ToolContext:
         weekdays=["monday"],
         start_time="09:00",
         end_time="11:00",
-        course_name="Linear Algebra",
+        course="Linear Algebra",
     )
     assert "created" in result, result
     await session.commit()
@@ -66,7 +66,7 @@ async def test_add_block_creates_course_once_and_skips_duplicates(session: Async
         weekdays=["monday", "friday"],
         start_time="13:00",
         end_time="15:00",
-        course_name="linear",
+        course="linear",
     )
     duplicate = await tool(
         ctx,
@@ -118,7 +118,7 @@ async def test_ambiguous_block_returns_candidates(session: AsyncSession) -> None
         weekdays=["monday"],
         start_time="13:00",
         end_time="14:00",
-        course_name="Linear Algebra",
+        course="Linear Algebra",
     )
 
     result = await tool(ctx, "cancel_block_on", date="2026-11-23", block="linear")
