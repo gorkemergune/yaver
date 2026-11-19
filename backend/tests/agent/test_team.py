@@ -175,6 +175,14 @@ def test_matching(query: str, names: tuple[str, ...], expected: bool) -> None:
     assert matches(query, *names) is expected
 
 
+def test_a_model_without_its_provider_is_rejected() -> None:
+    data = _example()
+    data["agents"][0]["model"] = "openai/gpt-oss-20b"  # old format: provider unknown
+
+    with pytest.raises(ValidationError, match=r"model: \{groq: openai/gpt-oss-20b\}"):
+        TeamConfig.model_validate(data)
+
+
 def test_per_yaver_model_override() -> None:
     from app.agent.team import model_overrides
 
@@ -190,8 +198,8 @@ def test_per_yaver_model_override() -> None:
         }
     )
 
-    assert team.coordinator.model is None
-    assert {a.model for a in team.agents} == {"openai/gpt-oss-20b"}
+    assert team.coordinator.model == {}
+    assert [dict(a.model) for a in team.agents] == [{"groq": "openai/gpt-oss-20b"}] * 3
     assert model_overrides(config, providers) == [
         ("academic model", "groq", "openai/gpt-oss-20b"),
         ("agenda model", "groq", "openai/gpt-oss-20b"),

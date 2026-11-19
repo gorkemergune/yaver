@@ -1,4 +1,15 @@
 // User-facing strings (Turkish). Code stays in English; every UI text lives here.
+const PROVIDER_NAMES: Record<string, string> = {
+  anthropic: "Claude",
+  groq: "Groq",
+  openrouter: "OpenRouter",
+  ollama: "Ollama",
+};
+
+function providerName(provider: string): string {
+  return PROVIDER_NAMES[provider] ?? `${provider.charAt(0).toUpperCase()}${provider.slice(1)}`;
+}
+
 export const tr = {
   appName: "Yaver",
   nav: {
@@ -33,8 +44,7 @@ export const tr = {
     micSoon: "Sesli komut yakında (Faz 2)",
     newChat: "Yeni sohbet",
     thinking: "düşünüyor…",
-    waiting: (provider: string) =>
-      `${provider.charAt(0).toUpperCase()}${provider.slice(1)} yoğun, birkaç saniye bekliyorum…`,
+    waiting: (provider: string) => `${providerName(provider)} yoğun, birkaç saniye bekliyorum…`,
     errors: {
       llm_unavailable: "Şu an hiçbir model yanıt veremedi (kota veya bağlantı). Biraz sonra tekrar dene.",
       internal: "Bir şeyler ters gitti; hiçbir değişiklik kaydedilmedi.",

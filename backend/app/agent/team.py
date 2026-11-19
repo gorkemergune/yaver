@@ -1,12 +1,13 @@
 """The Yaver team from config/agents(.example).yaml, validated at load time."""
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.agent.tools import PLANNED_TOOLS, REGISTRY, Tool
 from app.core.time_resolver import normalize
@@ -43,11 +44,22 @@ class MemberConfig(_Strict):
     name: str
     persona: str
     tier: str = "fast"
-    # Optional: another model of the tier's provider for this yaver (failover tiers keep
-    # their own model). Groq rate limits are per model, so this also spreads the load.
-    model: str | None = None
+    # Optional, per provider: {groq: openai/gpt-oss-20b} = whenever this yaver's call runs on
+    # Groq (fast or fallback tier), use that model. Other providers keep the tier's model.
+    # Groq rate limits are per model, so this also spreads the load.
+    model: dict[str, str] = Field(default_factory=dict)
     color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")  # label colour in the UI
     tools: list[str] = Field(default_factory=list)
+
+    @field_validator("model", mode="before")
+    @classmethod
+    def _model_per_provider(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            raise ValueError(
+                f"model must name its provider, e.g. model: {{groq: {value}}} "
+                "(fast may be Claude in your providers.yaml)"
+            )
+        return value if value is not None else {}
 
 
 class AgentConfig(MemberConfig):
@@ -108,7 +120,7 @@ class Member:
     tools: tuple[Tool, ...]
     can_delegate: bool = False
     domain: str = ""
-    model: str | None = None
+    model: Mapping[str, str] = field(default_factory=dict)  # provider -> model
     color: str = "#6366f1"
 
     def tool_specs(self, delegate_spec: ToolSpec | None = None) -> list[ToolSpec]:
@@ -225,9 +237,10 @@ def build_team(
 def model_overrides(config: TeamConfig, providers: ProvidersConfig) -> list[tuple[str, str, str]]:
     """(target, provider, model) for every yaver with its own model, for model checks."""
     return [
-        (f"{member.id} model", providers.tiers[member.tier].provider, member.model)
+        (f"{member.id} model", provider, model)
         for member in (config.coordinator, *config.agents)
-        if member.model and member.tier in providers.tiers
+        for provider, model in member.model.items()
+        if provider in providers.providers
     ]
 
 

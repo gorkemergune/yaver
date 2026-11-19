@@ -1,11 +1,13 @@
 """Monthly Claude budget guard (CLAUDE_MONTHLY_BUDGET_USD).
 
 >= downgrade_at (80%): tiers are downgraded (smart -> fallback).
->= limit_at (100%):    only `allowed_at_limit` tiers (fast, local) may run.
+>= limit_at (100%):    tiers on the budgeted provider (Claude) are dropped from the chain,
+                       whichever tier name they have (fast may be Haiku). A chain with
+                       nothing left uses `allowed_at_limit` (also minus Claude tiers).
 """
 
 import datetime as dt
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -56,8 +58,11 @@ class BudgetGuard:
         store: UsageStore,
         tz: ZoneInfo,
         clock: Callable[[], dt.datetime] = _utc_now,
+        *,
+        tier_providers: Mapping[str, str],
     ) -> None:
         self.config = config
+        self._tier_providers = dict(tier_providers)
         self.limit_usd = limit_usd
         self._store = store
         self._tz = tz
@@ -77,6 +82,10 @@ class BudgetGuard:
         if level is BudgetLevel.DOWNGRADE:
             chain = [self.config.downgrade.get(tier, tier) for tier in chain]
         elif level is BudgetLevel.LIMIT:
-            allowed = self.config.allowed_at_limit
-            chain = [tier if tier in allowed else allowed[0] for tier in chain]
+            chain = [tier for tier in chain if not self._budgeted(tier)]
+            if not chain:
+                chain = [t for t in self.config.allowed_at_limit if not self._budgeted(t)]
         return list(dict.fromkeys(chain))
+
+    def _budgeted(self, tier: str) -> bool:
+        return self._tier_providers.get(tier) == self.config.provider

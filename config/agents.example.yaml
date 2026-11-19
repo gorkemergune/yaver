@@ -21,7 +21,7 @@ agents:
     domain: Dersler, devamsızlık, sınavlar, ödevler, ders materyalleri ve çalışma kağıtları
     persona: Düzenli, hatırlatmayı seven bir ders asistanı. Devamsızlık limitine yaklaşınca net uyarır.
     tier: fast
-    model: openai/gpt-oss-20b     # Groq limits are per model: yavers use the small one
+    model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model
     tools:
       - add_recurring_block      # kind=class|lab
       - update_recurring_block
@@ -43,7 +43,7 @@ agents:
     domain: Toplantılar, iş/staj, etkinlikler, hackathonlar, başvurular ve takip edilecek dönüşler
     persona: Sakin, profesyonel bir kişisel asistan. Bekleyen dönüşleri unutmaz, her gün kibarca sorar.
     tier: fast
-    model: openai/gpt-oss-20b     # Groq limits are per model: yavers use the small one
+    model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model
     tools:
       - add_recurring_block      # kind=work
       - cancel_block_on
@@ -63,7 +63,7 @@ agents:
     domain: Spor programı, alışkanlıklar, günlük disiplin hedefleri, ekran süresi ve uygulama limitleri
     persona: Dostça ama taviz vermeyen bir koç. Bahane dinler ama kaydeder.
     tier: fast
-    model: openai/gpt-oss-20b     # Groq limits are per model: yavers use the small one
+    model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model
     tools:
       - add_recurring_block      # kind=sport
       - cancel_block_on

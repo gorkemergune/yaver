@@ -2,6 +2,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.llm.config import ProvidersConfig
 from app.llm.router import LLMUnavailableError, estimate_tokens, fit_prompt, tool_call_problems
 from app.llm.types import ChatMessage, LLMRequest, ProviderError, ToolCall
 from tests.llm.fakes import (
@@ -351,12 +352,12 @@ async def test_router_trims_for_tiers_with_a_prompt_limit() -> None:
     assert sent.messages[-1].content == "son soru"
 
 
-async def test_model_override_applies_to_the_requested_tier_only() -> None:
+async def test_model_override_applies_to_its_provider_only() -> None:
     groq = FakeProvider("groq", [rate_limited("groq")])
     claude = FakeProvider("claude")
     router, store = make_router({"groq": groq, "claude": claude})
 
-    response = await router.complete(request(), model="small-model")
+    response = await router.complete(request(), model={"groq": "small-model"})
 
     assert groq.calls[0][1] == "small-model"
     assert claude.calls[0][1] == "haiku"  # failover keeps the fallback tier's own model
@@ -370,9 +371,72 @@ async def test_model_override_is_dropped_when_the_budget_changes_the_tier() -> N
     claude = FakeProvider("claude")
     router, _ = make_router({"claude": claude}, store=store_with("0.85"))
 
-    await router.complete(request(), tier="smart", model="sonnet-special")
+    await router.complete(request(), tier="smart", model={"claude": "sonnet-special"})
 
     assert claude.calls[0][1] == "haiku"
+
+
+def claude_first_config() -> ProvidersConfig:
+    """The "own Claude key" layout: fast = Haiku, fallback = Groq."""
+    base = make_config()
+    tiers = {
+        **base.tiers,
+        "fast": base.tiers["fallback"],  # claude / haiku
+        "fallback": base.tiers["fast"],  # groq / fast-model
+    }
+    return base.model_copy(update={"tiers": tiers})
+
+
+async def test_claude_first_layout_fails_over_to_groq_with_the_yaver_model() -> None:
+    claude = FakeProvider(
+        "claude", [ProviderError("claude", "overloaded", retryable=True, status_code=529)]
+    )
+    groq = FakeProvider("groq")
+    router, store = make_router({"claude": claude, "groq": groq}, config=claude_first_config())
+
+    response = await router.complete(request(), model={"groq": "small-model"})
+
+    assert claude.calls[0][1] == "haiku"
+    assert groq.calls[0][1] == "small-model"  # Groq as fallback still uses the yaver's model
+    assert [r.tier for r in store.records] == ["fast", "fallback"]
+    assert response.provider == "groq"
+
+
+async def test_claude_first_layout_rate_limit_waits_follow_the_provider() -> None:
+    claude = FakeProvider(
+        "claude",
+        [ProviderError("claude", "busy", retryable=True, status_code=429, retry_after=5.0)],
+    )
+    groq = FakeProvider("groq")
+    slept: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    router, _ = make_router({"claude": claude, "groq": groq}, config=claude_first_config())
+    router.wait_limits = {"groq": 8.0}  # Claude keeps the 3 s default: 5 s -> fail over
+    router._sleep = sleep
+
+    response = await router.complete(request())
+
+    assert slept == []
+    assert response.provider == "groq"
+
+
+async def test_claude_first_layout_budget_limit_drops_claude_fast_tier() -> None:
+    from tests.llm.test_budget import store_with
+
+    claude = FakeProvider("claude")
+    groq = FakeProvider("groq")
+    router, _ = make_router(
+        {"claude": claude, "groq": groq}, config=claude_first_config(), store=store_with("1.00")
+    )
+
+    response = await router.complete(request(), model={"groq": "small-model"})
+
+    assert claude.calls == []
+    assert response.provider == "groq"
+    assert groq.calls[0][1] == "small-model"
 
 
 def test_nullable_optional_arguments_are_valid() -> None:

@@ -288,7 +288,7 @@ async def test_addressing_a_yaver_by_name_skips_the_coordinator(session: AsyncSe
 
     assert reply.speaker == "academic"
     assert [agent for agent, _ in llm.requests] == ["academic"] * 3
-    assert llm.models == ["openai/gpt-oss-20b"] * 3  # per-yaver model from agents.yaml
+    assert llm.models == [{"groq": "openai/gpt-oss-20b"}] * 3  # per-yaver model from agents.yaml
     assert llm.requests[0][1].messages[-1].content == "yarın ne var?"
 
 

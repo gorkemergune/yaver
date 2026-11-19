@@ -3,7 +3,7 @@ request, to use earlier tool results the way a real model would)."""
 
 import datetime as dt
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
 from itertools import count
 from pathlib import Path
@@ -55,7 +55,7 @@ class ScriptedLLM:
     def __init__(self, scripts: dict[str, list[Step]] | None = None) -> None:
         self.scripts: dict[str, list[Step]] = {k: list(v) for k, v in (scripts or {}).items()}
         self.requests: list[tuple[str | None, LLMRequest]] = []
-        self.models: list[str | None] = []
+        self.models: list[Mapping[str, str] | None] = []
         self.purposes: list[str] = []
 
     def add(self, agent_id: str, *steps: Step) -> None:
@@ -69,7 +69,7 @@ class ScriptedLLM:
         tier: str | None = None,
         agent_id: str | None = None,
         ignore_budget: bool = False,
-        model: str | None = None,
+        model: Mapping[str, str] | None = None,
         on_text: Callable[[str], Awaitable[None]] | None = None,
         on_retry: Callable[[], Awaitable[None]] | None = None,
         on_wait: Callable[[float, str], Awaitable[None]] | None = None,

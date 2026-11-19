@@ -202,5 +202,12 @@ def make_router(
     store = store or InMemoryUsageStore()
     for name in config.providers:
         providers.setdefault(name, FakeProvider(name))
-    budget = BudgetGuard(config.budget, Decimal(limit_usd), store, IST, clock=lambda: NOW)
+    budget = BudgetGuard(
+        config.budget,
+        Decimal(limit_usd),
+        store,
+        IST,
+        clock=lambda: NOW,
+        tier_providers={name: tier.provider for name, tier in config.tiers.items()},
+    )
     return LLMRouter(config, providers, FAKE_PRICES, store, budget), store

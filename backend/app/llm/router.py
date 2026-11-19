@@ -173,17 +173,20 @@ class LLMRouter:
         tier: str | None = None,
         agent_id: str | None = None,
         ignore_budget: bool = False,
-        model: str | None = None,
+        model: Mapping[str, str] | None = None,
         on_text: TextCallback | None = None,
         on_retry: Callable[[], Awaitable[None]] | None = None,
         on_wait: WaitCallback | None = None,
     ) -> LLMResponse:
-        """`model` overrides the requested tier's model (same provider, e.g. a smaller model
-        for one yaver). Failover / budget tiers keep their own models."""
+        """`model` maps provider -> model: every tier of the chain on that provider uses it
+        (e.g. a smaller Groq model for one yaver, whether Groq is the fast or the fallback
+        tier). Tiers on other providers, and tiers a budget downgrade swaps in, keep their
+        own models."""
         requested = tier or self.config.tier_for_purpose(purpose)
         if requested not in self.config.tiers:
             raise ValueError(f"unknown tier {requested!r}")
         chain = self.chain_for(requested)
+        own_chain = set(chain)  # tiers a budget downgrade swaps in don't take the override
         if not ignore_budget:
             status = await self.budget.status()
             chain = self.budget.apply(chain, status.level)
@@ -193,7 +196,9 @@ class LLMRouter:
         attempts: list[str] = []
         stream = _Stream(on_text, on_retry, on_wait)
         for tier_name in chain:
-            override = model if tier_name == requested else None
+            override = None
+            if tier_name in own_chain:
+                override = (model or {}).get(self.config.tiers[tier_name].provider)
             response = await self._try_tier(
                 tier_name, request, purpose, agent_id, attempts, override, stream
             )
@@ -423,7 +428,11 @@ def build_router(
     config = config or load_providers_config()
     store = store or DbUsageStore(get_sessionmaker())
     budget = BudgetGuard(
-        config.budget, Decimal(str(settings.claude_monthly_budget_usd)), store, settings.tz
+        config.budget,
+        Decimal(str(settings.claude_monthly_budget_usd)),
+        store,
+        settings.tz,
+        tier_providers={name: tier.provider for name, tier in config.tiers.items()},
     )
     return LLMRouter(
         config,

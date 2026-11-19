@@ -9,7 +9,7 @@ With `emit`, progress is published as events for the streaming chat endpoint:
 """
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -40,7 +40,7 @@ class LLMClient(Protocol):
         tier: str | None = None,
         agent_id: str | None = None,
         ignore_budget: bool = False,
-        model: str | None = None,
+        model: Mapping[str, str] | None = None,
         on_text: TextCallback | None = None,
         on_retry: Callable[[], Awaitable[None]] | None = None,
         on_wait: Callable[[float, str], Awaitable[None]] | None = None,

@@ -1,6 +1,11 @@
 # ÖRNEK dosya. Kendi kurulumun için config/providers.yaml olarak kopyala (o dosya .gitignore'da).
 # Model IDs change often — check each provider's console and update here, never in code.
 # Verify the models exist with:  docker compose exec api python -m app.llm.check_models
+#
+# Default: fast = Groq (free tier, 8k tokens/min per model), fallback = Claude Haiku.
+# Own Claude key? Recommended: swap them - fast = Haiku, fallback = Groq (README:
+# "Kendi Claude key'in varsa"). Failover, rate-limit waits, per-yaver models and the budget
+# guard follow the provider, not the tier name, so both layouts work unchanged.
 
 tiers:
   fast:
@@ -27,7 +32,7 @@ providers:
     type: openai_compat
     base_url: https://api.groq.com/openai/v1
     api_key_env: GROQ_API_KEY
-    rate_limit_max_wait_seconds: 8     # 429 "try again in <=8s": wait; longer -> Haiku
+    rate_limit_max_wait_seconds: 8     # 429 "try again in <=8s": wait; longer -> next tier
     rate_limit_max_wait_env: GROQ_MAX_RETRY_WAIT_SEC  # .env value wins over the line above
   openrouter:
     type: openai_compat
@@ -63,5 +68,5 @@ budget:
   downgrade_at: 0.8              # >= 80%: tiers below are downgraded
   downgrade:
     smart: fallback
-  limit_at: 1.0                  # >= 100%: only these tiers may be used
-  allowed_at_limit: [fast, local]
+  limit_at: 1.0                  # >= 100%: tiers on this provider are dropped from the chain
+  allowed_at_limit: [fast, local] # ... and a chain with nothing left uses these (minus Claude)
