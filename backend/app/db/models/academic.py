@@ -1,6 +1,6 @@
 """Academic calendar: terms, holidays, courses."""
 
-from datetime import date
+import datetime as dt
 
 from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -16,10 +16,10 @@ class Term(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
-    start_date: Mapped[date]
-    end_date: Mapped[date]
+    start_date: Mapped[dt.date]
+    end_date: Mapped[dt.date]
 
-    def contains(self, day: date) -> bool:
+    def contains(self, day: dt.date) -> bool:
         return self.start_date <= day <= self.end_date
 
 
@@ -34,10 +34,10 @@ class Holiday(TimestampMixin, Base):
         ForeignKey("terms.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(100))
-    start_date: Mapped[date]
-    end_date: Mapped[date]
+    start_date: Mapped[dt.date]
+    end_date: Mapped[dt.date]
 
-    def contains(self, day: date) -> bool:
+    def contains(self, day: dt.date) -> bool:
         return self.start_date <= day <= self.end_date
 
 
