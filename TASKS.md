@@ -6,7 +6,7 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Repo yapısı (CLAUDE.md'deki klasör yapısı), `.gitignore`, `.env.example`
 - [x] `docker-compose.yml`: `db` (pgvector/pgvector:pg16), `api` (FastAPI, uvicorn --reload dev'de), `web` (Vite dev / nginx prod)
 - [x] Backend: FastAPI app, `config.py` (pydantic-settings), `/health`
-- [ ] Alembic kurulumu, async SQLAlchemy session
+- [x] Alembic kurulumu, async SQLAlchemy session
 - [ ] Frontend: Vite + React + TS + Tailwind + TanStack Query, boş sohbet ekranı
 - [ ] ruff, mypy, pytest, eslint ayarları
 
