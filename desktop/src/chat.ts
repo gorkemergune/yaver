@@ -222,6 +222,8 @@ const apiUrlEnv = byId("api-url-env", HTMLElement);
 const saveUrl = byId("save-url", HTMLButtonElement);
 const testUrl = byId("test-url", HTMLButtonElement);
 const settingsStatus = byId("settings-status", HTMLElement);
+const autostart = byId("autostart", HTMLInputElement);
+const autostartStatus = byId("autostart-status", HTMLElement);
 
 function setStatus(text: string, kind: "ok" | "err" | "" = ""): void {
   settingsStatus.textContent = text;
@@ -234,7 +236,27 @@ async function loadSettings(): Promise<void> {
   apiUrl.value = settings.api_url;
   apiUrlHint.textContent = tr.settings.apiUrlHint(settings.default_api_url);
   apiUrlEnv.hidden = !settings.api_url_from_env;
+  autostart.checked = settings.autostart;
+  autostartStatus.textContent = "";
 }
+
+autostart.addEventListener("change", () => {
+  autostart.disabled = true;
+  api
+    .setAutostart(autostart.checked)
+    .then((enabled) => {
+      autostart.checked = enabled;
+      autostartStatus.textContent = "";
+    })
+    .catch(() => {
+      autostart.checked = !autostart.checked;
+      autostartStatus.textContent = tr.settings.autostartFailed;
+      autostartStatus.className = "status err";
+    })
+    .finally(() => {
+      autostart.disabled = false;
+    });
+});
 
 async function refreshTeam(): Promise<Team> {
   team = await api.team();
@@ -285,6 +307,8 @@ function init(): void {
   apiUrlEnv.textContent = tr.settings.apiUrlFromEnv;
   saveUrl.textContent = tr.settings.save;
   testUrl.textContent = tr.settings.test;
+  byId("autostart-label", HTMLElement).textContent = tr.settings.autostart;
+  byId("autostart-hint", HTMLElement).textContent = tr.settings.autostartHint;
   renderEmpty();
   showView("chat");
   // Names/colors are nice to have; the chat works without them.

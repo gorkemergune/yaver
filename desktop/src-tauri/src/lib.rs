@@ -1,6 +1,8 @@
 mod api;
+mod autostart;
 mod config;
 mod layout;
+mod tray;
 mod windows;
 
 use serde::Serialize;
@@ -89,15 +91,26 @@ struct Settings {
     default_api_url: &'static str,
     /// The address comes from `YAVER_API_URL`; saving a new one has no effect until it is unset.
     api_url_from_env: bool,
+    /// Starts with the Windows session.
+    autostart: bool,
 }
 
 #[tauri::command]
-fn get_settings(state: State<'_, AppState>) -> Settings {
+fn get_settings(app: AppHandle, state: State<'_, AppState>) -> Settings {
     Settings {
         api_url: state.api_url(),
         default_api_url: api::DEFAULT_API_URL,
         api_url_from_env: env_api_url().is_some(),
+        autostart: autostart::is_enabled(&app),
     }
+}
+
+/// Turns login autostart on/off; returns the resulting state.
+#[tauri::command]
+fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    let result = autostart::set(&app, enabled);
+    tray::sync(&app);
+    result.map(|()| autostart::is_enabled(&app))
 }
 
 /// Saves a new backend address; returns it normalized.
@@ -140,7 +153,17 @@ async fn get_team(state: State<'_, AppState>) -> Result<Value, api::ApiError> {
 
 pub fn run() {
     tauri::Builder::default()
+        // Must be registered first: a second launch (e.g. autostart + a manual start)
+        // exits right away and just opens the chat of the running one.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = windows::reveal_bubble(app);
+            let _ = windows::show_chat(app);
+        }))
+        .plugin(autostart::plugin())
         .setup(|app| {
+            if std::env::args().any(|arg| arg == autostart::LAUNCH_ARG) {
+                log::info!("started at login");
+            }
             let config_dir = app.path().app_config_dir()?;
             let config = config::load(&config_dir);
             let saved_position = config.bubble_position;
@@ -151,6 +174,7 @@ pub fn run() {
                 api: api::Client::new(),
             });
             windows::show_bubble(app.handle(), saved_position)?;
+            tray::create(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -169,6 +193,7 @@ pub fn run() {
             hide_chat,
             get_settings,
             set_api_url,
+            set_autostart,
             send_chat,
             undo_changes,
             get_team

@@ -12,6 +12,7 @@ export interface Settings {
   api_url: string;
   default_api_url: string;
   api_url_from_env: boolean;
+  autostart: boolean;
 }
 
 export interface Change {
@@ -49,6 +50,7 @@ export interface Team {
 export const api = {
   settings: () => invoke<Settings>("get_settings"),
   setApiUrl: (url: string) => invoke<string>("set_api_url", { url }),
+  setAutostart: (enabled: boolean) => invoke<boolean>("set_autostart", { enabled }),
   chat: (message: string, conversationId: number | null) =>
     invoke<ChatResponse>("send_chat", { message, conversationId }),
   undo: (changeSetId: string) => invoke<unknown>("undo_changes", { changeSetId }),

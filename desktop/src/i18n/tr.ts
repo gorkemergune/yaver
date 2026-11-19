@@ -30,6 +30,9 @@ export const tr = {
     test: "Bağlantıyı dene",
     testing: "Deneniyor…",
     connected: (names: string) => `Bağlandı: ${names}`,
+    autostart: "Windows oturumu açılınca başlat",
+    autostartHint: "Sağ alttaki tepsi simgesinden de açılıp kapatılabilir.",
+    autostartFailed: "Otomatik başlatma ayarlanamadı.",
   },
   errors: {
     invalid_url: "Geçersiz adres. Örnek: http://localhost:8080",

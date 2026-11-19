@@ -58,6 +58,13 @@ pub fn show_bubble<R: Runtime>(app: &AppHandle<R>, saved: Option<(i32, i32)>) ->
     bubble.show()
 }
 
+/// Shows the logo again (e.g. from the tray) without moving it.
+pub fn reveal_bubble<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    let bubble = window(app, BUBBLE)?;
+    bubble.show()?;
+    bubble.set_always_on_top(true)
+}
+
 /// Shows the chat next to the logo, or hides it if it is already open.
 pub fn toggle_chat<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let chat = window(app, CHAT)?;
