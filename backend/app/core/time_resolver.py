@@ -20,7 +20,21 @@ Conventions:
 - A day-month without a year ("5 ocak") takes the nearest occurrence; AMBIGUOUS when the
   past and future occurrences are about equally far (~6 months away).
 - "ayın 15'i" after the 15th has passed -> AMBIGUOUS (this month's / next month's).
-- Clock times are only accepted as HH:MM; "14'te" is UNRESOLVED (day 14 or 14:00?).
+
+Direction (what the caller is doing) removes readings instead of guessing:
+- FUTURE (adding events/blocks): readings that already ended are dropped
+  ("bu salı" on Thursday -> next Tuesday, "19 mayıs" in November -> next May).
+- PAST (logging attendance, "gitmedim"): readings that start after today are dropped,
+  and a bare weekday means the last one ("cuma" -> last Friday).
+- ANY (default): nothing is dropped.
+One reading left -> RESOLVED, several -> AMBIGUOUS, none -> UNRESOLVED (direction_conflict).
+
+Clock times (in Turkish a time takes the locative: "14'te", a date the possessive:
+"14'ünde"):
+- "14:00", "9:15" are literal 24h times; "14'te", "saat 14", "11-13" too when an hour is
+  12 or more. "akşam 8'de" -> 20:00.
+- "9'da", "3'te", "9-11" without a part of day -> AMBIGUOUS (`am_or_pm`): the date is
+  kept in `span`, the readings are in `time_candidates`.
 """
 
 import datetime as dt
@@ -42,8 +56,16 @@ class Status(StrEnum):
     UNRESOLVED = "unresolved"
 
 
+class Direction(StrEnum):
+    FUTURE = "future"
+    PAST = "past"
+    ANY = "any"
+
+
 class Reason(StrEnum):
     EMPTY = "empty"
+    DIRECTION_CONFLICT = "direction_conflict"  # "dün" asked as future
+    AM_OR_PM = "am_or_pm"  # "yarın 9'da": 09:00 or 21:00?
     UNRECOGNIZED = "unrecognized"
     INVALID_DATE = "invalid_date"
     INVALID_TIME = "invalid_time"
@@ -98,13 +120,27 @@ class DateSpan:
 
 
 @dataclass(frozen=True, slots=True)
+class TimeSlot:
+    start: dt.time
+    end: dt.time | None = None
+
+    def __str__(self) -> str:
+        start = self.start.strftime("%H:%M")
+        return f"{start}-{self.end.strftime('%H:%M')}" if self.end else start
+
+
+@dataclass(frozen=True, slots=True)
 class Resolution:
+    """`span` is set when the date is known, even if only the clock time is ambiguous."""
+
     text: str
     status: Status
     span: DateSpan | None = None
     part_of_day: PartOfDay | None = None
     time: dt.time | None = None
+    end_time: dt.time | None = None
     candidates: tuple[DateSpan, ...] = ()
+    time_candidates: tuple[TimeSlot, ...] = ()
     reason: Reason | None = None
 
     @property
@@ -124,8 +160,12 @@ class Resolution:
             data["part_of_day"] = self.part_of_day.value
         if self.time:
             data["time"] = self.time.strftime("%H:%M")
+        if self.end_time:
+            data["end_time"] = self.end_time.strftime("%H:%M")
         if self.candidates:
             data["candidates"] = [c.to_dict() for c in self.candidates]
+        if self.time_candidates:
+            data["time_candidates"] = [str(slot) for slot in self.time_candidates]
         if self.reason:
             data["reason"] = self.reason.value
         return data
@@ -198,7 +238,21 @@ _VAGUE = frozenset(
 )  # fmt: skip
 _APPROX = re.compile(r"\s+(?:gibi|civari\w*|sular\w*|falan|filan|veya\s+sonrasi)$")
 _UNTIL = re.compile(r"(?:^|\s+)(?:kadar|dek|degin)$")
-_TIME = re.compile(r"(?<![\d.:/])(?:saat\s+)?(?P<h>\d{1,2}):(?P<mi>\d{2})[a-z]*(?![\d:])")
+# Clock times, tried in this order. Each match is removed from the phrase before date rules.
+_NOT_A_DATE_AHEAD = rf"(?![a-z]*\s*(?:{_alternation(_MONTHS)}))"  # "28-29 kasım" is a date range
+_TIME_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "range",  # "11-13", "11:00-13:30", "saat 9-11 arası"
+        re.compile(
+            r"(?<![\d.:/-])(?:saat\s+)?(?P<h>\d{1,2})(?::(?P<mi>\d{2}))?\s*-\s*"
+            rf"(?P<h2>\d{{1,2}})(?::(?P<mi2>\d{{2}}))?(?![\d:]){_NOT_A_DATE_AHEAD}"
+            r"[a-z]*(?:\s+aras\w*)?"
+        ),
+    ),
+    ("colon", re.compile(r"(?<![\d.:/])(?:saat\s+)?(?P<h>\d{1,2}):(?P<mi>\d{2})[a-z]*(?![\d:])")),
+    ("saat", re.compile(r"(?<![a-z0-9])saat\s+(?P<h>\d{1,2})[a-z]*(?![\d:])")),
+    ("locative", re.compile(r"(?<![\d.:/-])(?P<h>\d{1,2})[dt][ae](?![a-z0-9])")),  # 14'te
+)
 _SAME_WEEK_DAYS = dt.timedelta(days=7)
 # Past/future candidates closer than this to each other's distance are ambiguous.
 _NEAREST_MARGIN_DAYS = 31
@@ -294,24 +348,53 @@ def _distance(span: DateSpan, today: dt.date) -> int:
     return min(abs((span.start - today).days), abs((span.end - today).days))
 
 
-def _nearest(candidates: list[DateSpan], today: dt.date) -> _Outcome:
-    """Pick the occurrence closest to today; ambiguous if two are about equally close."""
-    if not candidates:
-        return _Unresolved(Reason.INVALID_DATE)
-    ranked = sorted(candidates, key=lambda span: _distance(span, today))
-    if (
-        len(ranked) > 1
-        and _distance(ranked[1], today) - _distance(ranked[0], today) < _NEAREST_MARGIN_DAYS
-    ):
-        return _Ambiguous(Reason.YEAR, tuple(sorted(ranked[:2], key=lambda s: s.start)))
-    return ranked[0]
-
-
 @dataclass(frozen=True, slots=True)
 class _Context:
     today: dt.date
     term_start: dt.date | None
     term_end: dt.date | None
+    direction: Direction = Direction.ANY
+
+
+def _fits(span: DateSpan, ctx: _Context) -> bool:
+    if ctx.direction is Direction.FUTURE:
+        return span.end >= ctx.today
+    if ctx.direction is Direction.PAST:
+        return span.start <= ctx.today
+    return True
+
+
+def _nearest(candidates: list[DateSpan], ctx: _Context) -> _Outcome:
+    """Pick the occurrence closest to today (in the allowed direction); ambiguous if two
+    are about equally close."""
+    if not candidates:
+        return _Unresolved(Reason.INVALID_DATE)
+    fitting = [span for span in candidates if _fits(span, ctx)]
+    if not fitting:
+        return _Unresolved(Reason.DIRECTION_CONFLICT)
+    ranked = sorted(fitting, key=lambda span: _distance(span, ctx.today))
+    if (
+        len(ranked) > 1
+        and _distance(ranked[1], ctx.today) - _distance(ranked[0], ctx.today) < _NEAREST_MARGIN_DAYS
+    ):
+        return _Ambiguous(Reason.YEAR, tuple(sorted(ranked[:2], key=lambda s: s.start)))
+    return ranked[0]
+
+
+def _apply_direction(outcome: _Outcome, ctx: _Context) -> _Outcome:
+    """Drop readings that contradict the direction; one left -> resolved."""
+    if ctx.direction is Direction.ANY:
+        return outcome
+    if isinstance(outcome, DateSpan):
+        return outcome if _fits(outcome, ctx) else _Unresolved(Reason.DIRECTION_CONFLICT)
+    if isinstance(outcome, _Ambiguous) and outcome.candidates:
+        kept = tuple(span for span in outcome.candidates if _fits(span, ctx))
+        if not kept:
+            return _Unresolved(Reason.DIRECTION_CONFLICT)
+        if len(kept) == 1:
+            return kept[0]
+        return _Ambiguous(outcome.reason, kept)
+    return outcome
 
 
 # --------------------------------------------------------------------------------------
@@ -376,6 +459,11 @@ def _a_week_from_today(_: re.Match[str], ctx: _Context) -> _Outcome:
 
 @_rule(_WD)
 def _bare_weekday(match: re.Match[str], ctx: _Context) -> _Outcome:
+    if ctx.direction is Direction.PAST:  # "cuma gitmedim" -> the last Friday
+        back = (ctx.today.weekday() - _weekday(match)) % 7
+        if back == 0:
+            return _ambiguous(Reason.SAME_WEEKDAY, ctx.today - _SAME_WEEK_DAYS, ctx.today)
+        return _day(ctx.today - dt.timedelta(days=back))
     delta = (_weekday(match) - ctx.today.weekday()) % 7
     if delta == 0:
         return _ambiguous(Reason.SAME_WEEKDAY, ctx.today, ctx.today + _SAME_WEEK_DAYS)
@@ -535,7 +623,7 @@ def _named_month(match: re.Match[str], ctx: _Context) -> _Outcome:
     if match["year"]:
         return _month_span(int(match["year"]), month)
     years = (ctx.today.year - 1, ctx.today.year, ctx.today.year + 1)
-    return _nearest([_month_span(year, month) for year in years], ctx.today)
+    return _nearest([_month_span(year, month) for year in years], ctx)
 
 
 # --- day of month: "ayın 28'i", "28'inde", "gelecek ayın 5'i" -------------------------
@@ -570,7 +658,7 @@ def _dated(day: int, month: int, year: str | None, ctx: _Context) -> _Outcome:
         return _day(value) if value else _Unresolved(Reason.INVALID_DATE)
     years = (ctx.today.year - 1, ctx.today.year, ctx.today.year + 1)
     candidates = [_safe_date(y, month, day) for y in years]
-    return _nearest([_day(c) for c in candidates if c is not None], ctx.today)
+    return _nearest([_day(c) for c in candidates if c is not None], ctx)
 
 
 def _full_year(year: str) -> int:
@@ -633,7 +721,7 @@ def _date_range(match: re.Match[str], ctx: _Context) -> _Outcome:
         span = build(year)
         return span if span else _Unresolved(Reason.INVALID_DATE)
     years = (ctx.today.year - 1, ctx.today.year, ctx.today.year + 1)
-    return _nearest([s for s in (build(y) for y in years) if s is not None], ctx.today)
+    return _nearest([s for s in (build(y) for y in years) if s is not None], ctx)
 
 
 # --- academic term --------------------------------------------------------------------
@@ -654,31 +742,60 @@ def _term_start(_: re.Match[str], ctx: _Context) -> _Outcome:
 # --------------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True, slots=True)
+class _RawTime:
+    hour: int
+    minute: int
+    end_hour: int | None
+    end_minute: int
+    literal: bool  # written with a colon -> 24h as given
+
+
 @dataclass(slots=True)
 class _Parsed:
     phrase: str
     part: PartOfDay | None = None
-    time: dt.time | None = None
+    raw_time: _RawTime | None = None
     until: bool = False
     approximate: bool = False
     error: Reason | None = None
     parts_found: set[PartOfDay] = field(default_factory=set)
 
 
+def _extract_time(parsed: _Parsed) -> None:
+    found: list[_RawTime] = []
+    for kind, pattern in _TIME_PATTERNS:
+        for match in pattern.finditer(parsed.phrase):
+            groups = match.groupdict()
+            end_hour = groups.get("h2")
+            found.append(
+                _RawTime(
+                    hour=int(groups["h"]),
+                    minute=int(groups.get("mi") or 0),
+                    end_hour=int(end_hour) if end_hour else None,
+                    end_minute=int(groups.get("mi2") or 0),
+                    literal=":" in match.group(0) or kind == "colon",
+                )
+            )
+        parsed.phrase = pattern.sub(" ", parsed.phrase)
+    if len(found) > 1:
+        parsed.error = Reason.INVALID_TIME
+        return
+    if found:
+        raw = found[0]
+        hours = [raw.hour] if raw.end_hour is None else [raw.hour, raw.end_hour]
+        if any(h > 23 for h in hours) or raw.minute > 59 or raw.end_minute > 59:
+            parsed.error = Reason.INVALID_TIME
+            return
+        parsed.raw_time = raw
+
+
 def _extract(phrase: str) -> _Parsed:
     parsed = _Parsed(phrase)
 
-    times = list(_TIME.finditer(parsed.phrase))
-    if len(times) > 1:
-        parsed.error = Reason.INVALID_TIME
+    _extract_time(parsed)
+    if parsed.error:
         return parsed
-    if times:
-        hour, minute = int(times[0]["h"]), int(times[0]["mi"])
-        if hour > 23 or minute > 59:
-            parsed.error = Reason.INVALID_TIME
-            return parsed
-        parsed.time = dt.time(hour, minute)
-        parsed.phrase = _TIME.sub(" ", parsed.phrase)
 
     for part, pattern in _PARTS:
         regex = re.compile(rf"(?<![a-z0-9])(?:{pattern})(?![a-z0-9])")
@@ -700,16 +817,47 @@ def _extract(phrase: str) -> _Parsed:
     return parsed
 
 
-def _apply_part_to_time(time: dt.time, part: PartOfDay | None) -> dt.time | Reason:
-    """'akşam 8:30' -> 20:30. A 24h time that contradicts the part of day is an error."""
-    hour = time.hour
+def _hour_with_part(hour: int, part: PartOfDay) -> int | Reason:
+    """'akşam 8' -> 20. An hour that contradicts the part of day is an error."""
     if part in (PartOfDay.AFTERNOON, PartOfDay.EVENING) and 1 <= hour <= 11:
-        return time.replace(hour=hour + 12)
+        return hour + 12
     if part is PartOfDay.NIGHT and 6 <= hour <= 11:
-        return time.replace(hour=hour + 12)
+        return hour + 12
     if part is PartOfDay.MORNING and hour >= 12:
         return Reason.CONFLICTING_PARTS
-    return time
+    return hour
+
+
+def _slot(start_h: int, start_m: int, end_h: int | None, end_m: int) -> TimeSlot | Reason:
+    start = dt.time(start_h, start_m)
+    if end_h is None:
+        return TimeSlot(start)
+    end = dt.time(end_h, end_m)
+    return TimeSlot(start, end) if end > start else Reason.INVALID_TIME
+
+
+def _interpret_time(raw: _RawTime, part: PartOfDay | None) -> tuple[TimeSlot, ...] | Reason:
+    """One slot = clear; two slots = AM/PM ambiguity ('yarın 9'da', 'cuma 9-11')."""
+    hours = [raw.hour] if raw.end_hour is None else [raw.hour, raw.end_hour]
+    if part is not None:
+        adjusted = [_hour_with_part(h, part) for h in hours]
+        for value in adjusted:
+            if isinstance(value, Reason):
+                return value
+        ints = [h for h in adjusted if isinstance(h, int)]
+        end = ints[1] if len(ints) > 1 else None
+        slot = _slot(ints[0], raw.minute, end, raw.end_minute)
+        return slot if isinstance(slot, Reason) else (slot,)
+    if raw.literal or any(h == 0 or h >= 12 for h in hours):
+        slot = _slot(raw.hour, raw.minute, raw.end_hour, raw.end_minute)
+        return slot if isinstance(slot, Reason) else (slot,)
+    # Only hours 1-11 and no part of day: morning or afternoon/evening?
+    morning = _slot(raw.hour, raw.minute, raw.end_hour, raw.end_minute)
+    later_end = raw.end_hour + 12 if raw.end_hour is not None else None
+    evening = _slot(raw.hour + 12, raw.minute, later_end, raw.end_minute)
+    if isinstance(morning, Reason) or isinstance(evening, Reason):
+        return Reason.INVALID_TIME
+    return (morning, evening)
 
 
 def _match_date(phrase: str, ctx: _Context) -> _Outcome:
@@ -746,9 +894,13 @@ def resolve(
     *,
     term_start: dt.date | None = None,
     term_end: dt.date | None = None,
+    direction: Direction | str = Direction.ANY,
 ) -> Resolution:
-    """Resolve a Turkish date phrase relative to `today` (a local date in APP_TIMEZONE)."""
-    ctx = _Context(today, term_start, term_end)
+    """Resolve a Turkish date phrase relative to `today` (a local date in APP_TIMEZONE).
+
+    `direction`: "future" for things being scheduled, "past" for things being logged.
+    """
+    ctx = _Context(today, term_start, term_end, Direction(direction))
     normalized = normalize(text)
     if not normalized:
         return Resolution(text, Status.UNRESOLVED, reason=Reason.EMPTY)
@@ -759,44 +911,61 @@ def resolve(
     if parsed.error:
         return Resolution(text, Status.UNRESOLVED, reason=parsed.error)
 
-    time = parsed.time
-    if time is not None:
-        adjusted = _apply_part_to_time(time, parsed.part)
-        if isinstance(adjusted, Reason):
-            return Resolution(text, Status.UNRESOLVED, reason=adjusted)
-        time = adjusted
+    slots: tuple[TimeSlot, ...] = ()
+    if parsed.raw_time is not None:
+        interpreted = _interpret_time(parsed.raw_time, parsed.part)
+        if isinstance(interpreted, Reason):
+            return Resolution(text, Status.UNRESOLVED, reason=interpreted)
+        slots = interpreted
 
     outcome: _Outcome
     if parsed.phrase in ("", "bu"):
-        if parsed.part is None and time is None:  # "" or a lone "bu"
+        if parsed.part is None and not slots:  # "" or a lone "bu"
             outcome = _Unresolved(Reason.UNRECOGNIZED)
-        elif parsed.phrase == "" and parsed.part is PartOfDay.MORNING and time is None:
+        elif parsed.phrase == "" and parsed.part is PartOfDay.MORNING and not slots:
             # Bare "sabah": this morning or tomorrow morning?
             outcome = _ambiguous(
                 Reason.MORNING_TODAY_OR_TOMORROW, today, today + dt.timedelta(days=1)
             )
         else:
-            outcome = _day(today)  # "bu akşam", "akşam", "14:00"
+            outcome = _day(today)  # "bu akşam", "akşam", "14:00", "14'te"
     else:
         outcome = _match_date(parsed.phrase, ctx)
 
+    outcome = _apply_direction(outcome, ctx)
     if parsed.until:
         outcome = _until(outcome, today)
     if parsed.approximate and isinstance(outcome, DateSpan):
         outcome = _Ambiguous(Reason.APPROXIMATE, (outcome,))
 
+    if isinstance(outcome, _Unresolved):
+        return Resolution(text, Status.UNRESOLVED, reason=outcome.reason)
+
+    clear_slot = slots[0] if len(slots) == 1 else None
     if isinstance(outcome, DateSpan):
-        return Resolution(text, Status.RESOLVED, span=outcome, part_of_day=parsed.part, time=time)
-    if isinstance(outcome, _Ambiguous):
-        return Resolution(
-            text,
+        span: DateSpan | None = outcome
+        candidates: tuple[DateSpan, ...] = ()
+        # A known date with an AM/PM-ambiguous clock time is still ambiguous.
+        status = Status.AMBIGUOUS if len(slots) > 1 else Status.RESOLVED
+        reason = Reason.AM_OR_PM if len(slots) > 1 else None
+    else:
+        span, candidates, status, reason = (
+            None,
+            outcome.candidates,
             Status.AMBIGUOUS,
-            part_of_day=parsed.part,
-            time=time,
-            candidates=outcome.candidates,
-            reason=outcome.reason,
+            outcome.reason,
         )
-    return Resolution(text, Status.UNRESOLVED, reason=outcome.reason)
+    return Resolution(
+        text,
+        status,
+        span=span,
+        part_of_day=parsed.part,
+        time=clear_slot.start if clear_slot else None,
+        end_time=clear_slot.end if clear_slot else None,
+        candidates=candidates,
+        time_candidates=slots if len(slots) > 1 else (),
+        reason=reason,
+    )
 
 
 # --------------------------------------------------------------------------------------

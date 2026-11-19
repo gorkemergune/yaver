@@ -112,7 +112,8 @@ Kurallar:
 
 Kurallar:
 - Belirsiz eşleşmede (iki "linear" bloğu varsa) araç hata döner, ajan kullanıcıya sorar.
-- Tarih ifadeleri `core/time_resolver.resolve()` ile çözülür (kısa ifade: "haftaya salı akşam", cümle değil). `ambiguous` dönerse ajan adaylardan birini seçmez, kullanıcıya adaylarla sorar ("20 Kasım Cuma mı, 27 Kasım Cuma mı?"); `unresolved` dönerse ifadeyi netleştirmesini ister. Saat sadece `HH:MM` olarak verilir ("14'te" gün mü saat mi belirsiz).
+- Tarih ifadeleri `core/time_resolver.resolve()` ile çözülür (kısa ifade: "haftaya salı akşam", cümle değil). `ambiguous` dönerse ajan adaylardan birini seçmez, kullanıcıya adaylarla sorar ("20 Kasım Cuma mı, 27 Kasım Cuma mı?"); `unresolved` dönerse ifadeyi netleştirmesini ister. Saat de aynı ifadede verilebilir ("yarın 14'te", "cumartesi 11-13"); "yarın 9'da" gibi sabah/akşam belli olmayan saatte `am_or_pm` döner, ajan sorar.
+- `resolve()`'un `direction` parametresi araca göre sabittir, modele bırakılmaz: **ekleme/planlama araçları** (`add_event`, `add_recurring_block`, `move_block_on`, `add_task`, `add_followup`…) `direction="future"`, **geçmiş kayıt araçları** (`log_attendance`, geçmiş bir günü sorgulayan/işaretleyen araçlar) `direction="past"`, salt okuma (`get_day_plan`) `"any"` kullanır. Böylece "bu salı" ekleme aracında gelecek salıya, "bu salı gitmedim"de geçen salıya çözülür.
 - Toplu silme (>3 kayıt) için ajan önce onay ister.
 - Araç çıktıları kısa JSON; asistan cevabında değişiklik özeti + geri al.
 

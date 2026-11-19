@@ -7,6 +7,7 @@ import pytest
 from app.core.time_resolver import (
     CalendarDay,
     DateSpan,
+    Direction,
     PartOfDay,
     Reason,
     Resolution,
@@ -531,10 +532,11 @@ def test_approximate_phrases_keep_the_candidate_but_are_not_resolved() -> None:
         ("bu", Reason.UNRECOGNIZED),
         ("kadar", Reason.UNRECOGNIZED),
         ("hafta", Reason.UNRECOGNIZED),
-        ("14'te", Reason.UNRECOGNIZED),  # day 14 or 14:00? ask
-        ("yarın 14'te", Reason.UNRECOGNIZED),
-        ("saat 3'te", Reason.UNRECOGNIZED),
         ("28 29 kasım", Reason.UNRECOGNIZED),
+        ("3 buçukta", Reason.UNRECOGNIZED),
+        ("yarın 25'te", Reason.INVALID_TIME),
+        ("cumartesi 13-11", Reason.INVALID_TIME),
+        ("yarın 14'te 15'te", Reason.INVALID_TIME),
         ("yarın veya cuma", Reason.UNRECOGNIZED),
         ("ertesi gün", Reason.UNRECOGNIZED),  # relative to what?
         ("25:00", Reason.INVALID_TIME),
@@ -720,3 +722,143 @@ def test_format_calendar_context() -> None:
     assert lines[0] == "2026-11-19 Perşembe (bugün, bu hafta)"
     assert lines[1] == "2026-11-20 Cuma (yarın, bu hafta)"
     assert lines[4] == "2026-11-23 Pazartesi (gelecek hafta)"
+
+
+# --- direction: future / past ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "direction", "start", "end"),
+    [
+        ("bu salı", "future", "2026-11-24", "2026-11-24"),
+        ("bu salı", "past", "2026-11-17", "2026-11-17"),
+        ("ayın 15'i", "future", "2026-12-15", "2026-12-15"),
+        ("ayın 15'i", "past", "2026-11-15", "2026-11-15"),
+        ("19 mayıs", "future", "2027-05-19", "2027-05-19"),
+        ("19 mayıs", "past", "2026-05-19", "2026-05-19"),
+        ("mayısta", "future", "2027-05-01", "2027-05-31"),
+        ("28 ekim", "future", "2027-10-28", "2027-10-28"),  # "any" picks the nearest: 2026
+        ("5 ocak", "past", "2026-01-05", "2026-01-05"),
+        ("cuma", "past", "2026-11-13", "2026-11-13"),  # "cuma gitmedim" -> last Friday
+        ("cuma", "future", "2026-11-20", "2026-11-20"),
+        ("salıya", "past", "2026-11-17", "2026-11-17"),
+        ("sabah", "past", "2026-11-19", "2026-11-19"),
+        ("bu hafta", "past", "2026-11-16", "2026-11-22"),  # contains today: fine both ways
+        ("bu hafta", "future", "2026-11-16", "2026-11-22"),
+        ("dün", "past", "2026-11-18", "2026-11-18"),
+        ("yarın", "future", "2026-11-20", "2026-11-20"),
+        ("bugün", "past", "2026-11-19", "2026-11-19"),
+        ("bugün", "future", "2026-11-19", "2026-11-19"),
+    ],
+)
+def test_direction_drops_readings(text: str, direction: str, start: str, end: str) -> None:
+    assert_range(resolve(text, THU, direction=direction), start, end)
+
+
+@pytest.mark.parametrize(
+    ("text", "direction", "reason", "candidates"),
+    [
+        ("perşembe", "future", Reason.SAME_WEEKDAY, ("2026-11-19", "2026-11-26")),
+        ("perşembe", "past", Reason.SAME_WEEKDAY, ("2026-11-12", "2026-11-19")),
+        ("gelecek cuma", "future", Reason.THIS_OR_NEXT_WEEK, ("2026-11-20", "2026-11-27")),
+        ("sabah", "future", Reason.MORNING_TODAY_OR_TOMORROW, ("2026-11-19", "2026-11-20")),
+    ],
+)
+def test_direction_keeps_real_ambiguity(
+    text: str, direction: str, reason: Reason, candidates: tuple[str, ...]
+) -> None:
+    assert_ambiguous(resolve(text, THU, direction=direction), reason, *candidates)
+
+
+@pytest.mark.parametrize(
+    ("text", "direction"),
+    [("dün", "future"), ("geçen cuma", "future"), ("yarın", "past"), ("haftaya salı", "past")],
+)
+def test_direction_conflict(text: str, direction: str) -> None:
+    assert_unresolved(resolve(text, THU, direction=direction), Reason.DIRECTION_CONFLICT)
+
+
+def test_direction_default_is_any() -> None:
+    assert res("bu salı").status is Status.AMBIGUOUS
+    assert Direction("any") is Direction.ANY
+
+
+def test_vague_stays_vague_in_any_direction() -> None:
+    assert resolve("yakında", THU, direction="future").reason is Reason.VAGUE
+
+
+# --- clock times and time ranges (Turkish: locative = time, possessive = date) --------
+
+
+@pytest.mark.parametrize(
+    ("text", "iso", "start", "end"),
+    [
+        ("yarın 14'te", "2026-11-20", "14:00", None),
+        ("YARIN 14'TE", "2026-11-20", "14:00", None),
+        ("cuma 14:00", "2026-11-20", "14:00", None),
+        ("Cuma 14:00'te", "2026-11-20", "14:00", None),
+        ("cumartesi 11-13", "2026-11-21", "11:00", "13:00"),
+        ("Cumartesi 11-13 arası", "2026-11-21", "11:00", "13:00"),
+        ("cumartesi 11:00-13:30", "2026-11-21", "11:00", "13:30"),
+        ("cumartesi saat 11-13", "2026-11-21", "11:00", "13:00"),
+        ("cumartesi 9:00-11:00", "2026-11-21", "09:00", "11:00"),  # colon = literal 24h
+        ("akşam 7-9", "2026-11-19", "19:00", "21:00"),
+        ("yarın sabah 9'da", "2026-11-20", "09:00", None),
+        ("yarın akşam 8'de", "2026-11-20", "20:00", None),
+        ("yarın saat 14", "2026-11-20", "14:00", None),
+        ("yarın 12'de", "2026-11-20", "12:00", None),
+        ("14'te", "2026-11-19", "14:00", None),
+        ("haftaya salı 16-18", "2026-11-24", "16:00", "18:00"),
+    ],
+)
+def test_clock_times_and_ranges(text: str, iso: str, start: str, end: str | None) -> None:
+    result = res(text)
+
+    assert_day(result, iso)
+    assert result.time == dt.time.fromisoformat(start)
+    assert result.end_time == (dt.time.fromisoformat(end) if end else None)
+
+
+def test_date_range_is_not_mistaken_for_a_time_range() -> None:
+    result = res("28-29 kasım")
+
+    assert_range(result, "2026-11-28", "2026-11-29")
+    assert result.time is None
+    assert result.end_time is None
+
+
+@pytest.mark.parametrize(
+    ("text", "iso", "slots"),
+    [
+        ("yarın 9'da", "2026-11-20", ["09:00", "21:00"]),
+        ("saat 3'te", "2026-11-19", ["03:00", "15:00"]),
+        ("cuma 9-11", "2026-11-20", ["09:00-11:00", "21:00-23:00"]),
+    ],
+)
+def test_hour_without_part_of_day_is_am_or_pm(text: str, iso: str, slots: list[str]) -> None:
+    result = res(text)
+
+    assert result.status is Status.AMBIGUOUS
+    assert result.reason is Reason.AM_OR_PM
+    assert result.span == DateSpan.day(d(iso))  # the date itself is known
+    assert result.time is None
+    assert [str(slot) for slot in result.time_candidates] == slots
+
+
+def test_time_with_ambiguous_date_keeps_both_ambiguities_visible() -> None:
+    result = res("perşembe 14:00")
+
+    assert result.reason is Reason.SAME_WEEKDAY
+    assert result.time == dt.time(14, 0)
+
+
+def test_to_dict_with_time_range_and_time_candidates() -> None:
+    assert res("cumartesi 11-13").to_dict() == {
+        "text": "cumartesi 11-13",
+        "status": "resolved",
+        "start": "2026-11-21",
+        "end": "2026-11-21",
+        "time": "11:00",
+        "end_time": "13:00",
+    }
+    assert res("yarın 9'da").to_dict()["time_candidates"] == ["09:00", "21:00"]
