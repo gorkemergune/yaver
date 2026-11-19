@@ -122,3 +122,11 @@ async def test_usage_endpoint(session: AsyncSession) -> None:
     assert body["budget"]["provider"] == "anthropic"
     assert body["budget"]["spent_usd"] == "1.500000"
     assert [m["provider"] for m in body["by_model"]] == ["anthropic", "groq"]
+
+
+async def test_record_returns_the_id_even_when_commit_expires_rows(session: AsyncSession) -> None:
+    store = DbUsageStore(async_sessionmaker(session.bind))  # expire_on_commit=True (default)
+
+    row_id = await store.record(UsageRecord("groq", "m", "fast", "chat", created_at=NOW))
+
+    assert isinstance(row_id, int)

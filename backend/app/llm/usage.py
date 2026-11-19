@@ -109,8 +109,10 @@ class DbUsageStore:
         )
         async with self._sessionmaker() as session:
             session.add(row)
+            await session.flush()
+            row_id = row.id  # read before commit: commit may expire the row (async: no lazy load)
             await session.commit()
-            return row.id
+            return row_id
 
     async def spend_since(self, since: dt.datetime, provider: str | None = None) -> Decimal:
         query = select(func.coalesce(func.sum(LlmUsage.cost_usd), 0)).where(
