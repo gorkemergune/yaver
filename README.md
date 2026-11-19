@@ -81,6 +81,34 @@ docker compose up -d
 
 All providers are configured in `config/providers.yaml`. Any OpenAI-compatible endpoint works.
 
+### Recommended if you have your own Claude key
+
+Groq's free tier allows about 8k tokens per minute per model, and one Yaver message with
+delegation uses 5-10k. With the default layout many calls end up on Haiku anyway, after a
+wait. With an Anthropic key, swap the two tiers in your `config/providers.yaml`:
+
+```yaml
+tiers:
+  fast:                       # Claude Haiku answers first (prompt-cached)
+    provider: anthropic
+    model: claude-haiku-5-5
+    max_prompt_tokens: 90000
+    options:
+      thinking: {type: disabled}
+  fallback:                   # Groq takes over on errors / rate limits
+    provider: groq
+    model: openai/gpt-oss-120b
+  # smart, local: unchanged
+budget:
+  downgrade:
+    smart: fast               # at 80% of CLAUDE_MONTHLY_BUDGET_USD: Sonnet -> Haiku
+  allowed_at_limit: [fallback, local]   # at 100%: Groq only
+```
+
+Failover, rate-limit waits, per-yaver models (`model: {groq: ...}` in `agents.yaml`) and the
+budget guard follow the provider, not the tier name, so nothing else changes. Details and
+measured cost (Turkish): [docs/tr/llm-saglayicilari.md](docs/tr/llm-saglayicilari.md).
+
 ## Privacy
 
 Your schedule, notes and chat history stay in your own Postgres. Only the text needed for a request is sent to the LLM provider you configure. Choose providers whose data policy you accept, or run fully local with Ollama.
