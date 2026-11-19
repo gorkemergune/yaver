@@ -7,7 +7,7 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] `docker-compose.yml`: `db` (pgvector/pgvector:pg16), `api` (FastAPI, uvicorn --reload dev'de), `web` (Vite dev / nginx prod)
 - [x] Backend: FastAPI app, `config.py` (pydantic-settings), `/health`
 - [x] Alembic kurulumu, async SQLAlchemy session
-- [ ] Frontend: Vite + React + TS + Tailwind + TanStack Query, boş sohbet ekranı
+- [x] Frontend: Vite + React + TS + Tailwind + TanStack Query, boş sohbet ekranı
 - [ ] ruff, mypy, pytest, eslint ayarları
 
 ## 0.2 Veri modeli
