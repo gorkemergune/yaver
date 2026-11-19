@@ -32,6 +32,11 @@ class Settings(BaseSettings):
 
     # --- Paths ---
     config_dir: Path = REPO_DIR / "config"
+    upload_dir: Path = REPO_DIR / "uploads"  # gitignored; /uploads volume in Docker
+
+    # --- Images sent in the chat ---
+    upload_max_mb: float = 20  # per file, before processing
+    image_max_edge: int = 1600  # longer side after automatic downscaling (px)
 
     # --- Database ---
     database_url: str = "postgresql+asyncpg://yaver:yaver@127.0.0.1:5432/yaver"

@@ -12,8 +12,8 @@ from app.db.models import (
     Conversation,
     Course,
     Holiday,
+    Proposal,
     RecurringBlock,
-    ScheduleProposal,
 )
 from app.db.models.enums import ConversationMode, ProposalStatus
 from app.llm.types import LLMRequest, LLMResponse
@@ -108,7 +108,7 @@ async def test_long_schedule_is_parsed_by_the_smart_tier_into_a_pending_proposal
         "| Perşembe | 13:00-15:00 | EE211 Lab | Lab |  |",
     ]
     assert await count(session, RecurringBlock) == 0  # nothing saved before confirmation
-    proposal = await session.get(ScheduleProposal, result["proposal_id"])
+    proposal = await session.get(Proposal, result["proposal_id"])
     assert proposal is not None
     assert proposal.status is ProposalStatus.PENDING
 
@@ -142,7 +142,7 @@ async def test_apply_writes_once_and_closes_older_proposals(session: AsyncSessio
     assert "already applied" in again["error"]
     assert await count(session, RecurringBlock) == 3
     assert sorted((await session.scalars(select(Course.code))).all()) == ["EE211", "MATH221"]
-    old = await session.get(ScheduleProposal, first["proposal_id"])
+    old = await session.get(Proposal, first["proposal_id"])
     assert old is not None
     assert old.status is ProposalStatus.DISCARDED
     sets = (await session.scalars(select(ChangeLog.change_set_id).distinct())).all()
@@ -178,7 +178,7 @@ async def test_unreadable_parses_are_errors(
     result = await run_tool("propose_schedule", {"text": "?"}, ctx)
 
     assert message in result["error"]
-    assert await count(session, ScheduleProposal) == 0
+    assert await count(session, Proposal) == 0
 
 
 # --- conversation flow -----------------------------------------------------------------

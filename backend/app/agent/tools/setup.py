@@ -11,7 +11,7 @@ from app.agent.context import ToolContext
 from app.agent.tools import ToolError, ToolResult, json_schema, tool
 from app.agent.tools.schedule import AddBlockArgs, Weekday, create_weekly_blocks
 from app.core.time_resolver import WEEKDAY_NAMES_TR
-from app.db.models import Conversation, Holiday, ScheduleProposal, Term
+from app.db.models import Conversation, Holiday, Proposal, Term
 from app.db.models.enums import ConversationMode, ProposalStatus
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
 
@@ -172,7 +172,7 @@ async def propose_schedule(args: ProposeArgs, ctx: ToolContext) -> ToolResult:
         raise ToolError(f"could not read the schedule: {exc.errors()[0]['msg']}") from exc
     if not parsed.entries:
         raise ToolError("no weekly entries found; ask the user to write day, time and course")
-    proposal = ScheduleProposal(
+    proposal = Proposal(
         conversation_id=ctx.conversation_id,
         source_text=text,
         entries=[entry.model_dump(mode="json") for entry in parsed.entries],
@@ -203,7 +203,7 @@ class ApplyArgs(BaseModel):
     mutates=True,
 )
 async def apply_schedule(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
-    proposal = await ctx.session.get(ScheduleProposal, args.proposal_id)
+    proposal = await ctx.session.get(Proposal, args.proposal_id)
     if proposal is None:
         raise ToolError(f"no proposal {args.proposal_id}")
     if proposal.status is not ProposalStatus.PENDING:
@@ -217,10 +217,10 @@ async def apply_schedule(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
     # Superseded proposals of this conversation are closed too.
     others = (
         await ctx.session.scalars(
-            select(ScheduleProposal).where(
-                ScheduleProposal.status == ProposalStatus.PENDING,
-                ScheduleProposal.id != proposal.id,
-                ScheduleProposal.conversation_id == proposal.conversation_id,
+            select(Proposal).where(
+                Proposal.status == ProposalStatus.PENDING,
+                Proposal.id != proposal.id,
+                Proposal.conversation_id == proposal.conversation_id,
             )
         )
     ).all()

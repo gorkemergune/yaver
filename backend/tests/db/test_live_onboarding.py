@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.tools import run_tool
 from app.config import get_settings
-from app.db.models import ScheduleProposal
+from app.db.models import Proposal
 from app.llm.router import LLMRouter, build_router, env_value
 from app.llm.usage import DbUsageStore
 from tests.db.test_agent_tools import context
@@ -46,7 +46,7 @@ async def test_pasted_schedule_is_parsed_by_sonnet(
     print(f"unclear: {result.get('unclear')}")
     assert "error" not in result, result
     assert result["parsed_by"].startswith("anthropic/claude-sonnet")
-    proposal = await session.get(ScheduleProposal, result["proposal_id"])
+    proposal = await session.get(Proposal, result["proposal_id"])
     assert proposal is not None
     by_day = {
         (day, entry["start_time"][:5], entry["kind"])

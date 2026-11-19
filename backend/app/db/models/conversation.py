@@ -45,3 +45,24 @@ class Message(CreatedAtMixin, Base):
     tool_call_id: Mapped[str | None] = mapped_column(String(100))
     # Undo handle: every change made while answering this message shares this id.
     change_set_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    # What the code read from the message's images ("[Görsel 1: ders programı -> öneri #7]
+    # + table"): replayed to the model with the history, not shown in the chat.
+    context: Mapped[str | None] = mapped_column(Text)
+
+
+class Attachment(CreatedAtMixin, Base):
+    """An uploaded image. Stored re-encoded (no EXIF / location, long edge <= the limit)
+    under UPLOAD_DIR; linked to the user message once it is sent."""
+
+    __tablename__ = "attachments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="CASCADE"), index=True
+    )
+    path: Mapped[str] = mapped_column(String(300))  # relative to UPLOAD_DIR
+    mime: Mapped[str] = mapped_column(String(50))
+    width: Mapped[int]
+    height: Mapped[int]
+    size_bytes: Mapped[int]
+    sha256: Mapped[str] = mapped_column(String(64))

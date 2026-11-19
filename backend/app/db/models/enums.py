@@ -76,6 +76,11 @@ class ConversationMode(StrEnum):
     ONBOARDING = "onboarding"
 
 
+class ProposalKind(StrEnum):
+    SCHEDULE = "schedule"  # weekly blocks
+    EVENTS = "events"  # one-off events (exam notice, poster)
+
+
 class ProposalStatus(StrEnum):
     PENDING = "pending"
     APPLIED = "applied"

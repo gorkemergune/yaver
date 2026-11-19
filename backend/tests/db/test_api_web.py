@@ -1,16 +1,20 @@
 """HTTP API used by the web app: streaming chat, plans, attendance, team, history, undo."""
 
+import io
 import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 import httpx2
 import pytest
+from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.team import get_team
 from app.api.chat import get_coordinator, get_session_factory
+from app.config import Settings, get_settings
 from app.db.models import Message, RecurringBlock
 from app.db.session import get_session
 from app.main import create_app
@@ -24,8 +28,11 @@ def llm() -> ScriptedLLM:
 
 
 @pytest.fixture
-async def client(session: AsyncSession, llm: ScriptedLLM) -> AsyncIterator[httpx2.AsyncClient]:
+async def client(
+    session: AsyncSession, llm: ScriptedLLM, tmp_path: Path
+) -> AsyncIterator[httpx2.AsyncClient]:
     app = create_app()
+    app.dependency_overrides[get_settings] = lambda: Settings(upload_dir=tmp_path)
 
     async def _session() -> AsyncIterator[AsyncSession]:
         yield session
@@ -188,3 +195,36 @@ async def test_onboarding_status_and_mode(client: httpx2.AsyncClient, llm: Scrip
     # still nothing set up: the card stays, and the open setup conversation is reported
     assert during == {"needed": True, "open_conversation_id": events[-1]["conversation_id"]}
     assert team["onboarding"]["name"] == "Yaver"
+
+
+def png_bytes(size: tuple[int, int] = (64, 48)) -> bytes:
+    out = io.BytesIO()
+    Image.new("RGB", size, (20, 90, 160)).save(out, format="PNG")
+    return out.getvalue()
+
+
+async def upload(client: httpx2.AsyncClient, *files: bytes) -> list[dict[str, Any]]:
+    response = await client.post(
+        "/api/uploads",
+        files=[("files", (f"shot{i}.png", data, "image/png")) for i, data in enumerate(files)],
+    )
+    assert response.status_code == 200, response.text
+    return list(response.json()["attachments"])
+
+
+async def test_upload_and_fetch_images(client: httpx2.AsyncClient) -> None:
+    first, second = await upload(client, png_bytes(), png_bytes((3200, 100)))
+
+    fetched = await client.get(first["url"])
+    junk = await client.post(
+        "/api/uploads", files=[("files", ("notes.txt", b"hello", "text/plain"))]
+    )
+
+    assert first["mime"] == "image/png"
+    assert (second["width"], second["height"]) == (1600, 50)  # scaled down
+    assert fetched.status_code == 200
+    assert fetched.headers["content-type"] == "image/png"
+    assert Image.open(io.BytesIO(fetched.content)).size == (64, 48)
+    assert junk.status_code == 415
+    assert junk.json()["detail"]["code"] == "not_an_image"
+    assert (await client.get("/api/uploads/999")).status_code == 404
