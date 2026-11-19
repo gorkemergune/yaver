@@ -21,7 +21,7 @@ ONBOARDING_TOOLS = (
     "add_term",
     "add_holiday",
     "propose_schedule",
-    "apply_schedule",
+    "apply_proposal",
     "set_absence_limit",
     "add_recurring_block",
     "remember",

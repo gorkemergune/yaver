@@ -6,6 +6,7 @@ import datetime as dt
 import logging
 import re
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -17,12 +18,14 @@ from app.agent.context import ToolContext
 from app.agent.loop import AgentRun, Emit, LLMClient, run_agent
 from app.agent.reply import dedupe_questions
 from app.agent.team import Member, Team
+from app.agent.vision import ImageInput, read_images
 from app.config import Settings
 from app.core.change_log import ChangeRecorder, describe_changes
 from app.core.time_resolver import WEEKDAY_NAMES_TR, build_calendar_context, format_calendar_context
-from app.db.models import Conversation, Memory, Message
+from app.db.models import Attachment, Conversation, Memory, Message
 from app.db.models.enums import ConversationMode, MessageRole
-from app.llm.types import ChatMessage
+from app.llm.types import ChatMessage, ImagePart
+from app.services.images import resolve_stored
 
 HISTORY_MESSAGES = 10
 _ADDRESS = re.compile(r"^\s*([^\s,:;!?]+)\s*[,:;!]\s*(.+)$", re.DOTALL)
@@ -74,6 +77,26 @@ def system_suffix(ctx: ToolContext, memories: list[str]) -> str:
     return "\n".join(lines)
 
 
+def with_image_context(text: str, context: str | None) -> str:
+    """The user's words plus what the code read from their images (see agent.vision)."""
+    if not context:
+        return text
+    return f"{text.strip() or '(Yalnızca görsel gönderdim.)'}\n\n{context}"
+
+
+async def unsent_attachments(session: AsyncSession, ids: Sequence[int]) -> list[Attachment]:
+    """The uploads in the given order; ValueError if one is unknown or already sent."""
+    wanted = list(dict.fromkeys(ids))
+    if not wanted:
+        return []
+    rows = (await session.scalars(select(Attachment).where(Attachment.id.in_(wanted)))).all()
+    by_id = {row.id: row for row in rows}
+    bad = [i for i in wanted if i not in by_id or by_id[i].message_id is not None]
+    if bad:
+        raise ValueError(f"unknown or already sent attachment(s): {bad}")
+    return [by_id[i] for i in wanted]
+
+
 class Coordinator:
     def __init__(self, llm: LLMClient, team: Team, settings: Settings) -> None:
         self.llm = llm
@@ -100,10 +123,14 @@ class Coordinator:
         now: dt.datetime | None = None,
         emit: Emit | None = None,
         mode: ConversationMode = ConversationMode.CHAT,
+        attachment_ids: Sequence[int] = (),
     ) -> ChatReply:
-        """`emit` receives progress events (see app.agent.loop) for streaming clients."""
+        """`emit` receives progress events (see app.agent.loop) for streaming clients.
+        `attachment_ids`: uploaded images (POST /api/uploads) sent with this message."""
         try:
-            reply = await self._handle(session, text, conversation_id, now, emit, mode)
+            reply = await self._handle(
+                session, text, conversation_id, now, emit, mode, attachment_ids
+            )
         except BaseException:
             await session.rollback()
             raise
@@ -118,8 +145,9 @@ class Coordinator:
         now: dt.datetime | None,
         emit: Emit | None,
         mode: ConversationMode = ConversationMode.CHAT,
+        attachment_ids: Sequence[int] = (),
     ) -> ChatReply:
-        conversation = await self._conversation(session, conversation_id, text, mode)
+        conversation = await self._conversation(session, conversation_id, text or "Görsel", mode)
         history = await self._history(session, conversation.id)
         change_set_id = uuid.uuid4()
         ctx = ToolContext(
@@ -135,13 +163,15 @@ class Coordinator:
         memories = list((await session.scalars(select(Memory.content).where(Memory.active))).all())
         suffix = system_suffix(ctx, memories)
         runs: list[AgentRun] = []
+        attachments, image_context = await self._read_images(session, ctx, attachment_ids, emit)
+        model_text = with_image_context(text, image_context)
 
         addressed = self.addressed_member(text)
         if conversation.mode is ConversationMode.ONBOARDING and self.team.onboarding is not None:
             final = await run_agent(
                 self.llm,
                 self.team.onboarding,
-                [*history, ChatMessage("user", text)],
+                [*history, ChatMessage("user", model_text)],
                 ctx,
                 system_suffix=suffix,
                 max_steps=self.max_steps,
@@ -153,7 +183,7 @@ class Coordinator:
             final = await run_agent(
                 self.llm,
                 member,
-                [*history, ChatMessage("user", rest)],
+                [*history, ChatMessage("user", with_image_context(rest, image_context))],
                 ctx,
                 system_suffix=suffix,
                 max_steps=self.max_steps,
@@ -204,7 +234,7 @@ class Coordinator:
             final = await run_agent(
                 self.llm,
                 self.team.coordinator,
-                [*history, ChatMessage("user", text)],
+                [*history, ChatMessage("user", model_text)],
                 ctx,
                 system_suffix=suffix,
                 max_steps=self.max_steps,
@@ -219,7 +249,17 @@ class Coordinator:
             logger.info("Dropped a repeated question from the final answer: %r", final.reply)
         changed = bool(ctx.recorder.entries)
         stored_set = change_set_id if changed else None
-        session.add(Message(conversation_id=conversation.id, role=MessageRole.USER, content=text))
+        user_message = Message(
+            conversation_id=conversation.id,
+            role=MessageRole.USER,
+            content=text,
+            context=image_context or None,
+        )
+        session.add(user_message)
+        if attachments:
+            await session.flush()
+            for attachment in attachments:
+                attachment.message_id = user_message.id
         for sub in runs:
             session.add(
                 Message(
@@ -282,6 +322,37 @@ class Coordinator:
         await session.flush()
         return conversation
 
+    async def _read_images(
+        self,
+        session: AsyncSession,
+        ctx: ToolContext,
+        attachment_ids: Sequence[int],
+        emit: Emit | None,
+    ) -> tuple[list[Attachment], str]:
+        attachments = await unsent_attachments(session, attachment_ids)
+        if not attachments:
+            return [], ""
+        if emit is not None:
+            await emit(
+                {
+                    "type": "status",
+                    "agent_id": self.team.coordinator.id,
+                    "code": "reading_images",
+                    "count": len(attachments),
+                }
+            )
+        inputs = [
+            ImageInput(
+                attachment.id,
+                ImagePart(
+                    attachment.mime,
+                    resolve_stored(self.settings.upload_dir, attachment.path).read_bytes(),
+                ),
+            )
+            for attachment in attachments
+        ]
+        return attachments, await read_images(ctx, inputs)
+
     async def _history(self, session: AsyncSession, conversation_id: int) -> list[ChatMessage]:
         """Recent user turns and final answers as plain text (tool traffic is not replayed)."""
         rows = (
@@ -295,7 +366,7 @@ class Coordinator:
         history: list[ChatMessage] = []
         for row in reversed(rows):
             if row.role is MessageRole.USER:
-                history.append(ChatMessage("user", row.content))
+                history.append(ChatMessage("user", with_image_context(row.content, row.context)))
             elif row.role is MessageRole.ASSISTANT:
                 if history and history[-1].role == "assistant":
                     history[-1] = ChatMessage("assistant", row.content)  # keep the final answer

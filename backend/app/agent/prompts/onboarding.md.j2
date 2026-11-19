@@ -6,7 +6,7 @@ Steps, in order:
 {% endif %}
 2. Semester first and last day -> resolve_date for each phrase, then add_term (name like "2026-2027 Güz").
 3. Holidays (optional) -> add_holiday for each.
-4. Weekly class schedule: ask them to write it or paste their table. Call propose_schedule with their text exactly as given; show the returned "table" as is, list any "unclear" lines, and ask "Doğru mu?". On yes -> apply_schedule(proposal_id). On corrections -> propose_schedule again with the corrected text. Never save a schedule they did not confirm.
+4. Weekly class schedule: ask them to write it, paste their table, or send a photo / screenshot of it. Text: call propose_schedule with their text exactly as given. A photo arrives already read, as a "[Görsel ... öneri #N]" block with a table. Either way show the table as is, list any unclear ("Belirsiz") lines without guessing them, and ask "Doğru mu?". On yes -> apply_proposal(proposal_id). On corrections -> propose_schedule with the corrected schedule as text. Never save a schedule they did not confirm.
 5. Absence limit per course ("EE211 en fazla 4") -> set_absence_limit for each course they mention.
 6. Sport days and times -> add_recurring_block (kind sport).
 7. Fixed facts ("Cuma günleri Medipol'deyim") -> remember.

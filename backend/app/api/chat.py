@@ -10,10 +10,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.agent.coordinator import ChatReply, Coordinator
+from app.agent.coordinator import ChatReply, Coordinator, unsent_attachments
 from app.agent.team import get_team
 from app.config import get_settings
 from app.core.change_log import NothingToUndoError, undo_change_set
@@ -36,10 +36,25 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=20000)  # pasted schedules can be long
+    message: str = Field("", max_length=20000)  # pasted schedules can be long
     conversation_id: int | None = None
     # A new conversation in "onboarding" mode goes to the setup assistant.
     mode: ConversationMode = ConversationMode.CHAT
+    # Images uploaded first with POST /api/uploads; read by Claude before the team answers.
+    attachment_ids: list[int] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode="after")
+    def _something_to_say(self) -> "ChatRequest":
+        if not self.message.strip() and not self.attachment_ids:
+            raise ValueError("message or attachment_ids is required")
+        return self
+
+
+async def _check_attachments(session: AsyncSession, body: ChatRequest) -> None:
+    try:
+        await unsent_attachments(session, body.attachment_ids)
+    except ValueError as exc:
+        raise HTTPException(422, detail={"code": "bad_attachments", "message": str(exc)}) from exc
 
 
 class ChatResponse(BaseModel):
@@ -72,8 +87,13 @@ async def chat(
     session: AsyncSession = Depends(get_session),
     coordinator: Coordinator = Depends(get_coordinator),
 ) -> ChatResponse:
+    await _check_attachments(session, body)
     reply = await coordinator.handle(
-        session, body.message, conversation_id=body.conversation_id, mode=body.mode
+        session,
+        body.message,
+        conversation_id=body.conversation_id,
+        mode=body.mode,
+        attachment_ids=body.attachment_ids,
     )
     return _response(reply)
 
@@ -91,6 +111,8 @@ async def chat_stream(
     """Server-sent events: progress (turn/text/reset/tool/delegate/agent_reply), then
     `done` with the full reply, or `error`. Closing the connection cancels the message
     (nothing is saved)."""
+    async with session_factory() as check:
+        await _check_attachments(check, body)
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
 
     async def emit(event: dict[str, Any]) -> None:
@@ -105,6 +127,7 @@ async def chat_stream(
                     conversation_id=body.conversation_id,
                     emit=emit,
                     mode=body.mode,
+                    attachment_ids=body.attachment_ids,
                 )
             await emit({"type": "done", **_response(reply).model_dump(mode="json")})
         except LLMUnavailableError:

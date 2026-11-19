@@ -24,6 +24,7 @@ agents:
     model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model
     tools:
       - add_recurring_block      # kind=class|lab
+      - apply_proposal           # confirmed schedule / exam notice read from an image
       - update_recurring_block
       - cancel_block_on
       - move_block_on
@@ -46,6 +47,7 @@ agents:
     model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model
     tools:
       - add_recurring_block      # kind=work
+      - apply_proposal           # confirmed events read from an image (poster, invitation)
       - cancel_block_on
       - move_block_on
       - add_event                # kind=meeting|hackathon|other

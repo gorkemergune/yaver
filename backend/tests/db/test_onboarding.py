@@ -135,8 +135,8 @@ async def test_apply_writes_once_and_closes_older_proposals(session: AsyncSessio
     first = await run_tool("propose_schedule", {"text": LONG_TABLE}, ctx)
     second = await run_tool("propose_schedule", {"text": LONG_TABLE + "\nduzeltme"}, ctx)
 
-    applied = await run_tool("apply_schedule", {"proposal_id": second["proposal_id"]}, ctx)
-    again = await run_tool("apply_schedule", {"proposal_id": second["proposal_id"]}, ctx)
+    applied = await run_tool("apply_proposal", {"proposal_id": second["proposal_id"]}, ctx)
+    again = await run_tool("apply_proposal", {"proposal_id": second["proposal_id"]}, ctx)
 
     assert applied == {"blocks_created": 3, "already_existed": 0}
     assert "already applied" in again["error"]
@@ -229,7 +229,7 @@ async def test_onboarding_conversation(session: AsyncSession) -> None:
     # 4) "evet" -> applied as one change set, then finished
     llm.add(
         "onboarding",
-        lambda request: call("apply_schedule", proposal_id=proposal_ids[0]),
+        lambda request: call("apply_proposal", proposal_id=proposal_ids[0]),
         call("finish_onboarding"),
         say("Hazırız! Değiştirmek istediğin her şeyi bana yazman yeterli."),
     )

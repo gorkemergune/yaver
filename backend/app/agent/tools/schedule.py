@@ -78,7 +78,7 @@ async def add_recurring_block(args: AddBlockArgs, ctx: ToolContext) -> ToolResul
 
 
 async def create_weekly_blocks(ctx: ToolContext, args: AddBlockArgs) -> ToolResult:
-    """Shared by add_recurring_block and apply_schedule (confirmed onboarding proposals)."""
+    """Shared by add_recurring_block and apply_proposal (confirmed schedule proposals)."""
     if args.start_time == args.end_time:
         raise ToolError(f"{args.title}: start_time and end_time are the same")
     course_id = None

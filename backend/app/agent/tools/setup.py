@@ -9,10 +9,12 @@ from sqlalchemy import select
 
 from app.agent.context import ToolContext
 from app.agent.tools import ToolError, ToolResult, json_schema, tool
+from app.agent.tools.events import AddEventArgs, add_event
+from app.agent.tools.matching import find_course
 from app.agent.tools.schedule import AddBlockArgs, Weekday, create_weekly_blocks
-from app.core.time_resolver import WEEKDAY_NAMES_TR
-from app.db.models import Conversation, Holiday, Proposal, Term
-from app.db.models.enums import ConversationMode, ProposalStatus
+from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
+from app.db.models import Conversation, Event, Holiday, Proposal, Term
+from app.db.models.enums import ConversationMode, ProposalKind, ProposalStatus
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
 
 # Longer pastes are parsed by the smart tier (routing.purposes.schedule_parse).
@@ -95,7 +97,7 @@ class ParsedSchedule(BaseModel):
     unclear: list[str] = Field(default_factory=list)
 
 
-_PARSER_TOOL = ToolSpec(
+PARSER_TOOL = ToolSpec(
     "schedule_entries",
     "Return every weekly entry of the schedule.",
     json_schema(ParsedSchedule),
@@ -144,7 +146,7 @@ class ProposeArgs(BaseModel):
 @tool(
     "propose_schedule",
     "Parse a written or pasted weekly schedule into a proposal. Show the returned table to "
-    "the user and ask for confirmation; nothing is saved until apply_schedule.",
+    "the user and ask for confirmation; nothing is saved until apply_proposal.",
     ProposeArgs,
 )
 async def propose_schedule(args: ProposeArgs, ctx: ToolContext) -> ToolResult:
@@ -158,7 +160,7 @@ async def propose_schedule(args: ProposeArgs, ctx: ToolContext) -> ToolResult:
         LLMRequest(
             system=_PARSER_PROMPT,
             messages=[ChatMessage("user", text)],
-            tools=[_PARSER_TOOL],
+            tools=[PARSER_TOOL],
             tool_choice="required",
             max_tokens=8192,
         ),
@@ -192,33 +194,85 @@ async def propose_schedule(args: ProposeArgs, ctx: ToolContext) -> ToolResult:
     return result
 
 
+class ProposedEvent(BaseModel):
+    """One event of an "events" proposal (dates already resolved in code)."""
+
+    kind: Literal["exam", "quiz", "makeup", "meeting", "deadline", "hackathon", "other"]
+    title: str
+    course: str | None = None
+    date: dt.date
+    start_time: dt.time | None = None
+    end_time: dt.time | None = None
+    location: str | None = None
+
+
+def events_table(entries: list[ProposedEvent]) -> str:
+    kinds = {
+        "exam": "Sınav",
+        "quiz": "Quiz",
+        "makeup": "Telafi",
+        "meeting": "Toplantı",
+        "deadline": "Teslim",
+        "hackathon": "Hackathon",
+        "other": "Etkinlik",
+    }
+    lines = ["| Tarih | Saat | Ne | Tür | Yer |", "|---|---|---|---|---|"]
+    for entry in sorted(entries, key=lambda e: (e.date, e.start_time or dt.time())):
+        day = f"{entry.date.day} {MONTH_NAMES_TR[entry.date.month - 1]} "
+        day += WEEKDAY_NAMES_TR[entry.date.weekday()]
+        if entry.start_time is None:
+            when = "tüm gün"
+        else:
+            when = f"{entry.start_time:%H:%M}"
+            if entry.end_time:
+                when += f"-{entry.end_time:%H:%M}"
+        title = entry.title
+        if entry.course and entry.course not in entry.title:
+            title += f" ({entry.course})"
+        lines.append(f"| {day} | {when} | {title} | {kinds[entry.kind]} | {entry.location or ''} |")
+    return "\n".join(lines)
+
+
 class ApplyArgs(BaseModel):
     proposal_id: int
 
 
 @tool(
-    "apply_schedule",
-    "Save a schedule proposal after the user confirmed the table.",
+    "apply_proposal",
+    "Save a proposal (a weekly schedule, or events read from an image) after the user "
+    "confirmed its table.",
     ApplyArgs,
     mutates=True,
 )
-async def apply_schedule(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
+async def apply_proposal(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
     proposal = await ctx.session.get(Proposal, args.proposal_id)
     if proposal is None:
         raise ToolError(f"no proposal {args.proposal_id}")
     if proposal.status is not ProposalStatus.PENDING:
         raise ToolError(f"proposal {args.proposal_id} is already {proposal.status.value}")
+    if proposal.kind is ProposalKind.SCHEDULE:
+        result = await _apply_schedule(proposal, ctx)
+    else:
+        result = await _apply_events(proposal, ctx)
+    proposal.status = ProposalStatus.APPLIED
+    proposal.applied_at = ctx.now
+    await ctx.session.flush()
+    return result
+
+
+async def _apply_schedule(proposal: Proposal, ctx: ToolContext) -> ToolResult:
     created, existing = 0, 0
     for raw in proposal.entries:
         entry = ParsedEntry.model_validate(raw)
         result = await create_weekly_blocks(ctx, AddBlockArgs(**entry.model_dump()))
         created += len(result["created"])
         existing += len(result.get("already_existed", []))
-    # Superseded proposals of this conversation are closed too.
+    # A corrected schedule replaces the earlier proposals of this conversation.
     others = (
         await ctx.session.scalars(
             select(Proposal).where(
                 Proposal.status == ProposalStatus.PENDING,
+                Proposal.kind == ProposalKind.SCHEDULE,
                 Proposal.id != proposal.id,
                 Proposal.conversation_id == proposal.conversation_id,
             )
@@ -226,10 +280,37 @@ async def apply_schedule(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
     ).all()
     for other in others:
         other.status = ProposalStatus.DISCARDED
-    proposal.status = ProposalStatus.APPLIED
-    proposal.applied_at = ctx.now
-    await ctx.session.flush()
     return {"blocks_created": created, "already_existed": existing}
+
+
+async def _apply_events(proposal: Proposal, ctx: ToolContext) -> ToolResult:
+    created, existing = [], []
+    for raw in proposal.entries:
+        entry = ProposedEvent.model_validate(raw)
+        start = ctx.local(entry.date, entry.start_time or dt.time())
+        duplicate = await ctx.session.scalar(
+            select(Event).where(Event.title == entry.title, Event.start_at == start)
+        )
+        if duplicate is not None:
+            existing.append(entry.title)
+            continue
+        course = await find_course(ctx, entry.course) if entry.course else None
+        notes = None if course or not entry.course else f"Ders: {entry.course}"
+        result = await add_event(
+            AddEventArgs(
+                kind=entry.kind,
+                title=entry.title,
+                date=entry.date,
+                start_time=entry.start_time,
+                end_time=entry.end_time,
+                location=entry.location,
+                course=course.code if course else None,
+                notes=notes,
+            ),
+            ctx,
+        )
+        created.append(result["created"])
+    return {"events_created": created, "already_existed": existing}
 
 
 # --- finishing -------------------------------------------------------------------------

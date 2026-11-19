@@ -12,13 +12,14 @@ from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.agent.coordinator import Coordinator
 from app.agent.team import get_team
 from app.api.chat import get_coordinator, get_session_factory
 from app.config import Settings, get_settings
 from app.db.models import Message, RecurringBlock
 from app.db.session import get_session
 from app.main import create_app
-from tests.agent_fakes import ScriptedLLM, call, coordinator, example_team, say
+from tests.agent_fakes import ScriptedLLM, call, example_team, say
 from tests.db.test_agent_scenarios import week_setup_script
 
 
@@ -41,7 +42,9 @@ async def client(
     app.dependency_overrides[get_session_factory] = lambda: async_sessionmaker(
         session.bind, expire_on_commit=False
     )
-    app.dependency_overrides[get_coordinator] = lambda: coordinator(llm)
+    app.dependency_overrides[get_coordinator] = lambda: Coordinator(
+        llm, example_team(), Settings(_env_file=None, upload_dir=tmp_path)
+    )
     app.dependency_overrides[get_team] = example_team
     transport = httpx2.ASGITransport(app=app)
     async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:
@@ -228,3 +231,27 @@ async def test_upload_and_fetch_images(client: httpx2.AsyncClient) -> None:
     assert junk.status_code == 415
     assert junk.json()["detail"]["code"] == "not_an_image"
     assert (await client.get("/api/uploads/999")).status_code == 404
+
+
+async def test_chat_with_images(client: httpx2.AsyncClient, llm: ScriptedLLM) -> None:
+    (image,) = await upload(client, png_bytes())
+    llm.add("image_reader", call("image_contents", kind="other", summary="Bir kedi fotoğrafı"))
+    llm.add("yaver", say("Güzel kedi!"))
+
+    empty = await client.post("/api/chat", json={"message": "  "})
+    unknown = await client.post("/api/chat", json={"message": "x", "attachment_ids": [999]})
+    sent = await client.post("/api/chat", json={"message": "", "attachment_ids": [image["id"]]})
+    again = await client.post("/api/chat", json={"message": "x", "attachment_ids": [image["id"]]})
+    history = (
+        await client.get(f"/api/conversations/{sent.json()['conversation_id']}/messages")
+    ).json()
+
+    assert empty.status_code == 422
+    assert unknown.status_code == 422
+    assert unknown.json()["detail"]["code"] == "bad_attachments"
+    assert sent.status_code == 200, sent.text
+    assert again.status_code == 422  # an image belongs to one message
+    user = history["messages"][0]
+    assert user["role"] == "user"
+    assert [a["id"] for a in user["attachments"]] == [image["id"]]
+    assert "context" not in user  # what the model read stays out of the chat view

@@ -10,10 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.team import Team, get_team
+from app.api.uploads import attachment_view
 from app.config import get_settings
 from app.core.change_log import describe_changes
 from app.core.time_resolver import week_start
-from app.db.models import ChangeLog, Conversation, Message, RecurringBlock, Term
+from app.db.models import Attachment, ChangeLog, Conversation, Message, RecurringBlock, Term
 from app.db.models.enums import ConversationMode, MessageRole
 from app.db.session import get_session
 from app.services.attendance import all_course_summaries
@@ -164,6 +165,18 @@ async def conversation_messages(
                 "changes": changes,
                 "undone": all(change["undone"] for change in changes),
             }
+    images: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    message_ids = [row.id for row in rows if row.role is MessageRole.USER]
+    if message_ids:
+        for attachment in (
+            await session.scalars(
+                select(Attachment)
+                .where(Attachment.message_id.in_(message_ids))
+                .order_by(Attachment.id)
+            )
+        ).all():
+            assert attachment.message_id is not None
+            images[attachment.message_id].append(attachment_view(attachment))
     return {
         "conversation_id": conversation_id,
         "messages": [
@@ -174,6 +187,7 @@ async def conversation_messages(
                 "content": row.content,
                 "created_at": row.created_at,
                 "change_set_id": str(row.change_set_id) if row.change_set_id else None,
+                "attachments": images.get(row.id, []),
             }
             for row in rows
             if row.role in (MessageRole.USER, MessageRole.ASSISTANT)
