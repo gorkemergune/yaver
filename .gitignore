@@ -4,6 +4,7 @@
 !.env.example
 data/
 uploads/
+backups/
 *.db
 
 # personal config (commit only the *.example.yaml versions)

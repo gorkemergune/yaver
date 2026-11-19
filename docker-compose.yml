@@ -34,10 +34,12 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-yaver}:${POSTGRES_PASSWORD:-yaver}@db:5432/${POSTGRES_DB:-yaver}
       CONFIG_DIR: /config
       UPLOAD_DIR: /uploads
+      BACKUP_DIR: /backups        # host side: BACKUP_DIR in .env (default ./backups)
     volumes:
       - ./config:/config:ro
       - ./examples:/examples:ro   # sample data (onboarding paste, live tests)
       - ./uploads:/uploads        # images sent in the chat (gitignored)
+      - ${BACKUP_DIR:-./backups}:/backups   # pg_dump backups (gitignored)
     depends_on:
       db:
         condition: service_healthy

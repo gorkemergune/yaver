@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     config_dir: Path = REPO_DIR / "config"
     upload_dir: Path = REPO_DIR / "uploads"  # gitignored; /uploads volume in Docker
 
+    # --- Backups (pg_dump .sql.gz; scripts/backup.sh restores them) ---
+    backup_dir: Path = REPO_DIR / "backups"  # gitignored; /backups volume in Docker
+    backup_keep: int = 14  # newest N kept
+    backup_max_age_hours: float = 24  # on startup: back up when the newest is older
+    backup_on_startup: bool = True
+
     # --- Images sent in the chat ---
     upload_max_mb: float = 20  # per file, before processing
     image_max_edge: int = 1600  # longer side after automatic downscaling (px)

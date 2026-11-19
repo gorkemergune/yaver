@@ -70,6 +70,20 @@ docker compose up -d
 # open http://localhost:8080
 ```
 
+## Backups
+
+> ⚠️ **`docker compose down -v` deletes your data.** `-v` removes the `pgdata` volume, i.e.
+> the database with your schedule and history. Use plain `docker compose down` (or `stop`).
+
+- The api takes a backup on startup when the newest one is older than 24 h:
+  `backups/yaver-YYYYMMDD-HHMMSS.sql.gz` (UTC), the newest 14 are kept. Folder: `BACKUP_DIR` in `.env`.
+- By hand: `.\scripts\backup.ps1` (Windows) or `scripts/backup.sh`.
+- Restore into a scratch database first: `.\scripts\backup.ps1 restore backups\yaver-....sql.gz`
+  (creates `yaver_restore`). Over the live database: `docker compose stop api`, then
+  `.\scripts\backup.ps1 restore <file> yaver -Yes`, then `docker compose start api`.
+
+Details (Turkish): [docs/tr/yedekleme.md](docs/tr/yedekleme.md).
+
 ## LLM providers
 
 | Tier | Default | Used for |

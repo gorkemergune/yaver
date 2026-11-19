@@ -11,19 +11,24 @@ from app.config import get_settings
 from app.db.session import dispose_engine
 from app.llm.check_models import log_startup_check
 from app.llm.router import get_router
+from app.services.backup import backup_if_due
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    check: asyncio.Task[None] | None = None
-    if get_settings().llm_check_models_on_startup:
-        # Runs in the background: a slow or missing provider never delays startup.
-        check = asyncio.create_task(log_startup_check())
+    settings = get_settings()
+    background: list[asyncio.Task[object]] = []
+    # Background tasks: a slow provider or a long pg_dump never delays startup.
+    if settings.llm_check_models_on_startup:
+        background.append(asyncio.create_task(log_startup_check()))
+    if settings.backup_on_startup:
+        background.append(asyncio.create_task(backup_if_due(settings)))
     yield
-    if check is not None and not check.done():
-        check.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await check
+    for task in background:
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
     if get_router.cache_info().currsize:
         await get_router().aclose()
     await dispose_engine()
