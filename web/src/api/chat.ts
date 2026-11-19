@@ -8,11 +8,12 @@ export async function streamChat(
   onEvent: (event: ChatEvent) => void,
   signal?: AbortSignal,
   mode: ChatMode = "chat",
+  attachmentIds: number[] = [],
 ): Promise<void> {
   const response = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ message, conversation_id: conversationId, mode }),
+    body: JSON.stringify({ message, conversation_id: conversationId, mode, attachment_ids: attachmentIds }),
     signal,
   });
   if (!response.ok || !response.body) {

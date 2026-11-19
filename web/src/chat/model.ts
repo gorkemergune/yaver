@@ -19,7 +19,10 @@ export interface UserItem {
   kind: "user";
   id: string;
   text: string;
+  images: { url: string; name: string }[];
 }
+
+export type StatusLine = { code: "rate_limited"; provider: string } | { code: "reading_images"; count: number };
 
 export interface AssistantItem {
   kind: "assistant";
@@ -32,7 +35,7 @@ export interface AssistantItem {
   changes: Change[];
   undone: boolean;
   error: string | null;
-  status: { code: string; provider: string; seconds: number } | null; // e.g. waiting on Groq
+  status: StatusLine | null; // waiting on Groq, reading images
 }
 
 export type ChatItem = UserItem | AssistantItem;
@@ -70,7 +73,11 @@ export function applyEvent(
   names: Record<string, string>,
 ): AssistantItem {
   if (event.type === "status") {
-    return { ...item, status: { code: event.code, provider: event.provider, seconds: event.seconds } };
+    const status: StatusLine =
+      event.code === "reading_images"
+        ? { code: "reading_images", count: event.count }
+        : { code: "rate_limited", provider: event.provider };
+    return { ...item, status };
   }
   // Any progress after a wait clears the "waiting" line (a new turn alone doesn't).
   if (item.status && event.type !== "turn") item = { ...item, status: null };
@@ -157,7 +164,12 @@ export function historyToItems(history: HistoryResponse, names: Record<string, s
   for (const message of history.messages) {
     if (message.role === "user") {
       flush();
-      items.push({ kind: "user", id: `h${String(message.id)}`, text: message.content });
+      items.push({
+        kind: "user",
+        id: `h${String(message.id)}`,
+        text: message.content,
+        images: (message.attachments ?? []).map((a) => ({ url: a.url, name: `#${String(a.id)}` })),
+      });
     } else {
       group.push(message);
     }

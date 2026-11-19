@@ -94,9 +94,17 @@ describe("rate-limit status", () => {
     ]);
     const resumed = applyEvent(waiting, { type: "text", agent_id: "yaver", delta: "Tamam" }, names);
 
-    expect(waiting.status).toEqual({ code: "rate_limited", provider: "groq", seconds: 4.2 });
+    expect(waiting.status).toEqual({ code: "rate_limited", provider: "groq" });
     expect(resumed.status).toBeNull();
     expect(resumed.text).toBe("Tamam");
+  });
+
+  it("shows reading images until the answer starts", () => {
+    const reading = run([{ type: "status", agent_id: "yaver", code: "reading_images", count: 2 }, { type: "turn", agent_id: "yaver" }]);
+    const answering = applyEvent(reading, { type: "text", agent_id: "yaver", delta: "Okudum" }, names);
+
+    expect(reading.status).toEqual({ code: "reading_images", count: 2 });
+    expect(answering.status).toBeNull();
   });
 });
 
@@ -134,5 +142,28 @@ describe("historyToItems", () => {
     const first = items[1];
     expect(first?.kind === "assistant" && first.steps.map((s) => s.name)).toEqual(["Friday"]);
     expect(first?.kind === "assistant" && first.undone).toBe(true);
+  });
+
+  it("keeps the images of a user message", () => {
+    const history: HistoryResponse = {
+      conversation_id: 1,
+      messages: [
+        {
+          id: 1,
+          role: "user",
+          agent_id: null,
+          content: "",
+          created_at: "",
+          change_set_id: null,
+          attachments: [{ id: 7, url: "/api/uploads/7", mime: "image/png", width: 10, height: 10 }],
+        },
+        { id: 2, role: "assistant", agent_id: "yaver", content: "Okudum", created_at: "", change_set_id: null },
+      ],
+      change_sets: {},
+    };
+
+    const [user] = historyToItems(history, names);
+
+    expect(user?.kind === "user" && user.images).toEqual([{ url: "/api/uploads/7", name: "#7" }]);
   });
 });

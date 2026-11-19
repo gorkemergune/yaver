@@ -88,3 +88,15 @@ export const ChevronIcon = (p: IconProps) => (
     <path d="m9 6 6 6-6 6" />
   </Icon>
 );
+
+export const PaperclipIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m21 11-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9" />
+  </Icon>
+);
+
+export const XIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </Icon>
+);

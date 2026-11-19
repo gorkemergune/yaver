@@ -106,6 +106,14 @@ export interface Change {
   undone: boolean;
 }
 
+export interface Attachment {
+  id: number;
+  url: string;
+  mime: string;
+  width: number;
+  height: number;
+}
+
 export interface HistoryMessage {
   id: number;
   role: "user" | "assistant";
@@ -113,6 +121,7 @@ export interface HistoryMessage {
   content: string;
   created_at: string;
   change_set_id: string | null;
+  attachments?: Attachment[];
 }
 
 export interface HistoryResponse {
@@ -149,5 +158,6 @@ export type ChatEvent =
   | { type: "delegate"; agent_id: string; name: string; instruction: string }
   | { type: "agent_reply"; agent_id: string; name: string; reply: string }
   | { type: "status"; agent_id: string; code: "rate_limited"; provider: string; seconds: number }
+  | { type: "status"; agent_id: string; code: "reading_images"; count: number }
   | DoneEvent
   | { type: "error"; code: string };

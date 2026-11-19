@@ -7,7 +7,9 @@ import { PlusIcon } from "../components/icons";
 import { Markdown } from "../components/Markdown";
 import { tr } from "../i18n/tr";
 import { ChangeCard } from "./ChangeCard";
+import { MAX_IMAGES, imageFiles } from "../api/uploads";
 import { Composer } from "./Composer";
+import { Thumb, type PendingImage } from "./ImageStrip";
 import type { AssistantItem } from "./model";
 import { Steps } from "./Steps";
 import { useChat, type UndoState } from "./useChat";
@@ -24,6 +26,30 @@ export function ChatView() {
   }, [chat.team]);
   const onboarding = useOnboardingStatus();
   const [skipped, setSkipped] = useState(onboardingSkipped);
+  const [images, setImages] = useState<PendingImage[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const counter = useRef(0);
+
+  function addFiles(files: File[]) {
+    if (files.length === 0) return;
+    const room = MAX_IMAGES - images.length;
+    setNotice(files.length > room ? tr.chat.tooManyImages(MAX_IMAGES) : null);
+    const added = files.slice(0, Math.max(room, 0)).map((file) => {
+      counter.current += 1;
+      return { id: `p${String(counter.current)}`, file, url: URL.createObjectURL(file) };
+    });
+    setImages((prev) => [...prev, ...added]);
+  }
+
+  function removeImage(id: string) {
+    setImages((prev) => {
+      const gone = prev.find((image) => image.id === id);
+      if (gone) URL.revokeObjectURL(gone.url);
+      return prev.filter((image) => image.id !== id);
+    });
+    setNotice(null);
+  }
 
   const last = chat.items[chat.items.length - 1];
   const lastText = last?.kind === "assistant" ? last.text : "";
@@ -33,12 +59,36 @@ export function ChatView() {
 
   function send() {
     const text = draft;
+    const files = images;
     setDraft("");
-    void chat.send(text);
+    setImages([]); // the previews live on in the sent bubble
+    setNotice(null);
+    void chat.send(text, "chat", files);
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="relative flex h-full flex-col"
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget === event.target) setDragging(false);
+      }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragging(false);
+        addFiles(imageFiles(event.dataTransfer.files));
+      }}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-3xl border-2 border-dashed border-indigo-400 bg-indigo-50/80 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-200">
+          {tr.chat.dropHere}
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto px-3 py-4">
         {chat.items.length === 0 && onboarding.data?.needed && !skipped ? (
           <OnboardingCard
@@ -55,10 +105,21 @@ export function ChatView() {
           <ul className="mx-auto flex max-w-2xl flex-col gap-4">
             {chat.items.map((item) =>
               item.kind === "user" ? (
-                <li key={item.id} className="flex justify-end">
-                  <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2 text-white">
-                    {item.text}
-                  </p>
+                <li key={item.id} className="flex flex-col items-end gap-1">
+                  {item.images.length > 0 && (
+                    <div className="flex max-w-[85%] flex-wrap justify-end gap-1">
+                      {item.images.map((image) => (
+                        <a key={image.url} href={image.url} target="_blank" rel="noreferrer">
+                          <Thumb url={image.url} name={image.name} className="h-28 w-28 sm:h-36 sm:w-36" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {item.text && (
+                    <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2 text-white">
+                      {item.text}
+                    </p>
+                  )}
                 </li>
               ) : (
                 <Answer
@@ -87,7 +148,20 @@ export function ChatView() {
           </button>
         </div>
       )}
-      <Composer value={draft} onChange={setDraft} onSend={send} busy={chat.busy} />
+      {notice && (
+        <p className="px-3 pb-1 text-center text-xs text-amber-700 dark:text-amber-400" role="status">
+          {notice}
+        </p>
+      )}
+      <Composer
+        value={draft}
+        onChange={setDraft}
+        onSend={send}
+        busy={chat.busy}
+        images={images}
+        onAddFiles={addFiles}
+        onRemoveImage={removeImage}
+      />
     </div>
   );
 }
@@ -117,7 +191,9 @@ function Answer({
         ) : null}
         {item.status && item.streaming && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status">
-            {tr.chat.waiting(item.status.provider)}
+            {item.status.code === "reading_images"
+              ? tr.chat.readingImages(item.status.count)
+              : tr.chat.waiting(item.status.provider)}
           </p>
         )}
         {item.error && (

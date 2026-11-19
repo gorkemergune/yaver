@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { streamChat } from "../api/chat";
 import { apiGet, apiPost } from "../api/client";
 import { MUTABLE_KEYS, useTeam } from "../api/queries";
+import { UploadError, uploadImages } from "../api/uploads";
 import type { ChatMode, HistoryResponse } from "../api/types";
+import type { PendingImage } from "./ImageStrip";
 import { applyEvent, historyToItems, pendingAssistant, type AssistantItem, type ChatItem } from "./model";
 
 const KEY = "yaver.conversation";
@@ -85,13 +87,14 @@ export function useChat() {
   }, [loaded, team.data, names]);
 
   const send = useCallback(
-    async (text: string, mode: ChatMode = "chat") => {
+    async (text: string, mode: ChatMode = "chat", files: PendingImage[] = []) => {
       const message = text.trim();
-      if (!message || busy) return;
+      if ((!message && files.length === 0) || busy) return;
       counter.current += 1;
       const userId = `u${String(counter.current)}`;
       const answerId = `a${String(counter.current)}`;
-      setItems((prev) => [...prev, { kind: "user", id: userId, text: message }, pendingAssistant(answerId)]);
+      const images = files.map((f) => ({ url: f.url, name: f.file.name }));
+      setItems((prev) => [...prev, { kind: "user", id: userId, text: message, images }, pendingAssistant(answerId)]);
       setBusy(true);
       const controller = new AbortController();
       abort.current = controller;
@@ -101,6 +104,17 @@ export function useChat() {
       };
 
       try {
+        let attachmentIds: number[] = [];
+        if (files.length > 0) {
+          try {
+            attachmentIds = (await uploadImages(files.map((f) => f.file), controller.signal)).map((a) => a.id);
+          } catch (error) {
+            if (controller.signal.aborted) throw error;
+            const code = error instanceof UploadError ? `upload_${error.code}` : "upload_upload_failed";
+            update((item) => ({ ...item, streaming: false, error: code }));
+            return;
+          }
+        }
         await streamChat(
           message,
           conversationId,
@@ -113,6 +127,7 @@ export function useChat() {
           },
           controller.signal,
           mode,
+          attachmentIds,
         );
       } catch {
         if (!controller.signal.aborted) update((item) => ({ ...item, streaming: false, error: "network" }));
