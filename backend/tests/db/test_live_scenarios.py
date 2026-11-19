@@ -9,7 +9,9 @@ the end the failover rate and invalid tool calls, so prompt changes can be compa
 """
 
 import datetime as dt
+import logging
 import os
+import re
 import time
 from collections import Counter
 from collections.abc import AsyncIterator, Sequence
@@ -20,6 +22,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.coordinator import ChatReply, Coordinator
+from app.agent.reply import dedupe_questions
 from app.agent.team import get_team
 from app.config import get_settings
 from app.core.time_resolver import normalize
@@ -78,11 +81,15 @@ async def _count(session: AsyncSession, model: type) -> int:
     return int(await session.scalar(select(func.count()).select_from(model)) or 0)
 
 
-async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
+async def test_live_scenarios(
+    session: AsyncSession, router: LLMRouter, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="app.agent.coordinator")
     coordinator = Coordinator(router, get_team(), get_settings())
     replies: list[ChatReply] = []
 
     durations: list[float] = []
+    all_problems: list[str] = []
 
     async def send(step: str, text: str) -> ChatReply:
         started = time.monotonic()
@@ -92,6 +99,9 @@ async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
         durations.append(time.monotonic() - started)
         replies.append(reply)
         _report(step, reply)
+        problems = _reply_problems(reply)
+        print(f"  reply checks: {problems or 'ok'}")
+        all_problems.extend(f"{step}: {p}" for p in problems)
         print(f"  took {durations[-1]:.1f}s")
         return reply
 
@@ -137,6 +147,12 @@ async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
         assert "iceberg" in normalize(events[0].title)
         assert events[0].start_at == dt.datetime(2026, 11, 24, 11, 0, tzinfo=dt.UTC)
         assert second.change_set_id is not None
+        out_of_area = [
+            (a["agent_id"], a["tool"])
+            for a in second.actions
+            if a["tool"] == "add_event" and a["agent_id"] != "agenda"
+        ]
+        all_problems.extend(f"2: {agent} did {tool} (not its part)" for agent, tool in out_of_area)
 
         # 3) attendance in the past
         third = await send("3", "Geçen salı EE211'e gitmedim")
@@ -160,6 +176,43 @@ async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
         assert await _count(session, BlockOverride) == len(found_overrides)
     finally:
         await _summary(session, replies, durations)
+        repeats = [r for r in caplog.records if "repeated question" in r.getMessage()]
+        print(f"repeated questions removed by code (prompt missed them): {len(repeats)}")
+        for record in repeats:
+            print(f"  {record.getMessage()}")
+    assert not all_problems, all_problems
+
+
+# Tools whose result tells what is on a day (log_attendance warns when nothing is).
+PLAN_TOOLS = {"get_day_plan", "get_week_plan", "cancel_block_on", "move_block_on", "log_attendance"}
+
+
+def _reply_problems(reply: ChatReply) -> list[str]:
+    """The quality rules of the prompts, checked on real model output."""
+    problems = []
+    team = get_team()
+    names = {member.name for member in [team.coordinator, *team.agents]}
+    checked = {entry["agent_id"] for entry in reply.trace if entry["tool"] in PLAN_TOOLS}
+    for agent in reply.agents:
+        says_none = re.search(r"\b(yok|bulunmuyor|gorunmuyor)\b", normalize(agent["reply"]))
+        if says_none and agent["agent_id"] not in checked:
+            problems.append(f"{agent['name']} said 'yok' without checking the plan")
+    final = normalize(reply.reply)
+    if dedupe_questions(reply.reply) != reply.reply:
+        problems.append("a question is repeated")
+    for name in names:
+        n = re.escape(normalize(name))
+        mixed = re.search(rf"\b{n} icin [^.?]*\b(bana|soylersen)\b", final) or re.search(
+            rf"\b{n}\b[^.?!]*(memi|mami)\b[^.?!]*\bsordu", final
+        )
+        if re.search(rf"\b{n} olarak\b", final) or mixed:
+            problems.append(f"broken voice around {name}")
+    english = {"the", "you", "your", "and", "was", "has", "have", "added", "cancelled", "would"}
+    if len(english & set(re.findall(r"[a-z]+", reply.reply.lower()))) >= 3:
+        problems.append("answer is in English")
+    if not reply.agents and reply.actions and any(f"{name}:" in reply.reply for name in names):
+        problems.append("own (fast path) work credited to a yaver")
+    return problems
 
 
 async def _summary(session: AsyncSession, replies: list[ChatReply], durations: list[float]) -> None:
