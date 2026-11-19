@@ -16,13 +16,15 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 - Web: sohbet ekranı + salt-okunur günlük/haftalık görünüm (Dayframe tarzı) + değişiklik kartı ve "Geri al"
 - İlk kurulum sohbeti: "Ders programını yaz/yapıştır" → ajan tüm blokları oluşturur
 
+**Durum: bitti (2026-11-19).** Kanıt: canlı senaryolar (`pytest -m live -k scenarios`, gerçek DB'de 5 mesaj; fast = Groq ve fast = Haiku düzenlerinde) + fake-LLM testleri.
+
 **Bitti sayılır:**
-- [ ] "Pazartesi 9-11 Linear Algebra, Çarşamba 13-15 EE211 lab..." yazınca haftalık program oluşuyor
-- [ ] "Bugün linear iptal" → sadece bugünkü blok iptal, diff + geri al çalışıyor
-- [ ] "Bugün EE211'e gitmedim" → devamsızlık sayılıyor, limit soruluyor/gösteriliyor
-- [ ] "Yarın ne var?" doğru cevaplanıyor (override'lar ve event'ler dahil)
-- [ ] Claude harcaması `llm_usage`'da görünüyor
-- [ ] Karışık bir mesaj doğru yaverlere bölünüyor, cevapta kimin ne yaptığı görünüyor
+- [x] "Pazartesi 9-11 Linear Algebra, Çarşamba 13-15 EE211 lab..." yazınca haftalık program oluşuyor — canlı senaryo 1: 4 blok (ders, lab, 2 spor) + EE211 dersi DB'de; ilk kurulumda yapıştırılan tablo da (Sonnet, 9/9 satır)
+- [x] "Bugün linear iptal" → sadece bugünkü blok iptal, diff + geri al çalışıyor — canlı senaryo 2: yalnız 23 Kasım için `cancel` override'ı, diğer haftalar etkilenmedi; değişiklik kartı + "Geri al" (`POST /api/changes/{id}/undo`); mesajın tamamının tek adımda geri alınması `test_full_week_story`'de
+- [x] "Bugün EE211'e gitmedim" → devamsızlık sayılıyor, limit soruluyor/gösteriliyor — canlı senaryo 3 ("Geçen salı EE211'e gitmedim"): devamsızlık 1 olarak kaydedildi, limit bilinmediği için soruldu, o gün ders olmadığı da söylendi; limit biliniyorsa kalan hak gösteriliyor (`test_attendance_with_limit`), Durum sayfasında devamsızlık kartı
+- [x] "Yarın ne var?" doğru cevaplanıyor (override'lar ve event'ler dahil) — canlı senaryo 4: toplantı + spor; iptal/taşıma override'ları ve sınavlar `test_day_plan_from_database`, `test_tomorrow_quiz`'de
+- [x] Claude harcaması `llm_usage`'da görünüyor — her deneme (hatalılar dahil) maliyetiyle yazılıyor; `/api/usage/month` + üst çubuktaki harcama göstergesi; 0.4 canlı testleri
+- [x] Karışık bir mesaj doğru yaverlere bölünüyor, cevapta kimin ne yaptığı görünüyor — canlı senaryo 2: Friday (iptal), Jarvis (toplantı), Karen (spor: gün belirsiz, sordu); arayüzde yaver etiketleri ve adımlar
 
 ## Faz 1 — Proaktif asistan
 **Hedef:** Sen sormadan konuşması.
