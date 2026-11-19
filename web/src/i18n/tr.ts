@@ -41,6 +41,20 @@ export const tr = {
       network: "Sunucuya ulaşılamadı.",
     } as Record<string, string>,
   },
+  onboarding: {
+    title: "Yaver'i birlikte kuralım",
+    intro: "Birkaç dakikalık bir sohbetle programını kuralım. İstediğin adımı atlayabilirsin.",
+    steps: [
+      "Dönemin başlangıç ve bitiş tarihi, tatiller",
+      "Haftalık ders programın (yazabilir ya da tablo yapıştırabilirsin)",
+      "Ders başına devamsızlık hakların",
+      "Spor günlerin ve bilmemi istediğin sabit bilgiler",
+    ],
+    pasteHint: "Ders programını kopyala-yapıştır yaparsan önce özet tabloyu gösteririm; onaylamadan kaydetmem.",
+    start: "Kuruluma başla",
+    skip: "Şimdilik atla",
+    startMessage: "Merhaba, kuruluma başlayalım.",
+  },
   steps: {
     changed: (name: string, count: number) => `${name} ${count} değişiklik yaptı`,
     looked: (name: string) => `${name} kontrol etti`,

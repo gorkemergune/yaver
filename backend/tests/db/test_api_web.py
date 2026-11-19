@@ -185,5 +185,6 @@ async def test_onboarding_status_and_mode(client: httpx2.AsyncClient, llm: Scrip
 
     assert before == {"needed": True, "open_conversation_id": None}
     assert events[-1]["speaker"] == "onboarding"
-    assert during == {"needed": False, "open_conversation_id": events[-1]["conversation_id"]}
+    # still nothing set up: the card stays, and the open setup conversation is reported
+    assert during == {"needed": True, "open_conversation_id": events[-1]["conversation_id"]}
     assert team["onboarding"]["name"] == "Yaver"

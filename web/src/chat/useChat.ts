@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { streamChat } from "../api/chat";
 import { apiGet, apiPost } from "../api/client";
 import { MUTABLE_KEYS, useTeam } from "../api/queries";
-import type { HistoryResponse } from "../api/types";
+import type { ChatMode, HistoryResponse } from "../api/types";
 import { applyEvent, historyToItems, pendingAssistant, type AssistantItem, type ChatItem } from "./model";
 
 const KEY = "yaver.conversation";
@@ -38,6 +38,7 @@ export function useChat() {
   const names = useMemo<Record<string, string>>(() => {
     if (!team.data) return {};
     const members = [team.data.coordinator, ...team.data.agents];
+    if (team.data.onboarding) members.push(team.data.onboarding);
     return Object.fromEntries(members.map((m) => [m.id, m.name]));
   }, [team.data]);
 
@@ -84,7 +85,7 @@ export function useChat() {
   }, [loaded, team.data, names]);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, mode: ChatMode = "chat") => {
       const message = text.trim();
       if (!message || busy) return;
       counter.current += 1;
@@ -111,6 +112,7 @@ export function useChat() {
             }
           },
           controller.signal,
+          mode,
         );
       } catch {
         if (!controller.signal.aborted) update((item) => ({ ...item, streaming: false, error: "network" }));

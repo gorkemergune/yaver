@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useOnboardingStatus } from "../api/queries";
 import type { Member } from "../api/types";
 import { AgentTag } from "../components/AgentTag";
 import { PlusIcon } from "../components/icons";
@@ -17,8 +18,12 @@ export function ChatView() {
   const bottom = useRef<HTMLDivElement>(null);
   const members = useMemo<Record<string, Member>>(() => {
     if (!chat.team) return {};
-    return Object.fromEntries([chat.team.coordinator, ...chat.team.agents].map((m) => [m.id, m]));
+    const all = [chat.team.coordinator, ...chat.team.agents];
+    if (chat.team.onboarding) all.push(chat.team.onboarding);
+    return Object.fromEntries(all.map((m) => [m.id, m]));
   }, [chat.team]);
+  const onboarding = useOnboardingStatus();
+  const [skipped, setSkipped] = useState(onboardingSkipped);
 
   const last = chat.items[chat.items.length - 1];
   const lastText = last?.kind === "assistant" ? last.text : "";
@@ -35,7 +40,16 @@ export function ChatView() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        {chat.items.length === 0 ? (
+        {chat.items.length === 0 && onboarding.data?.needed && !skipped ? (
+          <OnboardingCard
+            busy={chat.busy}
+            onStart={() => void chat.send(tr.onboarding.startMessage, "onboarding")}
+            onSkip={() => {
+              rememberSkip();
+              setSkipped(true);
+            }}
+          />
+        ) : chat.items.length === 0 ? (
           <Empty onPick={setDraft} />
         ) : (
           <ul className="mx-auto flex max-w-2xl flex-col gap-4">
@@ -139,6 +153,63 @@ function Typing() {
         />
       ))}
     </span>
+  );
+}
+
+const SKIP_KEY = "yaver.onboarding.skipped";
+
+function onboardingSkipped(): boolean {
+  try {
+    return localStorage.getItem(SKIP_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberSkip(): void {
+  try {
+    localStorage.setItem(SKIP_KEY, "1");
+  } catch {
+    // shown again next time; harmless
+  }
+}
+
+/** First run: nothing set up yet. Starts the setup conversation with the assistant. */
+function OnboardingCard({ busy, onStart, onSkip }: { busy: boolean; onStart: () => void; onSkip: () => void }) {
+  return (
+    <div className="mx-auto flex h-full max-w-md flex-col justify-center gap-4">
+      <img src="/favicon.svg" alt="" className="h-12 w-12 self-center" />
+      <h2 className="text-center text-2xl font-semibold">{tr.onboarding.title}</h2>
+      <p className="text-center text-sm text-slate-500 dark:text-slate-400">{tr.onboarding.intro}</p>
+      <ul className="space-y-1.5 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        {tr.onboarding.steps.map((step) => (
+          <li key={step} className="flex gap-2">
+            <span className="text-indigo-500" aria-hidden>
+              •
+            </span>
+            {step}
+          </li>
+        ))}
+      </ul>
+      <p className="text-center text-xs text-slate-500 dark:text-slate-400">{tr.onboarding.pasteHint}</p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <button
+          type="button"
+          onClick={onStart}
+          disabled={busy}
+          className="min-h-11 rounded-xl bg-indigo-600 px-5 font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+        >
+          {tr.onboarding.start}
+        </button>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="min-h-11 rounded-xl px-5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {tr.onboarding.skip}
+        </button>
+      </div>
+    </div>
   );
 }
 

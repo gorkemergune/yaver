@@ -48,5 +48,5 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Aylık Claude harcaması göstergesi
 
 ## 0.7 İlk kurulum
-- [ ] İlk açılışta onboarding sohbeti: ad, dönem tarihleri, ders programı (serbest metin/yapıştırma), devamsızlık limitleri, spor günleri, sabit bilgiler (ör. "Cuma Medipol")
-- [ ] `examples/sample_schedule.md` (uydurma veri)
+- [x] İlk açılışta onboarding sohbeti: ad, dönem tarihleri, ders programı (serbest metin/yapıştırma), devamsızlık limitleri, spor günleri, sabit bilgiler (ör. "Cuma Medipol")
+- [x] `examples/sample_schedule.md` (uydurma veri)

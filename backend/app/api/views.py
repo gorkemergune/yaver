@@ -74,10 +74,10 @@ async def team_activity(
 
 @router.get("/onboarding/status")
 async def onboarding_status(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
-    """First run = nothing set up and nothing said yet: the web app offers the setup chat."""
+    """Nothing set up yet (no term, no weekly blocks): the web app offers the setup chat
+    (the user can skip it)."""
     has_term = await session.scalar(select(Term.id).limit(1)) is not None
     has_blocks = await session.scalar(select(RecurringBlock.id).limit(1)) is not None
-    has_messages = await session.scalar(select(Message.id).limit(1)) is not None
     open_setup = await session.scalar(
         select(Conversation.id)
         .where(Conversation.mode == ConversationMode.ONBOARDING)
@@ -85,7 +85,7 @@ async def onboarding_status(session: AsyncSession = Depends(get_session)) -> dic
         .limit(1)
     )
     return {
-        "needed": not (has_term or has_blocks or has_messages),
+        "needed": not (has_term or has_blocks),
         "open_conversation_id": open_setup,  # setup started but not finished
     }
 

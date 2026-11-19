@@ -129,6 +129,8 @@ Kurallar:
 - Her cevap `trace` (tüm araç çağrıları + argümanlar) taşır; prompt ayarı yaparken canlı senaryo çıktısına bakılır.
 - HTTP: `POST /api/chat/stream` (SSE: turn/text/reset/tool/delegate/agent_reply, sonra done/error; bağlantı koparsa mesaj iptal ve rollback), `POST /api/chat` (akışsız), `POST /api/changes/{change_set_id}/undo` ("Geri al" butonu). Arayüz verisi: `/api/team`, `/api/plan/day`, `/api/plan/week`, `/api/attendance`, `/api/conversations/...`, `/api/usage/month`.
 - Yaver etiket rengi `agents.yaml`'da (`color`); yoksa varsayılan palet.
+- İlk kurulum: `conversations.mode = onboarding` olan konuşma kurulum asistanına (`prompts/onboarding.md.j2`) gider; `finish_onboarding` normal sohbete çevirir. Yapıştırılan ders programı `propose_schedule` ile öneriye (`schedule_proposals`) dönüşür, tablo gösterilir, ancak kullanıcı onaylayınca `apply_schedule` tek change_set ile yazar. Uzun metin `routing.purposes.schedule_parse` (smart) ile ayrıştırılır.
+- Prompt boyutu: `PYTHONPATH=. uv run python scripts/measure_prompts.py` (ajan başına token). Prompt/araç eklerken ölç; her çağrıda giden metin Groq kotasını doğrudan yer.
 
 ## LLM router
 - Tier'lar: `fast` (Groq), `fallback` (Claude Haiku 5.5), `smart` (Claude Sonnet 5.5), `local` (Ollama). Model ID'leri `config/providers.yaml`'da, koda gömülmez.

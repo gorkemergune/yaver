@@ -6,6 +6,7 @@ import type {
   CourseAttendance,
   DayPlanResponse,
   MonthUsage,
+  OnboardingStatus,
   Team,
   WeekPlanResponse,
 } from "./types";
@@ -18,6 +19,13 @@ export function useTeam() {
     queryKey: ["team"],
     queryFn: ({ signal }) => apiGet<Team>("/team", { signal }),
     staleTime: Infinity,
+  });
+}
+
+export function useOnboardingStatus() {
+  return useQuery({
+    queryKey: ["plan", "onboarding"], // refreshed with the plan after each answer
+    queryFn: ({ signal }) => apiGet<OnboardingStatus>("/onboarding/status", { signal }),
   });
 }
 

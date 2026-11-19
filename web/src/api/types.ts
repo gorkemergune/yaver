@@ -10,8 +10,16 @@ export interface Member {
 export interface Team {
   coordinator: Member;
   agents: Member[];
+  onboarding: Member | null;
   user_name: string;
 }
+
+export interface OnboardingStatus {
+  needed: boolean;
+  open_conversation_id: number | null;
+}
+
+export type ChatMode = "chat" | "onboarding";
 
 export interface PlanItem {
   type: "block" | "event";
