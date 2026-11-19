@@ -129,6 +129,7 @@ Kurallar:
 - Küçük, odaklı commit'ler. Her faz sonunda ROADMAP.md güncellenir.
 - Her TASKS.md maddesi bitince küçük bir commit at, **ASLA push yapma** (push'u Görkem yapar).
 - Commit öncesi `git status` kontrol et; `.env`, `config/agents.yaml`, `config/providers.yaml`, `data/`, `uploads/` asla stage edilmez.
+- ORM modellerinde (`app/db/`) `datetime` modülü her zaman `import datetime as dt` ile alınır, tipler `Mapped[dt.date]`, `Mapped[dt.datetime]`, `Mapped[dt.time]` diye yazılır. `from datetime import date` yasak: `date` adlı bir kolon (ör. `tasks.date`, `attendance.date`) class gövdesinde tipi gölgeler ve SQLAlchemy `MappedAnnotationError` verir.
 - Config yükleyici önce `config/<ad>.yaml`, yoksa `config/<ad>.example.yaml` okur. Yeni config alanı eklenirse example dosyası da güncellenir.
 
 ## Çalıştırma

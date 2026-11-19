@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime as dt
 from typing import Any, ClassVar
 
 from sqlalchemy import MetaData, func
@@ -18,15 +18,15 @@ NAMING_CONVENTION = {
 
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
-    # Every `Mapped[datetime]` column is a UTC timestamptz.
-    type_annotation_map: ClassVar[dict[Any, Any]] = {datetime: UTCDateTime()}
+    # Every `Mapped[dt.datetime]` column is a UTC timestamptz.
+    type_annotation_map: ClassVar[dict[Any, Any]] = {dt.datetime: UTCDateTime()}
 
 
 class CreatedAtMixin:
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), sort_order=900)
+    created_at: Mapped[dt.datetime] = mapped_column(server_default=func.now(), sort_order=900)
 
 
 class TimestampMixin(CreatedAtMixin):
-    updated_at: Mapped[datetime] = mapped_column(
+    updated_at: Mapped[dt.datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now(), sort_order=901
     )
