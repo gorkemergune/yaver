@@ -3,6 +3,7 @@ export const tr = {
   appName: "Yaver",
   header: {
     newChat: "Yeni sohbet",
+    screen: "Ekran süresi",
     settings: "Ayarlar",
     close: "Kapat",
     back: "Sohbete dön",
@@ -33,6 +34,25 @@ export const tr = {
     autostart: "Windows oturumu açılınca başlat",
     autostartHint: "Sağ alttaki tepsi simgesinden de açılıp kapatılabilir.",
     autostartFailed: "Otomatik başlatma ayarlanamadı.",
+  },
+  screen: {
+    limits: "Sınırlar",
+    apps: "Uygulamalar",
+    other: "Diğer",
+    usedOf: (used: string, limit: string) => `${used} / ${limit}`,
+    empty: "Bugün henüz kayıt yok.",
+    unsupported: "Ekran süresi takibi şimdilik sadece Windows'ta.",
+    paused: "Takip kapalı (config.json: track_screen_time).",
+    limitsHint: "Sınırın %80'inde ve dolunca uyarırım; uygulamayı kapatmam.",
+    noLimitsHint: "Sınır yok. config.json'daki app_limits'e ekleyebilirsin (ör. VALORANT 90 dk).",
+    configError: (detail: string) => `config.json okunamadı, son geçerli ayarlar kullanılıyor: ${detail}`,
+    openConfig: "Ayar dosyasını göster",
+    localOnly: "Veriler sadece bu bilgisayarda tutulur.",
+    loadFailed: "Ekran süresi okunamadı.",
+  },
+  notice: {
+    dismiss: "Kapat",
+    open: "Ekran süresini aç",
   },
   errors: {
     invalid_url: "Geçersiz adres. Örnek: http://localhost:8080",

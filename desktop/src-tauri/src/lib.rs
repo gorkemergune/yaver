@@ -2,6 +2,8 @@ mod api;
 mod autostart;
 mod config;
 mod layout;
+mod notice;
+mod screentime;
 mod tray;
 mod windows;
 
@@ -16,32 +18,98 @@ use tauri::{AppHandle, Manager, State, WindowEvent};
 /// Settings in memory + where they live on disk.
 pub struct AppState {
     config_dir: PathBuf,
+    /// Last good copy of config.json.
     config: Mutex<config::Config>,
+    /// Why config.json couldn't be read, if it couldn't (shown in the panel).
+    config_error: Mutex<Option<String>>,
     /// Bumped on every logo move; a save only runs if no newer move came in meanwhile.
     move_generation: AtomicU64,
     api: api::Client,
 }
 
 impl AppState {
-    fn save(&self) -> std::io::Result<()> {
-        let config = self.config.lock().expect("config lock").clone();
-        config::save(&self.config_dir, &config)
+    fn new(config_dir: PathBuf) -> Self {
+        let (config, error) = match config::read(&config_dir) {
+            Ok(Some(config)) => (config, None),
+            Ok(None) => {
+                // First run: write the defaults so there is a file to add limits to.
+                let config = config::Config::default();
+                if let Err(err) = config::save(&config_dir, &config) {
+                    log::warn!("could not create config.json: {err}");
+                }
+                (config, None)
+            }
+            Err(err) => {
+                log::warn!("config.json unreadable, using defaults: {err}");
+                (config::Config::default(), Some(err))
+            }
+        };
+        Self {
+            config_dir,
+            config: Mutex::new(config),
+            config_error: Mutex::new(error),
+            move_generation: AtomicU64::new(0),
+            api: api::Client::new(),
+        }
     }
 
-    fn save_or_log(&self) {
-        if let Err(err) = self.save() {
-            log::warn!("could not save settings: {err}");
+    pub fn config(&self) -> config::Config {
+        self.config.lock().expect("config lock").clone()
+    }
+
+    pub fn config_error(&self) -> Option<String> {
+        self.config_error.lock().expect("config error lock").clone()
+    }
+
+    pub fn config_path(&self) -> PathBuf {
+        config::path(&self.config_dir)
+    }
+
+    /// Changes one field on disk (keeping hand edits) and in memory.
+    fn update_config(&self, change: impl FnOnce(&mut config::Config)) -> Result<(), String> {
+        let mut memory = self.config.lock().expect("config lock");
+        let result = config::update(&self.config_dir, change);
+        let mut error = self.config_error.lock().expect("config error lock");
+        match result {
+            Ok(saved) => {
+                *memory = saved;
+                *error = None;
+                Ok(())
+            }
+            Err(err) => {
+                *error = Some(err.clone());
+                Err(err)
+            }
+        }
+    }
+
+    /// Picks up hand edits (limits); a broken file keeps the last good settings.
+    pub fn reload_config(&self) {
+        let mut memory = self.config.lock().expect("config lock");
+        let mut error = self.config_error.lock().expect("config error lock");
+        match config::read(&self.config_dir) {
+            Ok(Some(config)) => {
+                if *memory != config {
+                    log::info!("config.json reloaded");
+                }
+                *memory = config;
+                *error = None;
+            }
+            Ok(None) => *error = None,
+            Err(err) => {
+                if error.as_deref() != Some(err.as_str()) {
+                    log::warn!("config.json unreadable, keeping the last good one: {err}");
+                }
+                *error = Some(err);
+            }
         }
     }
 
     /// `YAVER_API_URL` wins over the saved address, which wins over the default.
     fn api_url(&self) -> String {
         env_api_url().unwrap_or_else(|| {
-            self.config
-                .lock()
-                .expect("config lock")
+            self.config()
                 .api_url
-                .clone()
                 .unwrap_or_else(|| api::DEFAULT_API_URL.to_owned())
         })
     }
@@ -63,14 +131,15 @@ const MOVE_SAVE_DELAY: Duration = Duration::from_millis(600);
 
 fn remember_bubble_position(app: &AppHandle, x: i32, y: i32) {
     let state = app.state::<AppState>();
-    state.config.lock().expect("config lock").bubble_position = Some((x, y));
     let generation = state.move_generation.fetch_add(1, Ordering::SeqCst) + 1;
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(MOVE_SAVE_DELAY).await;
         let state = app.state::<AppState>();
         if state.move_generation.load(Ordering::SeqCst) == generation {
-            state.save_or_log();
+            if let Err(err) = state.update_config(|c| c.bubble_position = Some((x, y))) {
+                log::warn!("could not save the logo position: {err}");
+            }
         }
     });
 }
@@ -117,13 +186,33 @@ fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
 #[tauri::command]
 fn set_api_url(state: State<'_, AppState>, url: String) -> Result<String, api::ApiError> {
     let url = api::normalize_api_url(&url)?;
-    state.config.lock().expect("config lock").api_url = Some(url.clone());
-    state.save().map_err(|err| api::ApiError {
-        code: "save_failed",
-        status: None,
-        detail: Some(err.to_string()),
-    })?;
+    let saved = url.clone();
+    state
+        .update_config(|c| c.api_url = Some(saved))
+        .map_err(|err| api::ApiError {
+            code: "save_failed",
+            status: None,
+            detail: Some(err),
+        })?;
     Ok(url)
+}
+
+/// Shows config.json in Explorer (limits are edited there for now).
+#[tauri::command]
+fn open_config_folder(state: State<'_, AppState>) -> Result<(), String> {
+    let path = state.config_path();
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path.display()))
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        Err(format!("open {} by hand", path.display()))
+    }
 }
 
 #[tauri::command]
@@ -159,20 +248,30 @@ pub fn run() {
             let _ = windows::reveal_bubble(app);
             let _ = windows::show_chat(app);
         }))
+        .plugin(
+            // %LOCALAPPDATA%\com.yaver.desktop\logs\Yaver.log (+ stdout)
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .build(),
+        )
         .plugin(autostart::plugin())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             if std::env::args().any(|arg| arg == autostart::LAUNCH_ARG) {
                 log::info!("started at login");
             }
-            let config_dir = app.path().app_config_dir()?;
-            let config = config::load(&config_dir);
-            let saved_position = config.bubble_position;
-            app.manage(AppState {
-                config_dir,
-                config: Mutex::new(config),
-                move_generation: AtomicU64::new(0),
-                api: api::Client::new(),
-            });
+            let state = AppState::new(app.path().app_config_dir()?);
+            let saved_position = state.config().bubble_position;
+            app.manage(state);
+            app.manage(notice::Current::default());
+            match screentime::ScreenTime::open(&app.path().app_local_data_dir()?) {
+                Ok(screen) => {
+                    app.manage(screen);
+                    screentime::start(app.handle().clone());
+                }
+                Err(err) => log::error!("screen time disabled, database error: {err}"),
+            }
             windows::show_bubble(app.handle(), saved_position)?;
             tray::create(app.handle())?;
             Ok(())
@@ -181,8 +280,8 @@ pub fn run() {
             WindowEvent::Moved(pos) if window.label() == windows::BUBBLE => {
                 remember_bubble_position(window.app_handle(), pos.x, pos.y);
             }
-            // Closing the chat (Alt+F4) only hides it; the app lives on in the logo.
-            WindowEvent::CloseRequested { api, .. } if window.label() == windows::CHAT => {
+            // Alt+F4 only hides a window; quitting is in the tray menu.
+            WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
             }
@@ -196,7 +295,12 @@ pub fn run() {
             set_autostart,
             send_chat,
             undo_changes,
-            get_team
+            get_team,
+            open_config_folder,
+            screentime::screen_time_today,
+            notice::current_notice,
+            notice::dismiss_notice,
+            notice::open_notice
         ])
         .run(tauri::generate_context!())
         .expect("error while running Yaver desktop");

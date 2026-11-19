@@ -1,6 +1,7 @@
 // Typed wrappers around the Rust commands (src-tauri/src/lib.rs). The backend is only
 // reached through Rust; see src-tauri/src/api.rs for why.
 import { invoke } from "@tauri-apps/api/core";
+import type { ScreenSummary } from "./screen/model";
 
 export interface ApiError {
   code: string;
@@ -56,4 +57,6 @@ export const api = {
   undo: (changeSetId: string) => invoke<unknown>("undo_changes", { changeSetId }),
   team: () => invoke<Team>("get_team"),
   hideChat: () => invoke<undefined>("hide_chat"),
+  screenTime: () => invoke<ScreenSummary>("screen_time_today"),
+  openConfigFolder: () => invoke<undefined>("open_config_folder"),
 };

@@ -1,0 +1,12 @@
+{
+  "api_url": "http://localhost:8080",
+  "track_screen_time": true,
+  "idle_minutes": 5,
+  "app_limits": [
+    {
+      "name": "VALORANT",
+      "processes": ["VALORANT-Win64-Shipping.exe", "VALORANT.exe"],
+      "daily_minutes": 90
+    }
+  ]
+}

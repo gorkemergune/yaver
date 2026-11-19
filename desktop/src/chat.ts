@@ -1,6 +1,8 @@
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api, type ChatResponse, type Team } from "./api";
 import { conversationStore, errorMessage, helpers, speakerOf } from "./chat/model";
 import { tr } from "./i18n/tr";
+import { startScreenView } from "./screen/view";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) {
   const node = document.createElement(tag);
@@ -19,10 +21,16 @@ function byId<T extends HTMLElement>(id: string, type: new () => T): T {
 const ICONS = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
 
-type View = "chat" | "settings";
+const VIEWS = ["chat", "screen", "settings"] as const;
+type View = (typeof VIEWS)[number];
+
+function isView(value: unknown): value is View {
+  return VIEWS.includes(value as View);
+}
 
 const messages = byId("messages", HTMLOListElement);
 const composer = byId("composer", HTMLFormElement);
@@ -34,6 +42,7 @@ const conversation = conversationStore(globalThis.localStorage);
 let team: Team | null = null;
 let busy = false;
 let view: View = "chat";
+let screenView: { stop(): void } | null = null;
 
 // ---- header -------------------------------------------------------------------------
 
@@ -51,12 +60,15 @@ const viewButtons = new Map<View, HTMLButtonElement>();
 
 function showView(next: View): void {
   view = next;
-  for (const name of ["chat", "settings"] as const) {
+  screenView?.stop();
+  screenView = null;
+  for (const name of VIEWS) {
     byId(`view-${name}`, HTMLElement).hidden = name !== next;
     viewButtons.get(name)?.setAttribute("aria-pressed", String(name === next));
   }
   if (next === "chat") input.focus();
   if (next === "settings") void loadSettings();
+  if (next === "screen") screenView = startScreenView(byId("view-screen", HTMLElement));
 }
 
 function toggleView(target: View): void {
@@ -69,12 +81,17 @@ const newChatButton = iconButton(ICONS.plus, tr.header.newChat, () => {
   renderEmpty();
   showView("chat");
 });
+const screenButton = iconButton(ICONS.clock, tr.header.screen, () => {
+  toggleView("screen");
+});
 const settingsButton = iconButton(ICONS.gear, tr.header.settings, () => {
   toggleView("settings");
 });
+viewButtons.set("screen", screenButton);
 viewButtons.set("settings", settingsButton);
 actions.append(
   newChatButton,
+  screenButton,
   settingsButton,
   iconButton(ICONS.close, tr.header.close, () => void api.hideChat()),
 );
@@ -313,6 +330,10 @@ function init(): void {
   showView("chat");
   // Names/colors are nice to have; the chat works without them.
   void refreshTeam().catch(() => undefined);
+  // A limit warning clicked: open on the screen-time view.
+  void getCurrentWebviewWindow().listen<string>("show_view", (event) => {
+    if (isView(event.payload)) showView(event.payload);
+  });
   // Focus the input each time the panel is opened from the logo.
   window.addEventListener("focus", () => {
     if (view === "chat") input.focus();

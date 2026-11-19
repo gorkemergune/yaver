@@ -44,6 +44,24 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false
+      },
+      {
+        "label": "notice",
+        "title": "Yaver",
+        "url": "notice.html",
+        "width": 320,
+        "height": 112,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false,
+        "focusable": false
       }
     ],
     "security": {
@@ -52,7 +70,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
