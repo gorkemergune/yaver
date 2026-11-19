@@ -1,0 +1,41 @@
+# ÖRNEK dosya. Kendi kurulumun için config/providers.yaml olarak kopyala (o dosya .gitignore'da).
+# Model IDs change often — check each provider's console and update here, never in code.
+tiers:
+  fast:
+    provider: groq
+    model: openai/gpt-oss-120b
+  fallback:
+    provider: anthropic
+    model: claude-haiku-5-5
+  smart:
+    provider: anthropic
+    model: claude-sonnet-5-5
+  local:
+    provider: ollama
+    model: qwen3:8b
+
+providers:
+  groq:
+    type: openai_compat
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+  openrouter:
+    type: openai_compat
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+  ollama:
+    type: openai_compat
+    base_url_env: OLLAMA_BASE_URL
+  anthropic:
+    type: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+
+routing:
+  default: fast
+  failover_chain: [fast, fallback]
+  purposes:
+    weekly_plan: smart
+    study_sheet: smart
+    syllabus_parse: smart
+  max_tool_steps: 6
+  max_prompt_tokens: 90000

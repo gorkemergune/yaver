@@ -1,0 +1,30 @@
+# secrets & personal data
+.env
+data/
+uploads/
+*.db
+
+# personal config (commit only the *.example.yaml versions)
+config/agents.yaml
+config/providers.yaml
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+dist/
+
+# tauri
+desktop/src-tauri/target/
+
+# os / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
