@@ -1,5 +1,10 @@
-from sqlalchemy import MetaData
-from sqlalchemy.orm import DeclarativeBase
+from datetime import datetime
+from typing import Any, ClassVar
+
+from sqlalchemy import MetaData, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from app.db.types import UTCDateTime
 
 # Deterministic constraint names so Alembic autogenerate produces stable migrations.
 NAMING_CONVENTION = {
@@ -13,3 +18,15 @@ NAMING_CONVENTION = {
 
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+    # Every `Mapped[datetime]` column is a UTC timestamptz.
+    type_annotation_map: ClassVar[dict[Any, Any]] = {datetime: UTCDateTime()}
+
+
+class CreatedAtMixin:
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), sort_order=900)
+
+
+class TimestampMixin(CreatedAtMixin):
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now(), sort_order=901
+    )

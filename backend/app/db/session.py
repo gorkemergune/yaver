@@ -13,10 +13,15 @@ from sqlalchemy.ext.asyncio import (
 
 from app.config import get_settings
 
+# DB sessions always run in UTC; APP_TIMEZONE is applied in the service layer only.
+CONNECT_ARGS = {"server_settings": {"timezone": "UTC"}}
+
 
 @lru_cache
 def get_engine() -> AsyncEngine:
-    return create_async_engine(get_settings().database_url, pool_pre_ping=True)
+    return create_async_engine(
+        get_settings().database_url, pool_pre_ping=True, connect_args=CONNECT_ARGS
+    )
 
 
 @lru_cache
