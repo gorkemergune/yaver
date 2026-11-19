@@ -40,13 +40,19 @@ class AgentConfig(MemberConfig):
     briefing_section: str | None = None
 
 
+class CoordinatorConfig(MemberConfig):
+    # fast_path: tools the coordinator may call itself for a simple one-area message,
+    # saving the delegate round trip. Keep it short: every schema costs tokens per call.
+    fast_path_tools: list[str] = Field(default_factory=list)
+
+
 class WeeklyPlanConfig(_Strict):
     tier: str = "smart"
     order: list[str] = Field(default_factory=list)
 
 
 class TeamConfig(_Strict):
-    coordinator: MemberConfig
+    coordinator: CoordinatorConfig
     agents: list[AgentConfig]
     weekly_plan: WeeklyPlanConfig = Field(default_factory=WeeklyPlanConfig)
     briefing_style: str = "sections"
@@ -65,6 +71,11 @@ class TeamConfig(_Strict):
             unknown = [t for t in member.tools if t not in known]
             if unknown:
                 raise ValueError(f"{member.id}: unknown tool(s) {', '.join(unknown)}")
+        bad_fast_path = [
+            t for t in self.coordinator.fast_path_tools if t not in REGISTRY or t == DELEGATE
+        ]
+        if bad_fast_path:
+            raise ValueError(f"fast_path_tools: unknown or not available {bad_fast_path}")
         if any(DELEGATE in agent.tools for agent in self.agents):
             raise ValueError("only the coordinator may delegate (delegation depth is 1)")
         unknown_order = [a for a in self.weekly_plan.order if a not in ids]
@@ -162,7 +173,9 @@ def build_team(
         name=config.coordinator.name,
         tier=config.coordinator.tier,
         system_prompt=env.get_template("coordinator.md.j2").render(**context).strip(),
-        tools=_tools(config.coordinator.tools, ("resolve_date",)),
+        tools=_tools(
+            [*config.coordinator.tools, *config.coordinator.fast_path_tools], ("resolve_date",)
+        ),
         can_delegate=DELEGATE in config.coordinator.tools,
         model=config.coordinator.model,
     )

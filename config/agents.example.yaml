@@ -11,6 +11,8 @@ coordinator:
     devreden, sonuçları tek cevapta toplayan asistan. Kısa, net, samimi.
   tier: fast
   tools: [delegate, get_day_plan, get_week_plan, undo, remember, forget]
+  # Simple one-area messages ("bugün linear iptal") are done directly, without delegating.
+  fast_path_tools: [cancel_block_on, log_attendance, add_event, add_task]
 
 agents:
   - id: academic

@@ -394,3 +394,27 @@ async def test_tomorrow_quiz(session: AsyncSession) -> None:
     assert course is not None
     assert event.course_id == course.id
     assert reply.change_set_id is not None
+
+
+async def test_fast_path_simple_message_without_delegation(session: AsyncSession) -> None:
+    await send(session, week_setup_script(), "kurulum")
+    llm = ScriptedLLM()
+    llm.add(
+        "yaver",
+        call("resolve_date", expression="bugün", direction="future"),
+        then("cancel_block_on", date=resolved(), block="linear"),
+        say("Bugünkü Linear Algebra iptal edildi."),
+    )
+
+    reply = await send(session, llm, "Bugün linear iptal")
+
+    assert [agent for agent, _ in llm.requests] == ["yaver"] * 3  # no yaver round trip
+    assert reply.agents == []
+    override = await session.scalar(select(BlockOverride))
+    assert override is not None
+    assert override.date == dt.date(2026, 11, 23)
+    entry = await session.scalar(
+        select(ChangeLog).where(ChangeLog.change_set_id == reply.change_set_id)
+    )
+    assert entry is not None
+    assert entry.agent_id == "yaver"

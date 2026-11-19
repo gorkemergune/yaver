@@ -197,3 +197,29 @@ def test_per_yaver_model_override() -> None:
         ("agenda model", "groq", "openai/gpt-oss-20b"),
         ("discipline model", "groq", "openai/gpt-oss-20b"),
     ]
+
+
+def test_fast_path_tools_go_to_the_coordinator() -> None:
+    team = example_team()
+
+    names = [tool.name for tool in team.coordinator.tools]
+    assert {"cancel_block_on", "log_attendance", "add_event", "add_task"} <= set(names)
+    assert "Fast path" in team.coordinator.system_prompt
+
+
+def test_unknown_fast_path_tool_is_rejected() -> None:
+    data = _example()
+    data["coordinator"]["fast_path_tools"] = ["search_materials"]  # planned, not built
+
+    with pytest.raises(ValidationError, match="fast_path_tools"):
+        TeamConfig.model_validate(data)
+
+
+def test_no_fast_path_means_no_fast_path_rule() -> None:
+    data = _example()
+    data["coordinator"]["fast_path_tools"] = []
+
+    team = build_team(TeamConfig.model_validate(data), "Görkem")
+
+    assert "Fast path" not in team.coordinator.system_prompt
+    assert "cancel_block_on" not in [t.name for t in team.coordinator.tools]
