@@ -112,6 +112,7 @@ Kurallar:
 
 Kurallar:
 - Belirsiz eşleşmede (iki "linear" bloğu varsa) araç hata döner, ajan kullanıcıya sorar.
+- Tarih ifadeleri `core/time_resolver.resolve()` ile çözülür (kısa ifade: "haftaya salı akşam", cümle değil). `ambiguous` dönerse ajan adaylardan birini seçmez, kullanıcıya adaylarla sorar ("20 Kasım Cuma mı, 27 Kasım Cuma mı?"); `unresolved` dönerse ifadeyi netleştirmesini ister. Saat sadece `HH:MM` olarak verilir ("14'te" gün mü saat mi belirsiz).
 - Toplu silme (>3 kayıt) için ajan önce onay ister.
 - Araç çıktıları kısa JSON; asistan cevabında değişiklik özeti + geri al.
 

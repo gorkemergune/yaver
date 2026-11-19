@@ -16,9 +16,9 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Testler: iptal edilen blok görünmüyor, taşınan blok yeni saatte, dönem dışı blok yok
 
 ## 0.3 Zaman çözümleyici
-- [ ] `core/time_resolver.py`: Türkçe göreli tarihler (bugün, yarın, öbür gün, bu/gelecek <gün>, hafta sonu, "28-29 kasım", "3 hafta sonra")
-- [ ] Modelin bağlamı için `build_calendar_context(today)` → bugün + 14 gün listesi (tarih, gün adı)
-- [ ] Kapsamlı testler (yıl sonu geçişi, Pazar/Pazartesi hafta başı)
+- [x] `core/time_resolver.py`: Türkçe göreli tarihler (bugün, yarın, öbür gün, bu/gelecek <gün>, hafta sonu, "28-29 kasım", "3 hafta sonra")
+- [x] Modelin bağlamı için `build_calendar_context(today)` → bugün + 14 gün listesi (tarih, gün adı)
+- [x] Kapsamlı testler (yıl sonu geçişi, Pazar/Pazartesi hafta başı)
 
 ## 0.4 LLM router
 - [ ] `config/providers.yaml` + `llm/pricing.yaml`
