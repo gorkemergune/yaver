@@ -10,6 +10,8 @@ pub const FILE_NAME: &str = "config.json";
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    /// Backend address (normalized, no trailing slash); `None` = `api::DEFAULT_API_URL`.
+    pub api_url: Option<String>,
     /// Last place the logo was dragged to (physical px); `None` = bottom-right corner.
     pub bubble_position: Option<(i32, i32)>,
 }
@@ -59,6 +61,7 @@ mod tests {
     fn round_trips() {
         let dir = temp_dir("roundtrip");
         let config = Config {
+            api_url: Some("http://pc.tail1234.ts.net:8080".into()),
             bubble_position: Some((-300, 40)),
         };
         save(&dir, &config).unwrap();

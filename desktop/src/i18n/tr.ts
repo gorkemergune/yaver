@@ -1,0 +1,43 @@
+// Every user-facing string of the desktop app.
+export const tr = {
+  appName: "Yaver",
+  header: {
+    newChat: "Yeni sohbet",
+    settings: "Ayarlar",
+    close: "Kapat",
+    back: "Sohbete dön",
+  },
+  chat: {
+    placeholder: "Yaver'e yaz…",
+    send: "Gönder",
+    thinking: "Düşünüyor…",
+    emptyTitle: "Merhaba!",
+    emptyHint: "Ders iptali, sınav, toplantı, spor… Söylemen yeterli.",
+    you: "Sen",
+    changes: (n: number) => `${n} değişiklik`,
+    undo: "Geri al",
+    undoing: "Geri alınıyor…",
+    undone: "Geri alındı",
+    undoFailed: "Geri alınamadı",
+  },
+  settings: {
+    title: "Ayarlar",
+    apiUrl: "Sunucu adresi",
+    apiUrlHint: (fallback: string) => `Yaver'in web adresi. Varsayılan: ${fallback}`,
+    apiUrlFromEnv: "Adres YAVER_API_URL ortam değişkeninden geliyor; burada kaydedilen kullanılmaz.",
+    save: "Kaydet",
+    saved: "Kaydedildi",
+    test: "Bağlantıyı dene",
+    testing: "Deneniyor…",
+    connected: (names: string) => `Bağlandı: ${names}`,
+  },
+  errors: {
+    invalid_url: "Geçersiz adres. Örnek: http://localhost:8080",
+    unreachable: "Sunucuya ulaşılamadı. Yaver çalışıyor mu? (docker compose up)",
+    timeout: "Sunucu zamanında cevap vermedi.",
+    bad_response: "Sunucudan beklenmeyen cevap geldi.",
+    save_failed: "Ayarlar kaydedilemedi.",
+    http: (status: number) => `Sunucu hatası (${status}).`,
+    unknown: "Bir şeyler ters gitti.",
+  },
+} as const;
