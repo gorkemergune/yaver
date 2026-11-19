@@ -55,6 +55,7 @@ class ScriptedLLM:
     def __init__(self, scripts: dict[str, list[Step]] | None = None) -> None:
         self.scripts: dict[str, list[Step]] = {k: list(v) for k, v in (scripts or {}).items()}
         self.requests: list[tuple[str | None, LLMRequest]] = []
+        self.models: list[str | None] = []
 
     def add(self, agent_id: str, *steps: Step) -> None:
         self.scripts.setdefault(agent_id, []).extend(steps)
@@ -67,8 +68,10 @@ class ScriptedLLM:
         tier: str | None = None,
         agent_id: str | None = None,
         ignore_budget: bool = False,
+        model: str | None = None,
     ) -> LLMResponse:
         self.requests.append((agent_id, request))
+        self.models.append(model)
         queue = self.scripts.get(agent_id or "")
         assert queue, f"unexpected LLM call for {agent_id!r}"
         step = queue.pop(0)

@@ -349,3 +349,27 @@ async def test_router_trims_for_tiers_with_a_prompt_limit() -> None:
     sent = claude.calls[0][0]
     assert estimate_tokens(sent) <= 5000
     assert sent.messages[-1].content == "son soru"
+
+
+async def test_model_override_applies_to_the_requested_tier_only() -> None:
+    groq = FakeProvider("groq", [rate_limited("groq")])
+    claude = FakeProvider("claude")
+    router, store = make_router({"groq": groq, "claude": claude})
+
+    response = await router.complete(request(), model="small-model")
+
+    assert groq.calls[0][1] == "small-model"
+    assert claude.calls[0][1] == "haiku"  # failover keeps the fallback tier's own model
+    assert [r.model for r in store.records] == ["small-model", "haiku"]
+    assert response.model == "haiku"
+
+
+async def test_model_override_is_dropped_when_the_budget_changes_the_tier() -> None:
+    from tests.llm.test_budget import store_with
+
+    claude = FakeProvider("claude")
+    router, _ = make_router({"claude": claude}, store=store_with("0.85"))
+
+    await router.complete(request(), tier="smart", model="sonnet-special")
+
+    assert claude.calls[0][1] == "haiku"

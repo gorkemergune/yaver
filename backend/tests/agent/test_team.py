@@ -173,3 +173,27 @@ async def test_unknown_tool_is_an_error_result() -> None:
 )
 def test_matching(query: str, names: tuple[str, ...], expected: bool) -> None:
     assert matches(query, *names) is expected
+
+
+def test_per_yaver_model_override() -> None:
+    from app.agent.team import model_overrides
+
+    data = _example()
+    config = TeamConfig.model_validate(data)
+    team = build_team(config, "Görkem")
+    providers = make_config(
+        tiers={
+            "fast": {"provider": "groq", "model": "big"},
+            "fallback": {"provider": "claude", "model": "haiku"},
+            "smart": {"provider": "claude", "model": "sonnet"},
+            "local": {"provider": "ollama", "model": "local-model"},
+        }
+    )
+
+    assert team.coordinator.model is None
+    assert {a.model for a in team.agents} == {"openai/gpt-oss-20b"}
+    assert model_overrides(config, providers) == [
+        ("academic model", "groq", "openai/gpt-oss-20b"),
+        ("agenda model", "groq", "openai/gpt-oss-20b"),
+        ("discipline model", "groq", "openai/gpt-oss-20b"),
+    ]

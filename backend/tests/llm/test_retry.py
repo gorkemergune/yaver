@@ -20,11 +20,12 @@ from tests.llm.fakes import FakeProvider, make_router, request
 def test_parse_retry_after(
     headers: dict[str, str] | None, message: str, expected: float | None
 ) -> None:
-    assert (
-        parse_retry_after(headers, message) == pytest.approx(expected)
-        if expected
-        else (parse_retry_after(headers, message) is expected)
-    )
+    result = parse_retry_after(headers, message)
+
+    if expected is None:
+        assert result is None
+    else:
+        assert result == pytest.approx(expected)
 
 
 def rate_limited(seconds: float | None) -> ProviderError:

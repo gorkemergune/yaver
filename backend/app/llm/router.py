@@ -164,7 +164,10 @@ class LLMRouter:
         tier: str | None = None,
         agent_id: str | None = None,
         ignore_budget: bool = False,
+        model: str | None = None,
     ) -> LLMResponse:
+        """`model` overrides the requested tier's model (same provider, e.g. a smaller model
+        for one yaver). Failover / budget tiers keep their own models."""
         requested = tier or self.config.tier_for_purpose(purpose)
         if requested not in self.config.tiers:
             raise ValueError(f"unknown tier {requested!r}")
@@ -177,7 +180,10 @@ class LLMRouter:
 
         attempts: list[str] = []
         for tier_name in chain:
-            response = await self._try_tier(tier_name, request, purpose, agent_id, attempts)
+            override = model if tier_name == requested else None
+            response = await self._try_tier(
+                tier_name, request, purpose, agent_id, attempts, override
+            )
             if response is not None:
                 return response
         raise LLMUnavailableError(attempts)
@@ -189,8 +195,11 @@ class LLMRouter:
         purpose: str,
         agent_id: str | None,
         attempts: list[str],
+        model_override: str | None = None,
     ) -> LLMResponse | None:
         tier = self.config.tiers[tier_name]
+        if model_override:
+            tier = tier.model_copy(update={"model": model_override})
         provider = self.providers.get(tier.provider)
         if provider is None or not provider.configured:
             attempts.append(f"{tier_name}: provider {tier.provider} not configured")

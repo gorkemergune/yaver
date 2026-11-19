@@ -24,6 +24,7 @@ class LLMClient(Protocol):
         tier: str | None = None,
         agent_id: str | None = None,
         ignore_budget: bool = False,
+        model: str | None = None,
     ) -> LLMResponse: ...
 
 
@@ -64,6 +65,7 @@ async def run_agent(
             ),
             tier=member.tier,
             agent_id=member.id,
+            model=member.model,
         )
         run.responses.append(response)
         history.append(response.to_message())
@@ -111,6 +113,7 @@ async def run_agent(
         ),
         tier=member.tier,
         agent_id=member.id,
+        model=member.model,
     )
     run.responses.append(response)
     run.reply = response.text.strip()

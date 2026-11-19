@@ -100,3 +100,15 @@ async def test_default_model_of_an_unused_provider_is_checked() -> None:
 
     assert results[-1].target == "openrouter default_model"
     assert results[-1].status is CheckStatus.OK
+
+
+async def test_per_yaver_models_are_checked_too() -> None:
+    results = await check_models(
+        make_config(),
+        _providers(),
+        extra_targets=[("academic model", "groq", "small"), ("dupe", "groq", "fast-model")],
+    )
+
+    extra = [r for r in results if r.target == "academic model"]
+    assert extra[0].status is CheckStatus.MISSING  # groq only lists fast-model and other
+    assert not any(r.target == "dupe" for r in results)  # already covered by the fast tier

@@ -29,6 +29,9 @@ class MemberConfig(_Strict):
     name: str
     persona: str
     tier: str = "fast"
+    # Optional: another model of the tier's provider for this yaver (failover tiers keep
+    # their own model). Groq rate limits are per model, so this also spreads the load.
+    model: str | None = None
     tools: list[str] = Field(default_factory=list)
 
 
@@ -79,6 +82,7 @@ class Member:
     tools: tuple[Tool, ...]
     can_delegate: bool = False
     domain: str = ""
+    model: str | None = None
 
     def tool_specs(self, delegate_spec: ToolSpec | None = None) -> list[ToolSpec]:
         specs = [tool.spec() for tool in self.tools]
@@ -160,6 +164,7 @@ def build_team(
         system_prompt=env.get_template("coordinator.md.j2").render(**context).strip(),
         tools=_tools(config.coordinator.tools, ("resolve_date",)),
         can_delegate=DELEGATE in config.coordinator.tools,
+        model=config.coordinator.model,
     )
     agents = tuple(
         Member(
@@ -169,10 +174,20 @@ def build_team(
             system_prompt=env.get_template("agent.md.j2").render(agent=agent, **context).strip(),
             tools=_tools(agent.tools, COMMON_TOOLS),
             domain=agent.domain,
+            model=agent.model,
         )
         for agent in config.agents
     )
     return Team(coordinator, agents)
+
+
+def model_overrides(config: TeamConfig, providers: ProvidersConfig) -> list[tuple[str, str, str]]:
+    """(target, provider, model) for every yaver with its own model, for model checks."""
+    return [
+        (f"{member.id} model", providers.tiers[member.tier].provider, member.model)
+        for member in (config.coordinator, *config.agents)
+        if member.model and member.tier in providers.tiers
+    ]
 
 
 def load_team_config() -> TeamConfig:

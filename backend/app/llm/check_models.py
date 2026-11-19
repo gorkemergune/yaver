@@ -53,10 +53,16 @@ def _targets(config: ProvidersConfig) -> list[tuple[str, str, str]]:
 
 
 async def check_models(
-    config: ProvidersConfig, providers: Mapping[str, Provider]
+    config: ProvidersConfig,
+    providers: Mapping[str, Provider],
+    extra_targets: list[tuple[str, str, str]] | None = None,
 ) -> list[ModelCheck]:
+    """extra_targets: (target, provider, model), e.g. per-yaver models from agents.yaml."""
     results: list[ModelCheck] = []
-    for target, provider_name, model in _targets(config):
+    targets = _targets(config)
+    seen = {(provider, model) for _, provider, model in targets}
+    targets += [t for t in extra_targets or [] if (t[1], t[2]) not in seen]
+    for target, provider_name, model in targets:
         provider = providers[provider_name]
         optional = config.providers[provider_name].optional
         if not provider.configured:
@@ -95,11 +101,17 @@ def format_report(results: list[ModelCheck]) -> str:
     return "\n".join(lines)
 
 
+def _agent_models(config: ProvidersConfig) -> list[tuple[str, str, str]]:
+    from app.agent.team import load_team_config, model_overrides
+
+    return model_overrides(load_team_config(), config)
+
+
 async def run() -> int:
     config = load_providers_config()
     providers = build_providers(config, get_settings())
     try:
-        results = await check_models(config, providers)
+        results = await check_models(config, providers, _agent_models(config))
     finally:
         for provider in providers.values():
             await provider.aclose()
@@ -117,7 +129,7 @@ async def log_startup_check() -> None:
         config = load_providers_config()
         providers = build_providers(config, get_settings())
         try:
-            results = await check_models(config, providers)
+            results = await check_models(config, providers, _agent_models(config))
         finally:
             for provider in providers.values():
                 await provider.aclose()
