@@ -3,7 +3,7 @@ request, to use earlier tool results the way a real model would)."""
 
 import datetime as dt
 import json
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from itertools import count
 from pathlib import Path
@@ -69,6 +69,8 @@ class ScriptedLLM:
         agent_id: str | None = None,
         ignore_budget: bool = False,
         model: str | None = None,
+        on_text: Callable[[str], Awaitable[None]] | None = None,
+        on_retry: Callable[[], Awaitable[None]] | None = None,
     ) -> LLMResponse:
         self.requests.append((agent_id, request))
         self.models.append(model)
@@ -78,6 +80,9 @@ class ScriptedLLM:
         response = step(request) if callable(step) else step
         response.tier, response.provider, response.model = tier or "fast", "fake", "fake"
         response.cost_usd = Decimal("0.0001")
+        if on_text is not None and response.text:
+            for word in response.text.split(" "):
+                await on_text(word + " ")
         return response
 
     def assert_done(self) -> None:

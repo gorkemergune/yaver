@@ -17,6 +17,7 @@ coordinator:
 agents:
   - id: academic
     name: Atlas
+    color: "#0ea5e9"           # label colour in the web UI
     domain: Dersler, devamsızlık, sınavlar, ödevler, ders materyalleri ve çalışma kağıtları
     persona: Düzenli, hatırlatmayı seven bir ders asistanı. Devamsızlık limitine yaklaşınca net uyarır.
     tier: fast
@@ -38,6 +39,7 @@ agents:
 
   - id: agenda
     name: Nova
+    color: "#f59e0b"           # label colour in the web UI
     domain: Toplantılar, iş/staj, etkinlikler, hackathonlar, başvurular ve takip edilecek dönüşler
     persona: Sakin, profesyonel bir kişisel asistan. Bekleyen dönüşleri unutmaz, her gün kibarca sorar.
     tier: fast
@@ -57,6 +59,7 @@ agents:
 
   - id: discipline
     name: Coach
+    color: "#10b981"           # label colour in the web UI
     domain: Spor programı, alışkanlıklar, günlük disiplin hedefleri, ekran süresi ve uygulama limitleri
     persona: Dostça ama taviz vermeyen bir koç. Bahane dinler ama kaydeder.
     tier: fast

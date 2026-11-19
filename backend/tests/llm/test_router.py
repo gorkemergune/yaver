@@ -384,3 +384,22 @@ def test_nullable_optional_arguments_are_valid() -> None:
 
     assert not tool_call_problems([ToolCall("1", "t", {"note": None})], [spec], required=False)
     assert tool_call_problems([ToolCall("1", "t", {"note": 3})], [spec], required=False)
+
+
+async def test_streaming_text_and_reset_before_failover() -> None:
+    events: list[str] = []
+
+    async def on_text(text: str) -> None:
+        events.append(text)
+
+    async def on_retry() -> None:
+        events.append("<reset>")
+
+    groq = FakeProvider("groq", [rate_limited("groq")])
+    claude = FakeProvider("claude", [text_reply("Merhaba dünya")])
+    router, _ = make_router({"groq": groq, "claude": claude})
+
+    response = await router.complete(request(), on_text=on_text, on_retry=on_retry)
+
+    assert response.tier == "fallback"
+    assert events == ["<reset>", "Merhaba ", "dünya "]

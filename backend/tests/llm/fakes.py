@@ -14,6 +14,7 @@ from app.llm.types import (
     LLMRequest,
     LLMResponse,
     ProviderError,
+    TextCallback,
     TokenUsage,
     ToolCall,
     ToolSpec,
@@ -49,16 +50,22 @@ class FakeProvider:
         return self._configured
 
     async def complete(
-        self, request: LLMRequest, model: str, options: dict[str, Any]
+        self,
+        request: LLMRequest,
+        model: str,
+        options: dict[str, Any],
+        on_text: TextCallback | None = None,
     ) -> LLMResponse:
         self.calls.append((request, model, options))
         step = self.steps.pop(0) if self.steps else text_reply("ok")
         if isinstance(step, ProviderError):
             raise step
-        if isinstance(step, LLMResponse):
-            step.provider, step.model = self.name, model
-            return step
-        return step(request, model)
+        response = step if isinstance(step, LLMResponse) else step(request, model)
+        response.provider, response.model = self.name, model
+        if on_text is not None and response.text:
+            for word in response.text.split(" "):
+                await on_text(word + " ")
+        return response
 
     async def list_models(self) -> list[str]:
         if self.list_error:

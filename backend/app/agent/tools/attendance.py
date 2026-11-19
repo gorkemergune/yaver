@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -10,22 +10,8 @@ from app.agent.tools.matching import require_course
 from app.agent.tools.schedule import ISO_DATE
 from app.db.models import Attendance, Course, RecurringBlock
 from app.db.models.enums import AttendanceStatus
+from app.services.attendance import course_summary
 from app.services.schedule import get_day_plan
-
-
-async def _summary(ctx: ToolContext, course: Course) -> dict[str, Any]:
-    absences = await ctx.session.scalar(
-        select(func.count()).where(
-            Attendance.course_id == course.id, Attendance.status == AttendanceStatus.ABSENT
-        )
-    )
-    data: dict[str, Any] = {"course": course.code, "name": course.name, "absences": absences or 0}
-    if course.absence_limit is not None:
-        data["limit"] = course.absence_limit
-        data["remaining"] = course.absence_limit - (absences or 0)
-    else:
-        data["limit"] = None  # unknown: ask the user once and store it
-    return data
 
 
 class LogAttendanceArgs(BaseModel):
@@ -58,7 +44,7 @@ async def log_attendance(args: LogAttendanceArgs, ctx: ToolContext) -> ToolResul
 
     result: ToolResult = {
         "logged": {"course": course.code, "date": args.date.isoformat(), "status": args.status},
-        "summary": await _summary(ctx, course),
+        "summary": await course_summary(ctx.session, course),
     }
     plan = await get_day_plan(ctx.session, args.date, ctx.tz)
     block_ids = {item.source_id for item in plan.items if item.source == "block"}
@@ -88,7 +74,7 @@ async def set_absence_limit(args: SetLimitArgs, ctx: ToolContext) -> ToolResult:
     before = ctx.recorder.before_update(course)
     course.absence_limit = args.absence_limit
     await ctx.recorder.updated(course, before)
-    return {"summary": await _summary(ctx, course)}
+    return {"summary": await course_summary(ctx.session, course)}
 
 
 class SummaryArgs(BaseModel):
@@ -98,6 +84,8 @@ class SummaryArgs(BaseModel):
 @tool("get_attendance_summary", "Absences and remaining allowance per course.", SummaryArgs)
 async def get_attendance_summary(args: SummaryArgs, ctx: ToolContext) -> ToolResult:
     if args.course:
-        return {"courses": [await _summary(ctx, await require_course(ctx, args.course))]}
+        return {
+            "courses": [await course_summary(ctx.session, await require_course(ctx, args.course))]
+        }
     courses = (await ctx.session.scalars(select(Course).order_by(Course.code))).all()
-    return {"courses": [await _summary(ctx, course) for course in courses]}
+    return {"courses": [await course_summary(ctx.session, course) for course in courses]}

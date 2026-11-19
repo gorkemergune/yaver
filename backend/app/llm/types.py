@@ -1,11 +1,13 @@
 """Provider-neutral request/response types. Every provider converts to and from these."""
 
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Literal
 
 Role = Literal["system", "user", "assistant", "tool"]
+TextCallback = Callable[[str], Awaitable[None]]
 ToolChoice = Literal["auto", "required", "none"]
 StopReason = Literal["end", "tool_use", "max_tokens", "refusal", "other"]
 

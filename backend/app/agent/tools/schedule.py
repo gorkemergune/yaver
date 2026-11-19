@@ -1,5 +1,5 @@
 import datetime as dt
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
@@ -16,67 +16,13 @@ from app.agent.tools.matching import (
 from app.core.time_resolver import WEEKDAY_NAMES_TR, week_start
 from app.db.models import BlockOverride, RecurringBlock
 from app.db.models.enums import ACADEMIC_BLOCK_KINDS, BlockKind, OverrideAction
-from app.services.schedule import DayPlan, PlanItem, get_day_plan
+from app.services.plan_view import hhmm as _hhmm
+from app.services.plan_view import plan_to_dict
+from app.services.schedule import get_day_plan
 
 Weekday = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 BlockKindName = Literal["class", "lab", "sport", "work", "other"]
 ISO_DATE = "YYYY-MM-DD"  # the prompts explain resolve_date once; keep schemas small
-
-
-def _hhmm(value: dt.datetime | dt.time) -> str:
-    return value.strftime("%H:%M")
-
-
-def item_to_dict(item: PlanItem, day: dt.date) -> dict[str, Any]:
-    data: dict[str, Any] = {
-        "type": item.source,
-        "id": item.source_id,
-        "kind": item.kind,
-        "title": item.title,
-    }
-    if item.all_day:
-        data["all_day"] = True
-    else:
-        data["start"] = _hhmm(item.start)
-        if item.end is not None:
-            data["end"] = _hhmm(item.end)
-    if item.start.date() != day:
-        data["starts_on"] = item.start.date().isoformat()
-    if item.end is not None and item.end.date() != day and not item.all_day:
-        data["ends_on"] = item.end.date().isoformat()
-    if item.location:
-        data["location"] = item.location
-    if item.moved_from:
-        data["moved_from"] = item.moved_from.strftime("%Y-%m-%d %H:%M")
-    if item.note:
-        data["note"] = item.note
-    return data
-
-
-def plan_to_dict(plan: DayPlan) -> dict[str, Any]:
-    data: dict[str, Any] = {
-        "date": plan.day.isoformat(),
-        "weekday": WEEKDAY_NAMES_TR[plan.day.weekday()],
-        "items": [item_to_dict(item, plan.day) for item in plan.items],
-    }
-    if plan.cancelled:
-        data["cancelled"] = [
-            {"block_id": c.block_id, "title": c.title, "start": _hhmm(c.start), "reason": c.reason}
-            for c in plan.cancelled
-        ]
-    if plan.conflicts:
-        data["conflicts"] = [[c.first.title, c.second.title] for c in plan.conflicts]
-    if plan.holidays:
-        data["holidays"] = plan.holidays
-    if plan.tasks:
-        data["tasks"] = [
-            {"id": t.id, "title": t.title, "status": t.status.value} for t in plan.tasks
-        ]
-    if plan.week_tasks:
-        data["week_tasks"] = [
-            {"id": t.id, "title": t.title, "status": t.status.value} for t in plan.week_tasks
-        ]
-    return data
 
 
 # --- reading ---------------------------------------------------------------------------

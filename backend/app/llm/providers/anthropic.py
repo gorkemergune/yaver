@@ -18,6 +18,7 @@ from app.llm.types import (
     ProviderError,
     ProviderNotConfiguredError,
     StopReason,
+    TextCallback,
     TokenUsage,
     ToolCall,
 )
@@ -68,11 +69,22 @@ class AnthropicProvider:
         return self._client
 
     async def complete(
-        self, request: LLMRequest, model: str, options: dict[str, Any]
+        self,
+        request: LLMRequest,
+        model: str,
+        options: dict[str, Any],
+        on_text: TextCallback | None = None,
     ) -> LLMResponse:
         kwargs = build_request_kwargs(request, model, options)
         try:
-            message = await self._get_client().messages.create(**kwargs)
+            if on_text is not None:
+                async with self._get_client().messages.stream(**kwargs) as stream:
+                    async for event in stream:
+                        if event.type == "text" and event.text:
+                            await on_text(event.text)
+                    message = await stream.get_final_message()
+            else:
+                message = await self._get_client().messages.create(**kwargs)
         except ProviderError:
             raise
         except anthropic.APIStatusError as exc:

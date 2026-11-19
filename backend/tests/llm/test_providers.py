@@ -464,3 +464,156 @@ def test_tool_call_arguments_json_is_stable() -> None:
     call = ToolCall("1", "t", {"b": 1, "a": "ç"})
 
     assert call.arguments_json() == json.dumps({"a": "ç", "b": 1}, ensure_ascii=False)
+
+
+# --- streaming -------------------------------------------------------------------------
+
+
+class _AsyncChunks:
+    def __init__(self, chunks: list[Any]) -> None:
+        self._chunks = chunks
+
+    def __aiter__(self) -> "_AsyncChunks":
+        return self
+
+    async def __anext__(self) -> Any:
+        if not self._chunks:
+            raise StopAsyncIteration
+        return self._chunks.pop(0)
+
+
+def _chunk(delta: dict[str, Any] | None, finish: str | None = None, **extra: Any) -> Any:
+    from openai.types.chat import ChatCompletionChunk
+
+    choices = [] if delta is None else [{"index": 0, "delta": delta, "finish_reason": finish}]
+    return ChatCompletionChunk.model_validate(
+        {
+            "id": "c",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "openai/gpt-oss-20b",
+            "choices": choices,
+            **extra,
+        }
+    )
+
+
+async def test_openai_stream_joins_text_and_tool_call_fragments() -> None:
+    chunks = [
+        _chunk({"role": "assistant", "content": "Bakı"}),
+        _chunk({"content": "yorum."}),
+        _chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_9",
+                        "type": "function",
+                        "function": {"name": "get_day_plan", "arguments": '{"da'},
+                    }
+                ]
+            }
+        ),
+        _chunk({"tool_calls": [{"index": 0, "function": {"arguments": 'te": "2026-11-24"}'}}]}),
+        _chunk({}, "tool_calls"),
+        # Groq reports usage in x_groq on the last chunk
+        _chunk(
+            None,
+            x_groq={
+                "usage": {
+                    "prompt_tokens": 900,
+                    "completion_tokens": 40,
+                    "prompt_tokens_details": {"cached_tokens": 500},
+                }
+            },
+        ),
+    ]
+    deltas: list[str] = []
+
+    async def collect(text: str) -> None:
+        deltas.append(text)
+
+    provider = _openai(_Recorder(_AsyncChunks(chunks)))
+    response = await provider.complete(_request(), "openai/gpt-oss-20b", {}, collect)
+
+    assert deltas == ["Bakı", "yorum."]
+    assert response.text == "Bakıyorum."
+    assert response.tool_calls == [
+        ToolCall("call_9", "get_day_plan", {"date": "2026-11-24"}, '{"date": "2026-11-24"}')
+    ]
+    assert response.stop_reason == "tool_use"
+    assert (response.usage.input_tokens, response.usage.cached_input_tokens) == (400, 500)
+
+
+async def test_openai_stream_reads_standard_usage_chunk() -> None:
+    chunks = [
+        _chunk({"content": "Tamam"}, "stop"),
+        _chunk(None, usage={"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12}),
+    ]
+    recorder = _Recorder(_AsyncChunks(chunks))
+
+    async def ignore(_: str) -> None:
+        return None
+
+    response = await _openai(recorder).complete(_request(), "m", {}, ignore)
+
+    assert recorder.kwargs["stream"] is True
+    assert recorder.kwargs["stream_options"] == {"include_usage": True}
+    assert (response.usage.input_tokens, response.usage.output_tokens) == (10, 2)
+
+
+class _FakeAnthropicStream:
+    def __init__(self, texts: list[str], final: Any) -> None:
+        self._events = [type("E", (), {"type": "text", "text": t})() for t in texts]
+        self._final = final
+
+    async def __aenter__(self) -> "_FakeAnthropicStream":
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+    def __aiter__(self) -> "_AsyncChunks":
+        return _AsyncChunks(list(self._events))
+
+    async def get_final_message(self) -> Any:
+        return self._final
+
+
+async def test_anthropic_stream() -> None:
+    final = Message.model_validate(
+        {
+            "id": "m",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-haiku-5-5",
+            "content": [{"type": "text", "text": "Merhaba Görkem"}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 5, "output_tokens": 3},
+        }
+    )
+
+    class Messages:
+        def __init__(self) -> None:
+            self.kwargs: dict[str, Any] = {}
+
+        def stream(self, **kwargs: Any) -> _FakeAnthropicStream:
+            self.kwargs = kwargs
+            return _FakeAnthropicStream(["Merhaba ", "Görkem"], final)
+
+    messages = Messages()
+
+    deltas: list[str] = []
+
+    async def collect(text: str) -> None:
+        deltas.append(text)
+
+    client = type("Client", (), {"messages": messages, "models": _Recorder()})()
+    response = await AnthropicProvider(api_key=None, client=client).complete(
+        _request(), "claude-haiku-5-5", {}, collect
+    )
+
+    assert deltas == ["Merhaba ", "Görkem"]
+    assert response.text == "Merhaba Görkem"
+    assert messages.kwargs["cache_control"] == {"type": "ephemeral"}

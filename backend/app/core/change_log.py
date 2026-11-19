@@ -129,6 +129,55 @@ class ChangeRecorder:
         self.entries.append(entry)
 
 
+# Fields worth showing on a change card (from the after / before snapshot).
+_CARD_FIELDS = (
+    "title",
+    "kind",
+    "weekday",
+    "start_time",
+    "end_time",
+    "date",
+    "action",
+    "new_start_at",
+    "new_end_at",
+    "start_at",
+    "end_at",
+    "all_day",
+    "status",
+    "content",
+    "code",
+    "name",
+    "absence_limit",
+    "week_start",
+    "reason",
+)
+
+
+async def describe_changes(session: AsyncSession, entries: list[ChangeLog]) -> list[dict[str, Any]]:
+    """Compact, UI-friendly view of a change set; overrides / attendance get the name of the
+    block / course they belong to."""
+    described = []
+    for entry in entries:
+        snapshot = entry.after_json or entry.before_json or {}
+        data = {key: snapshot[key] for key in _CARD_FIELDS if snapshot.get(key) is not None}
+        if entry.entity == "block_overrides" and snapshot.get("block_id"):
+            block = await session.get(_model_for_table("recurring_blocks"), snapshot["block_id"])
+            data["title"] = getattr(block, "title", None)
+        if entry.entity == "attendance" and snapshot.get("course_id"):
+            course = await session.get(_model_for_table("courses"), snapshot["course_id"])
+            data["course"] = getattr(course, "code", None)
+        described.append(
+            {
+                "entity": entry.entity,
+                "op": entry.op.value,
+                "agent_id": entry.agent_id,
+                "data": data,
+                "undone": entry.undone_at is not None,
+            }
+        )
+    return described
+
+
 async def latest_change_set(
     session: AsyncSession, exclude: uuid.UUID | None = None
 ) -> uuid.UUID | None:

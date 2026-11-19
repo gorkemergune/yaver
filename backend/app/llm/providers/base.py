@@ -1,6 +1,6 @@
 from typing import Any, Protocol
 
-from app.llm.types import LLMRequest, LLMResponse
+from app.llm.types import LLMRequest, LLMResponse, TextCallback
 
 
 class Provider(Protocol):
@@ -13,8 +13,14 @@ class Provider(Protocol):
         ...
 
     async def complete(
-        self, request: LLMRequest, model: str, options: dict[str, Any]
-    ) -> LLMResponse: ...
+        self,
+        request: LLMRequest,
+        model: str,
+        options: dict[str, Any],
+        on_text: TextCallback | None = None,
+    ) -> LLMResponse:
+        """With on_text the provider streams and calls it with every text delta."""
+        ...
 
     async def list_models(self) -> list[str]: ...
 

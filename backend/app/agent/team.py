@@ -18,6 +18,8 @@ DELEGATE = "delegate"
 # Every specialist can read dates and the plan, whatever agents.yaml lists.
 COMMON_TOOLS = ("resolve_date", "get_day_plan")
 PROMPTS_DIR = Path(__file__).with_name("prompts")
+COORDINATOR_COLOR = "#6366f1"
+AGENT_COLORS = ("#0ea5e9", "#f59e0b", "#10b981", "#ec4899", "#8b5cf6", "#ef4444")
 
 
 class _Strict(BaseModel):
@@ -32,6 +34,7 @@ class MemberConfig(_Strict):
     # Optional: another model of the tier's provider for this yaver (failover tiers keep
     # their own model). Groq rate limits are per model, so this also spreads the load.
     model: str | None = None
+    color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")  # label colour in the UI
     tools: list[str] = Field(default_factory=list)
 
 
@@ -94,6 +97,7 @@ class Member:
     can_delegate: bool = False
     domain: str = ""
     model: str | None = None
+    color: str = "#6366f1"
 
     def tool_specs(self, delegate_spec: ToolSpec | None = None) -> list[ToolSpec]:
         specs = [tool.spec() for tool in self.tools]
@@ -178,6 +182,7 @@ def build_team(
         ),
         can_delegate=DELEGATE in config.coordinator.tools,
         model=config.coordinator.model,
+        color=config.coordinator.color or COORDINATOR_COLOR,
     )
     agents = tuple(
         Member(
@@ -188,8 +193,9 @@ def build_team(
             tools=_tools(agent.tools, COMMON_TOOLS),
             domain=agent.domain,
             model=agent.model,
+            color=agent.color or AGENT_COLORS[index % len(AGENT_COLORS)],
         )
-        for agent in config.agents
+        for index, agent in enumerate(config.agents)
     )
     return Team(coordinator, agents)
 

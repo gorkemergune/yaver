@@ -13,10 +13,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.context import ToolContext
-from app.agent.loop import AgentRun, LLMClient, run_agent
+from app.agent.loop import AgentRun, Emit, LLMClient, run_agent
 from app.agent.team import Member, Team
 from app.config import Settings
-from app.core.change_log import ChangeRecorder
+from app.core.change_log import ChangeRecorder, describe_changes
 from app.core.time_resolver import WEEKDAY_NAMES_TR, build_calendar_context, format_calendar_context
 from app.db.models import Conversation, Memory, Message
 from app.db.models.enums import MessageRole
@@ -44,6 +44,7 @@ class ChatReply:
     change_set_id: uuid.UUID | None
     agents: list[dict[str, str]] = field(default_factory=list)  # [{agent_id, name, reply}]
     actions: list[dict[str, Any]] = field(default_factory=list)
+    changes: list[dict[str, Any]] = field(default_factory=list)  # for the change card
     trace: list[dict[str, Any]] = field(default_factory=list)
     llm_calls: list[LLMCall] = field(default_factory=list)
 
@@ -90,9 +91,11 @@ class Coordinator:
         *,
         conversation_id: int | None = None,
         now: dt.datetime | None = None,
+        emit: Emit | None = None,
     ) -> ChatReply:
+        """`emit` receives progress events (see app.agent.loop) for streaming clients."""
         try:
-            reply = await self._handle(session, text, conversation_id, now)
+            reply = await self._handle(session, text, conversation_id, now, emit)
         except BaseException:
             await session.rollback()
             raise
@@ -105,6 +108,7 @@ class Coordinator:
         text: str,
         conversation_id: int | None,
         now: dt.datetime | None,
+        emit: Emit | None,
     ) -> ChatReply:
         conversation = await self._conversation(session, conversation_id, text)
         history = await self._history(session, conversation.id)
@@ -131,6 +135,8 @@ class Coordinator:
                 ctx,
                 system_suffix=suffix,
                 max_steps=self.max_steps,
+                emit=emit,
+                stream_text=True,
             )
         else:
             delegated: dict[str, dict[str, Any]] = {}
@@ -142,6 +148,15 @@ class Coordinator:
                     return {"error": "unknown agent_id or empty instruction"}
                 if agent.id in delegated:  # one delegation per yaver per message
                     return {"already_done": True, **delegated[agent.id]}
+                if emit is not None:
+                    await emit(
+                        {
+                            "type": "delegate",
+                            "agent_id": agent.id,
+                            "name": agent.name,
+                            "instruction": instruction,
+                        }
+                    )
                 sub = await run_agent(
                     self.llm,
                     agent,
@@ -149,9 +164,19 @@ class Coordinator:
                     ctx,
                     system_suffix=suffix,
                     max_steps=self.max_steps,
+                    emit=emit,
                 )
                 runs.append(sub)
                 delegated[agent.id] = {"agent": agent.name, "reply": sub.reply}
+                if emit is not None:
+                    await emit(
+                        {
+                            "type": "agent_reply",
+                            "agent_id": agent.id,
+                            "name": agent.name,
+                            "reply": sub.reply,
+                        }
+                    )
                 return {**delegated[agent.id], "tools_used": sub.tool_calls}
 
             final = await run_agent(
@@ -163,6 +188,8 @@ class Coordinator:
                 max_steps=self.max_steps,
                 delegate=delegate,
                 delegate_spec=self.team.delegate_spec(),
+                emit=emit,
+                stream_text=True,
             )
 
         changed = bool(ctx.recorder.entries)
@@ -189,6 +216,7 @@ class Coordinator:
         )
         conversation.updated_at = ctx.now
         await session.flush()
+        changes = await describe_changes(session, ctx.recorder.entries)
 
         return ChatReply(
             conversation_id=conversation.id,
@@ -197,6 +225,7 @@ class Coordinator:
             change_set_id=stored_set,
             agents=[{"agent_id": r.agent_id, "name": r.name, "reply": r.reply} for r in runs],
             actions=ctx.actions,
+            changes=changes,
             trace=ctx.trace,
             llm_calls=[
                 LLMCall(

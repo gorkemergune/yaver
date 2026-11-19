@@ -43,6 +43,7 @@ from app.llm.types import (
     LLMResponse,
     ProviderError,
     ProviderNotConfiguredError,
+    TextCallback,
     ToolCall,
     ToolSpec,
 )
@@ -169,6 +170,8 @@ class LLMRouter:
         agent_id: str | None = None,
         ignore_budget: bool = False,
         model: str | None = None,
+        on_text: TextCallback | None = None,
+        on_retry: Callable[[], Awaitable[None]] | None = None,
     ) -> LLMResponse:
         """`model` overrides the requested tier's model (same provider, e.g. a smaller model
         for one yaver). Failover / budget tiers keep their own models."""
@@ -183,10 +186,11 @@ class LLMRouter:
                 logger.info("Budget %s (%s): tiers %s", status.level, _spent(status), chain)
 
         attempts: list[str] = []
+        stream = _Stream(on_text, on_retry)
         for tier_name in chain:
             override = model if tier_name == requested else None
             response = await self._try_tier(
-                tier_name, request, purpose, agent_id, attempts, override
+                tier_name, request, purpose, agent_id, attempts, override, stream
             )
             if response is not None:
                 return response
@@ -200,7 +204,9 @@ class LLMRouter:
         agent_id: str | None,
         attempts: list[str],
         model_override: str | None = None,
+        stream: "_Stream | None" = None,
     ) -> LLMResponse | None:
+        stream = stream or _Stream(None, None)
         tier = self.config.tiers[tier_name]
         if model_override:
             tier = tier.model_copy(update={"model": model_override})
@@ -214,8 +220,11 @@ class LLMRouter:
         invalid, waits = 0, 0
         while True:
             started = time.monotonic()
+            await stream.before_attempt()
             try:
-                response = await provider.complete(fitted, tier.model, dict(tier.options))
+                response = await provider.complete(
+                    fitted, tier.model, dict(tier.options), stream.on_text
+                )
             except ProviderError as exc:
                 latency = _elapsed_ms(started)
                 if not isinstance(exc, ProviderNotConfiguredError):
@@ -303,6 +312,25 @@ class LLMRouter:
         except Exception:  # accounting must never break a chat reply
             logger.exception("Could not record LLM usage")
             return None
+
+
+class _Stream:
+    """Streaming callbacks for one complete(): text deltas, and a reset signal before a
+    retry / failover attempt so the client can drop the partial text."""
+
+    def __init__(
+        self,
+        on_text: TextCallback | None,
+        on_retry: Callable[[], Awaitable[None]] | None,
+    ) -> None:
+        self.on_text = on_text
+        self._on_retry = on_retry
+        self._attempts = 0
+
+    async def before_attempt(self) -> None:
+        if self._attempts and self._on_retry is not None:
+            await self._on_retry()
+        self._attempts += 1
 
 
 def _elapsed_ms(started: float) -> int:

@@ -15,6 +15,7 @@ from app.llm.types import (
     ProviderError,
     ProviderNotConfiguredError,
     StopReason,
+    TextCallback,
     TokenUsage,
     ToolCall,
 )
@@ -67,7 +68,11 @@ class OpenAICompatProvider:
         return self._client
 
     async def complete(
-        self, request: LLMRequest, model: str, options: dict[str, Any]
+        self,
+        request: LLMRequest,
+        model: str,
+        options: dict[str, Any],
+        on_text: TextCallback | None = None,
     ) -> LLMResponse:
         kwargs: dict[str, Any] = {
             "model": model,
@@ -91,6 +96,8 @@ class OpenAICompatProvider:
             kwargs["extra_body"] = dict(options)
 
         try:
+            if on_text is not None:
+                return await self._stream(kwargs, model, on_text)
             response = await self._get_client().chat.completions.create(**kwargs)
         except ProviderError:
             raise
@@ -110,25 +117,56 @@ class OpenAICompatProvider:
     def _parse(self, response: Any, model: str) -> LLMResponse:
         choice = response.choices[0]
         message = choice.message
-        usage = response.usage
-        cached = 0
-        details = getattr(usage, "prompt_tokens_details", None) if usage else None
-        if details is not None:
-            cached = getattr(details, "cached_tokens", None) or 0
-        prompt = (usage.prompt_tokens or 0) if usage else 0
-        token_usage = TokenUsage(
-            input_tokens=max(prompt - cached, 0),
-            output_tokens=(usage.completion_tokens or 0) if usage else 0,
-            cached_input_tokens=cached,
-            reported_cost_usd=_reported_cost(usage) if self.reports_cost else None,
-        )
         return LLMResponse(
             text=message.content or "",
-            tool_calls=[_parse_tool_call(call) for call in message.tool_calls or []],
+            tool_calls=[
+                _tool_call(call.id, call.function.name, call.function.arguments)
+                for call in message.tool_calls or []
+            ],
             stop_reason=_STOP_REASONS.get(choice.finish_reason or "", "other"),
-            usage=token_usage,
+            usage=_token_usage(response.usage, self.reports_cost),
             provider=self.name,
             model=getattr(response, "model", None) or model,
+        )
+
+    async def _stream(
+        self, kwargs: dict[str, Any], model: str, on_text: TextCallback
+    ) -> LLMResponse:
+        """Stream text deltas to on_text; tool-call fragments are joined by index."""
+        stream = await self._get_client().chat.completions.create(
+            **kwargs, stream=True, stream_options={"include_usage": True}
+        )
+        text: list[str] = []
+        calls: dict[int, dict[str, str]] = {}
+        finish, usage, served_by = None, None, model
+        async for chunk in stream:
+            served_by = getattr(chunk, "model", None) or served_by
+            extra = getattr(chunk, "model_extra", None) or {}
+            usage = getattr(chunk, "usage", None) or extra.get("x_groq", {}).get("usage") or usage
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            delta = choice.delta
+            if delta.content:
+                text.append(delta.content)
+                await on_text(delta.content)
+            for fragment in delta.tool_calls or []:
+                entry = calls.setdefault(fragment.index, {"id": "", "name": "", "arguments": ""})
+                entry["id"] = fragment.id or entry["id"]
+                if fragment.function is not None:
+                    entry["name"] = fragment.function.name or entry["name"]
+                    entry["arguments"] += fragment.function.arguments or ""
+            finish = choice.finish_reason or finish
+        return LLMResponse(
+            text="".join(text),
+            tool_calls=[
+                _tool_call(c["id"] or f"call_{i}", c["name"], c["arguments"])
+                for i, c in sorted(calls.items())
+            ],
+            stop_reason=_STOP_REASONS.get(finish or "", "other"),
+            usage=_token_usage(usage, self.reports_cost),
+            provider=self.name,
+            model=served_by,
         )
 
     async def list_models(self) -> list[str]:
@@ -187,15 +225,38 @@ def _to_openai_message(message: ChatMessage) -> dict[str, Any]:
     return {"role": message.role, "content": message.content}
 
 
-def _parse_tool_call(call: Any) -> ToolCall:
-    raw = call.function.arguments or ""
+def _tool_call(call_id: str, name: str, raw: str | None) -> ToolCall:
+    raw = raw or ""
     try:
         parsed = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError as exc:
-        return ToolCall(call.id, call.function.name, None, raw, f"invalid JSON: {exc.msg}")
+        return ToolCall(call_id, name, None, raw, f"invalid JSON: {exc.msg}")
     if not isinstance(parsed, dict):
-        return ToolCall(call.id, call.function.name, None, raw, "arguments are not an object")
-    return ToolCall(call.id, call.function.name, cast(dict[str, Any], parsed), raw)
+        return ToolCall(call_id, name, None, raw, "arguments are not an object")
+    return ToolCall(call_id, name, cast(dict[str, Any], parsed), raw)
+
+
+def _field(obj: Any, key: str) -> Any:
+    """Usage arrives as SDK objects, or as plain dicts (Groq's x_groq.usage)."""
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return obj.get(key)
+    value = getattr(obj, key, None)
+    if value is None:
+        value = (getattr(obj, "model_extra", None) or {}).get(key)
+    return value
+
+
+def _token_usage(usage: Any, reports_cost: bool) -> TokenUsage:
+    prompt = _field(usage, "prompt_tokens") or 0
+    cached = _field(_field(usage, "prompt_tokens_details"), "cached_tokens") or 0
+    return TokenUsage(
+        input_tokens=max(prompt - cached, 0),
+        output_tokens=_field(usage, "completion_tokens") or 0,
+        cached_input_tokens=cached,
+        reported_cost_usd=_reported_cost(usage) if reports_cost else None,
+    )
 
 
 _TOOL_CALL_REJECTIONS = ("tool call validation failed", "failed to call a function")
@@ -214,11 +275,7 @@ def _is_tool_call_rejection(exc: openai.APIStatusError) -> bool:
 
 
 def _reported_cost(usage: Any) -> Decimal | None:
-    if usage is None:
-        return None
-    value = getattr(usage, "cost", None)
-    if value is None:
-        value = (getattr(usage, "model_extra", None) or {}).get("cost")
+    value = _field(usage, "cost")
     if value is None:
         return None
     try:

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import __version__
-from app.api import chat, health, usage
+from app.api import chat, health, usage, views
 from app.config import get_settings
 from app.db.session import dispose_engine
 from app.llm.check_models import log_startup_check
@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api", include_in_schema=False)
     app.include_router(usage.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(views.router, prefix="/api")
     return app
 
 
