@@ -134,10 +134,13 @@ async def test_apply_writes_once_and_closes_older_proposals(session: AsyncSessio
     )
     first = await run_tool("propose_schedule", {"text": LONG_TABLE}, ctx)
     second = await run_tool("propose_schedule", {"text": LONG_TABLE + "\nduzeltme"}, ctx)
+    unseen = await run_tool("apply_proposal", {"proposal_id": second["proposal_id"]}, ctx)
 
-    applied = await run_tool("apply_proposal", {"proposal_id": second["proposal_id"]}, ctx)
-    again = await run_tool("apply_proposal", {"proposal_id": second["proposal_id"]}, ctx)
+    reply = context(session, "onboarding")  # the user's next message: "evet"
+    applied = await run_tool("apply_proposal", {"proposal_id": second["proposal_id"]}, reply)
+    again = await run_tool("apply_proposal", {"proposal_id": second["proposal_id"]}, reply)
 
+    assert "has not seen this proposal yet" in unseen["error"]  # same message: no table shown
     assert applied == {"blocks_created": 3, "already_existed": 0}
     assert "already applied" in again["error"]
     assert await count(session, RecurringBlock) == 3
@@ -146,7 +149,7 @@ async def test_apply_writes_once_and_closes_older_proposals(session: AsyncSessio
     assert old is not None
     assert old.status is ProposalStatus.DISCARDED
     sets = (await session.scalars(select(ChangeLog.change_set_id).distinct())).all()
-    assert sets == [ctx.change_set_id]  # the whole schedule is one undo
+    assert sets == [reply.change_set_id]  # the whole schedule is one undo
 
 
 @pytest.mark.parametrize(

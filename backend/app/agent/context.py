@@ -23,6 +23,9 @@ class ToolContext:
     agent_id: str = "yaver"
     conversation_id: int | None = None
     llm: Any = None  # LLM client for tools that need a model themselves (schedule parsing)
+    # Proposals created while answering this message: the user has not seen their table
+    # yet, so they cannot be applied before the next message (the user's "evet").
+    new_proposals: set[int] = field(default_factory=set)
     # Action log for the reply ("Friday: EE211 lab eklendi"), filled by the tool runner.
     actions: list[dict[str, object]] = field(default_factory=list)
     # Every tool call (reads too) with its arguments, for debugging and prompt tuning.

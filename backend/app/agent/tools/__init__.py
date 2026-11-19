@@ -112,11 +112,21 @@ def _validation_message(exc: ValidationError) -> str:
     return "; ".join(parts) + hint
 
 
+WAITS_FOR_PROPOSAL = frozenset({"add_event", "add_recurring_block"})
+
+
 async def run_tool(name: str, arguments: dict[str, Any] | None, ctx: ToolContext) -> ToolResult:
     """Execute a tool call; errors come back as {"error": ...} for the model to handle."""
     tool_ = REGISTRY.get(name)
     if tool_ is None:
         return {"error": f"unknown tool {name}"}
+    if name in WAITS_FOR_PROPOSAL and ctx.new_proposals:
+        # What an image of this message shows is already a proposal; adding it directly
+        # would skip the user's confirmation (and duplicate it after "evet").
+        return {
+            "error": "this message's image was turned into a proposal: show its table and "
+            "ask; it is added after the user confirms (apply_proposal)"
+        }
     try:
         args = tool_.args.model_validate(arguments or {})
     except ValidationError as exc:

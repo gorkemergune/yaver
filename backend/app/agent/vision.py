@@ -46,7 +46,9 @@ MAX_DOCUMENT_CHARS = 4000
 
 class ImageEvent(BaseModel):
     kind: Literal["exam", "quiz", "makeup", "meeting", "deadline", "hackathon", "other"]
-    title: str = Field(description="short, in the image's language")
+    title: str = Field(
+        description="short and self-contained, with the course code if any ('EE211 Ara Sınav')"
+    )
     course: str | None = Field(None, description="course code or name, if any")
     date_text: str | None = Field(
         None, description="the date exactly as written ('28 Kasım Cuma', '28.11.2026')"
@@ -79,7 +81,8 @@ READ_PROMPT = (
     "meeting, deadline, hackathon, event); document = notes, a slide, a table or other text "
     "worth reading in full; other = anything else.\n"
     "For event: one entry per dated thing. date_text is the date exactly as written; never "
-    "compute or complete a date (no year or weekday that is not there). Times HH:MM 24h.\n"
+    "compute or complete a date (no year or weekday that is not there). A missing year is "
+    "normal and NOT unclear: the date is resolved later. Times HH:MM 24h.\n"
     "Never guess: anything you cannot read with certainty goes into unclear, quoted as seen."
 )
 SCHEDULE_PROMPT = (
@@ -277,6 +280,7 @@ async def _proposal(
     )
     ctx.session.add(proposal)
     await ctx.session.flush()
+    ctx.new_proposals.add(proposal.id)
     return proposal
 
 

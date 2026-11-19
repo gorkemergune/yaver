@@ -157,7 +157,18 @@ async def test_announcement_dates_are_resolved_in_code_and_unclear_ones_listed(
     assert proposal.kind is ProposalKind.EVENTS
     assert len(proposal.entries) == 1
 
-    ctx = context(session, "agenda")
+    # the same message may not add it directly (it would skip the confirmation)
+    same_message = context(session, "yaver")
+    same_message.new_proposals.add(1)
+    direct = await run_tool(
+        "add_event",
+        {"kind": "exam", "title": "EE211 Ara Sınav", "date": "2026-11-27", "start_time": "10:00"},
+        same_message,
+    )
+    assert "turned into a proposal" in direct["error"]
+    assert await count(session, Event) == 0
+
+    ctx = context(session, "agenda")  # the next message: "evet"
     applied = await run_tool("apply_proposal", {"proposal_id": 1}, ctx)
     again = await run_tool("apply_proposal", {"proposal_id": 1}, ctx)
 
@@ -165,6 +176,7 @@ async def test_announcement_dates_are_resolved_in_code_and_unclear_ones_listed(
     assert event is not None
     assert event.start_at == dt.datetime(2026, 11, 27, 7, 0, tzinfo=dt.UTC)  # 10:00 Istanbul
     assert event.notes == "Ders: EE211"  # no such course yet: kept as a note, not invented
+    assert event.title == "EE211 Ara Sınav"  # course already in the title: not doubled
     assert len(applied["events_created"]) == 1
     assert "already applied" in again["error"]
 

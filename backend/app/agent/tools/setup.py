@@ -12,7 +12,7 @@ from app.agent.tools import ToolError, ToolResult, json_schema, tool
 from app.agent.tools.events import AddEventArgs, add_event
 from app.agent.tools.matching import find_course
 from app.agent.tools.schedule import AddBlockArgs, Weekday, create_weekly_blocks
-from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
+from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR, normalize
 from app.db.models import Conversation, Event, Holiday, Proposal, Term
 from app.db.models.enums import ConversationMode, ProposalKind, ProposalStatus
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
@@ -183,6 +183,7 @@ async def propose_schedule(args: ProposeArgs, ctx: ToolContext) -> ToolResult:
     )
     ctx.session.add(proposal)
     await ctx.session.flush()
+    ctx.new_proposals.add(proposal.id)
     result: dict[str, Any] = {
         "proposal_id": proposal.id,
         "entries": len(parsed.entries),
@@ -250,6 +251,11 @@ async def apply_proposal(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
         raise ToolError(f"no proposal {args.proposal_id}")
     if proposal.status is not ProposalStatus.PENDING:
         raise ToolError(f"proposal {args.proposal_id} is already {proposal.status.value}")
+    if proposal.id in ctx.new_proposals:
+        raise ToolError(
+            "the user has not seen this proposal yet: show its table and ask; apply it only "
+            "after they confirm in their next message"
+        )
     if proposal.kind is ProposalKind.SCHEDULE:
         result = await _apply_schedule(proposal, ctx)
     else:
@@ -296,10 +302,13 @@ async def _apply_events(proposal: Proposal, ctx: ToolContext) -> ToolResult:
             continue
         course = await find_course(ctx, entry.course) if entry.course else None
         notes = None if course or not entry.course else f"Ders: {entry.course}"
+        title = entry.title
+        if entry.course and course is None and normalize(entry.course) not in normalize(title):
+            title = f"{entry.course} {title}"  # "Ara Sınav" alone says nothing in the calendar
         result = await add_event(
             AddEventArgs(
                 kind=entry.kind,
-                title=entry.title,
+                title=title,
                 date=entry.date,
                 start_time=entry.start_time,
                 end_time=entry.end_time,
