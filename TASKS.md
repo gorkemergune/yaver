@@ -50,3 +50,11 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 ## 0.7 İlk kurulum
 - [x] İlk açılışta onboarding sohbeti: ad, dönem tarihleri, ders programı (serbest metin/yapıştırma), devamsızlık limitleri, spor günleri, sabit bilgiler (ör. "Cuma Medipol")
 - [x] `examples/sample_schedule.md` (uydurma veri)
+
+## 0.8 Sohbete görsel gönderme
+- [ ] Web: ataş butonu, sürükle-bırak, Ctrl+V ile yapıştırma; iPhone'da kamera/galeri seçimi; gönderim öncesi küçük önizleme, birden fazla görsel
+- [ ] Backend: `uploads/` altına kayıt (gitignore'da), HEIC→JPEG, EXIF/konum silme, boyut sınırı + otomatik küçültme (uzun kenar ~1600px), `messages` ↔ ek bağlantısı
+- [ ] Görseller yalnız Claude'a (vision) gider, Groq'a gitmez: basit görsel → Haiku 5.5; ders programı/tablo/not → Sonnet 5.5 (smart tier, bütçe korumasına dahil)
+- [ ] Ders programı fotoğrafı: onboarding akışı - önce özet tablo, onayla yaz, tek change_set, okunamayan hücreler "belirsiz", tahmin yok
+- [ ] Diğer görseller (sınav duyurusu, etkinlik afişi): tarih/saat/yer çıkar, ilgili yavere öneri, onayla ekle
+- [ ] Testler + gerçek ekran görüntüsüyle live test
