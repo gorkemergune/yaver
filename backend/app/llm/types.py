@@ -47,6 +47,8 @@ class ChatMessage:
 class LLMRequest:
     messages: list[ChatMessage]
     system: str | None = None  # keep stable across requests: it is the cached prefix
+    # Changes per day/request (calendar context, today's date): sent after the cached part.
+    system_suffix: str | None = None
     tools: list[ToolSpec] = field(default_factory=list)
     tool_choice: ToolChoice = "auto"
     max_tokens: int = 4096

@@ -1,6 +1,7 @@
 # Yaver ekibi — ÖRNEK dosya. Kendi kurulumun için config/agents.yaml olarak kopyala
 # (o dosya .gitignore'da) ve isimleri, kişiliği, alanları istediğin gibi değiştir.
-# Tool listeleri kod tarafındaki tool registry adlarıyla eşleşmeli.
+# Tool listeleri kod tarafındaki tool registry adlarıyla eşleşmeli (bilinmeyen ad -> açılışta hata).
+# Her yaver ayrıca resolve_date ve get_day_plan'i otomatik alır; ileriki fazların araçları atlanır.
 
 coordinator:
   id: yaver
@@ -27,6 +28,7 @@ agents:
       - delete_event
       - log_attendance
       - get_attendance_summary
+      - set_absence_limit
       - search_materials         # Faz 3
       - generate_study_sheet     # Faz 3, tier=smart
     briefing_section: Dersler

@@ -150,8 +150,9 @@ class OpenAICompatProvider:
 
 def to_openai_messages(request: LLMRequest) -> list[dict[str, Any]]:
     messages: list[dict[str, Any]] = []
-    if request.system:
-        messages.append({"role": "system", "content": request.system})
+    system = "\n\n".join(part for part in (request.system, request.system_suffix) if part)
+    if system:  # stable part first: providers with automatic prefix caching reuse it
+        messages.append({"role": "system", "content": system})
     for message in request.messages:
         messages.append(_to_openai_message(message))
     return messages

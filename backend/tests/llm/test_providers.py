@@ -116,6 +116,19 @@ def test_anthropic_caches_tools_plus_system_and_the_conversation_tail() -> None:
     ]
 
 
+def test_anthropic_dynamic_system_part_goes_after_the_cache_breakpoint() -> None:
+    kwargs = build_request_kwargs(_request(system_suffix="Bugün: 2026-11-23"), "m", {})
+
+    assert kwargs["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert kwargs["system"][1] == {"type": "text", "text": "Bugün: 2026-11-23"}
+
+
+def test_openai_system_suffix_is_appended() -> None:
+    messages = to_openai_messages(_request(system_suffix="Bugün: 2026-11-23"))
+
+    assert messages[0] == {"role": "system", "content": "Sen Yaver'sin.\n\nBugün: 2026-11-23"}
+
+
 def test_anthropic_without_cache() -> None:
     kwargs = build_request_kwargs(_request(cache=False), "m", {})
 

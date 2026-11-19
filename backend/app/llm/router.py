@@ -99,7 +99,7 @@ def tool_call_problems(
 
 
 def estimate_tokens(request: LLMRequest) -> int:
-    chars = len(request.system or "")
+    chars = len(request.system or "") + len(request.system_suffix or "")
     chars += sum(len(json.dumps(tool.parameters)) + len(tool.description) for tool in request.tools)
     for message in request.messages:
         chars += len(message.content)

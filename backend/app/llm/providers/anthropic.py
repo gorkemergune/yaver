@@ -124,11 +124,16 @@ def build_request_kwargs(
         "max_tokens": request.max_tokens,
         "messages": to_anthropic_messages(request.messages),
     }
+    system: list[dict[str, Any]] = []
     if request.system:
         system_block: dict[str, Any] = {"type": "text", "text": request.system}
         if request.cache:
-            system_block["cache_control"] = EPHEMERAL  # caches tools + system
-        kwargs["system"] = [system_block]
+            system_block["cache_control"] = EPHEMERAL  # caches tools + stable system
+        system.append(system_block)
+    if request.system_suffix:  # after the breakpoint: a new day doesn't invalidate the prefix
+        system.append({"type": "text", "text": request.system_suffix})
+    if system:
+        kwargs["system"] = system
     if request.cache:
         kwargs["cache_control"] = EPHEMERAL  # automatic breakpoint on the conversation tail
     if request.tools:
