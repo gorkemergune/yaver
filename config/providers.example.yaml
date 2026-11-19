@@ -27,6 +27,8 @@ providers:
     type: openai_compat
     base_url: https://api.groq.com/openai/v1
     api_key_env: GROQ_API_KEY
+    rate_limit_max_wait_seconds: 8     # 429 "try again in <=8s": wait; longer -> Haiku
+    rate_limit_max_wait_env: GROQ_MAX_RETRY_WAIT_SEC  # .env value wins over the line above
   openrouter:
     type: openai_compat
     base_url: https://openrouter.ai/api/v1

@@ -85,6 +85,21 @@ describe("applyEvent", () => {
   });
 });
 
+describe("rate-limit status", () => {
+  it("shows while waiting and clears on the next progress", () => {
+    const waiting = run([
+      { type: "turn", agent_id: "yaver" },
+      { type: "status", agent_id: "yaver", code: "rate_limited", provider: "groq", seconds: 4.2 },
+      { type: "turn", agent_id: "yaver" },
+    ]);
+    const resumed = applyEvent(waiting, { type: "text", agent_id: "yaver", delta: "Tamam" }, names);
+
+    expect(waiting.status).toEqual({ code: "rate_limited", provider: "groq", seconds: 4.2 });
+    expect(resumed.status).toBeNull();
+    expect(resumed.text).toBe("Tamam");
+  });
+});
+
 describe("stepSummary", () => {
   it("counts successful changes, else question or look", () => {
     const base = { agentId: "x", name: "X" };

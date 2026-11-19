@@ -5,6 +5,7 @@ With `emit`, progress is published as events for the streaming chat endpoint:
   {"type": "text",  "agent_id", "delta"}            streamed text (speaker only)
   {"type": "reset", "agent_id"}                     the router retries: drop partial text
   {"type": "tool",  "agent_id", "tool", "arguments", "error", "mutates"}
+  {"type": "status", "agent_id", "code": "rate_limited", "provider", "seconds"}  waiting
 """
 
 import logging
@@ -42,6 +43,7 @@ class LLMClient(Protocol):
         model: str | None = None,
         on_text: TextCallback | None = None,
         on_retry: Callable[[], Awaitable[None]] | None = None,
+        on_wait: Callable[[float, str], Awaitable[None]] | None = None,
     ) -> LLMResponse: ...
 
 
@@ -76,8 +78,22 @@ async def run_agent(
         ctx.agent_id = ctx.recorder.agent_id = member.id
         on_text: TextCallback | None = None
         on_retry: Callable[[], Awaitable[None]] | None = None
+        on_wait: Callable[[float, str], Awaitable[None]] | None = None
         if emit is not None:
             await emit({"type": "turn", "agent_id": member.id})
+
+            async def send_wait(seconds: float, provider: str) -> None:
+                await emit(
+                    {
+                        "type": "status",
+                        "agent_id": member.id,
+                        "code": "rate_limited",
+                        "provider": provider,
+                        "seconds": round(seconds, 1),
+                    }
+                )
+
+            on_wait = send_wait
             if stream_text:
 
                 async def send_text(delta: str) -> None:
@@ -102,6 +118,7 @@ async def run_agent(
             model=member.model,
             on_text=on_text,
             on_retry=on_retry,
+            on_wait=on_wait,
         )
         run.responses.append(response)
         return response

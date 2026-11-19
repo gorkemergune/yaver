@@ -101,6 +101,11 @@ function Answer({
         ) : item.streaming ? (
           <Typing />
         ) : null}
+        {item.status && item.streaming && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status">
+            {tr.chat.waiting(item.status.provider)}
+          </p>
+        )}
         {item.error && (
           <p className="text-sm text-rose-600 dark:text-rose-400">
             {tr.chat.errors[item.error] ?? tr.chat.errors.internal}

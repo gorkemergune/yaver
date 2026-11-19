@@ -36,6 +36,10 @@ class ProviderConfig(_Strict):
     reports_cost: bool = False
     optional: bool = False
     timeout_seconds: float = 60.0
+    # Longest 429 wait to sit out on this provider before failing over (overrides
+    # routing.rate_limit_max_wait_seconds); *_env names a .env variable that wins over both.
+    rate_limit_max_wait_seconds: float | None = None
+    rate_limit_max_wait_env: str | None = None
     # SDK-level retries. 0: the router decides (short 429 waits, then failover); SDK retries
     # would wait as long as the provider says.
     max_retries: int = 0

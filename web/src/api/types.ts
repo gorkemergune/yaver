@@ -140,5 +140,6 @@ export type ChatEvent =
     }
   | { type: "delegate"; agent_id: string; name: string; instruction: string }
   | { type: "agent_reply"; agent_id: string; name: string; reply: string }
+  | { type: "status"; agent_id: string; code: "rate_limited"; provider: string; seconds: number }
   | DoneEvent
   | { type: "error"; code: string };

@@ -83,3 +83,55 @@ async def test_waits_are_limited_then_fail_over() -> None:
     assert sleeps.calls == [1.0, 2.0]  # rate_limit_max_waits = 2
     assert response.tier == "fallback"
     assert len(groq.calls) == 3
+
+
+async def test_per_provider_wait_limit_and_wait_notification() -> None:
+    sleeps = Sleeps()
+    waits: list[tuple[float, str]] = []
+
+    async def on_wait(seconds: float, provider: str) -> None:
+        waits.append((seconds, provider))
+
+    router, _ = make_router({"groq": FakeProvider("groq", [rate_limited(7.0)])})
+    router._sleep = sleeps
+    router.wait_limits = {"groq": 8.0}  # GROQ_MAX_RETRY_WAIT_SEC=8
+
+    response = await router.complete(request(), on_wait=on_wait)
+
+    assert response.tier == "fast"  # 7s <= 8s: waited instead of failing over
+    assert sleeps.calls == [7.0]
+    assert waits == [(7.0, "groq")]
+
+
+async def test_wait_longer_than_the_provider_limit_fails_over() -> None:
+    router, _ = make_router({"groq": FakeProvider("groq", [rate_limited(9.5)])})
+    router._sleep = Sleeps()
+    router.wait_limits = {"groq": 8.0}
+
+    assert (await router.complete(request())).tier == "fallback"
+
+
+def test_wait_limits_come_from_env_first() -> None:
+    from app.config import Settings
+    from app.llm.router import wait_limits
+    from tests.llm.fakes import make_config
+
+    config = make_config(
+        providers={
+            "groq": {
+                "type": "openai_compat",
+                "base_url": "http://g",
+                "api_key_env": "X",
+                "rate_limit_max_wait_env": "GROQ_MAX_RETRY_WAIT_SEC",
+                "rate_limit_max_wait_seconds": 5,
+            },
+            "claude": {"type": "anthropic", "api_key_env": "Y", "rate_limit_max_wait_seconds": 2},
+            "ollama": {"type": "openai_compat", "base_url": "http://o"},
+        }
+    )
+
+    with_env = wait_limits(config, Settings(_env_file=None, groq_max_retry_wait_sec=8))
+    without_env = wait_limits(config, Settings(_env_file=None))
+
+    assert with_env == {"groq": 8.0, "claude": 2.0}
+    assert without_env == {"groq": 5.0, "claude": 2.0}

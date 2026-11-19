@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     clock_afternoon_hours: str = "1-7"
 
     # --- LLM ---
+    # Groq 429: sit out waits up to this many seconds, longer ones fail over to Haiku.
+    groq_max_retry_wait_sec: float | None = None
     # Check on startup that the configured models exist (logs only, never blocks startup).
     llm_check_models_on_startup: bool = True
 

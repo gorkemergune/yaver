@@ -32,6 +32,7 @@ export interface AssistantItem {
   changes: Change[];
   undone: boolean;
   error: string | null;
+  status: { code: string; provider: string; seconds: number } | null; // e.g. waiting on Groq
 }
 
 export type ChatItem = UserItem | AssistantItem;
@@ -48,6 +49,7 @@ export function pendingAssistant(id: string): AssistantItem {
     changes: [],
     undone: false,
     error: null,
+    status: null,
   };
 }
 
@@ -67,6 +69,11 @@ export function applyEvent(
   event: ChatEvent,
   names: Record<string, string>,
 ): AssistantItem {
+  if (event.type === "status") {
+    return { ...item, status: { code: event.code, provider: event.provider, seconds: event.seconds } };
+  }
+  // Any progress after a wait clears the "waiting" line (a new turn alone doesn't).
+  if (item.status && event.type !== "turn") item = { ...item, status: null };
   switch (event.type) {
     case "text":
       if (item.speaker !== event.agent_id) {

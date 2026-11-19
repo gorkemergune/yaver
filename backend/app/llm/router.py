@@ -51,6 +51,8 @@ from app.llm.usage import DbUsageStore, UsageRecord, UsageStore, compute_cost
 
 logger = logging.getLogger(__name__)
 
+WaitCallback = Callable[[float, str], Awaitable[None]]  # (seconds, provider)
+
 # Rough token estimate for trimming (Turkish text averages ~3 characters per token).
 CHARS_PER_TOKEN = 3
 
@@ -144,6 +146,7 @@ class LLMRouter:
         store: UsageStore,
         budget: BudgetGuard,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        wait_limits: Mapping[str, float] | None = None,
     ) -> None:
         self.config = config
         self.providers = providers
@@ -151,6 +154,7 @@ class LLMRouter:
         self.store = store
         self.budget = budget
         self._sleep = sleep
+        self.wait_limits = dict(wait_limits or {})  # provider -> max 429 wait (seconds)
 
     async def aclose(self) -> None:
         for provider in self.providers.values():
@@ -172,6 +176,7 @@ class LLMRouter:
         model: str | None = None,
         on_text: TextCallback | None = None,
         on_retry: Callable[[], Awaitable[None]] | None = None,
+        on_wait: WaitCallback | None = None,
     ) -> LLMResponse:
         """`model` overrides the requested tier's model (same provider, e.g. a smaller model
         for one yaver). Failover / budget tiers keep their own models."""
@@ -186,7 +191,7 @@ class LLMRouter:
                 logger.info("Budget %s (%s): tiers %s", status.level, _spent(status), chain)
 
         attempts: list[str] = []
-        stream = _Stream(on_text, on_retry)
+        stream = _Stream(on_text, on_retry, on_wait)
         for tier_name in chain:
             override = model if tier_name == requested else None
             response = await self._try_tier(
@@ -206,7 +211,7 @@ class LLMRouter:
         model_override: str | None = None,
         stream: "_Stream | None" = None,
     ) -> LLMResponse | None:
-        stream = stream or _Stream(None, None)
+        stream = stream or _Stream(None, None, None)
         tier = self.config.tiers[tier_name]
         if model_override:
             tier = tier.model_copy(update={"model": model_override})
@@ -217,6 +222,7 @@ class LLMRouter:
         fitted = fit_prompt(request, tier.max_prompt_tokens)
 
         routing = self.config.routing
+        max_wait = self.wait_limits.get(provider.name, routing.rate_limit_max_wait_seconds)
         invalid, waits = 0, 0
         while True:
             started = time.monotonic()
@@ -249,11 +255,12 @@ class LLMRouter:
                 if (
                     exc.status_code == 429
                     and exc.retry_after is not None
-                    and exc.retry_after <= routing.rate_limit_max_wait_seconds
+                    and exc.retry_after <= max_wait
                     and waits < routing.rate_limit_max_waits
                 ):
                     waits += 1  # a short wait is cheaper than paying the next tier
                     logger.info("Tier %s rate limited; waiting %.2fs", tier_name, exc.retry_after)
+                    await stream.waiting(exc.retry_after, provider.name)
                     await self._sleep(exc.retry_after)
                     continue
                 if not exc.retryable:
@@ -322,10 +329,16 @@ class _Stream:
         self,
         on_text: TextCallback | None,
         on_retry: Callable[[], Awaitable[None]] | None,
+        on_wait: WaitCallback | None,
     ) -> None:
         self.on_text = on_text
         self._on_retry = on_retry
+        self._on_wait = on_wait
         self._attempts = 0
+
+    async def waiting(self, seconds: float, provider: str) -> None:
+        if self._on_wait is not None:
+            await self._on_wait(seconds, provider)
 
     async def before_attempt(self) -> None:
         if self._attempts and self._on_retry is not None:
@@ -355,7 +368,21 @@ def env_value(settings: Settings, name: str | None) -> str | None:
         return value.get_secret_value() or None
     if isinstance(value, str):
         return value or None
+    if value is not None:
+        return str(value)
     return os.environ.get(name) or None
+
+
+def wait_limits(config: ProvidersConfig, settings: Settings) -> dict[str, float]:
+    """Per-provider 429 wait limits: .env variable > providers.yaml value."""
+    limits: dict[str, float] = {}
+    for name, provider in config.providers.items():
+        from_env = env_value(settings, provider.rate_limit_max_wait_env)
+        if from_env is not None:
+            limits[name] = float(from_env)
+        elif provider.rate_limit_max_wait_seconds is not None:
+            limits[name] = provider.rate_limit_max_wait_seconds
+    return limits
 
 
 def build_provider(name: str, config: ProviderConfig, settings: Settings) -> Provider:
@@ -398,7 +425,14 @@ def build_router(
     budget = BudgetGuard(
         config.budget, Decimal(str(settings.claude_monthly_budget_usd)), store, settings.tz
     )
-    return LLMRouter(config, build_providers(config, settings), load_price_table(), store, budget)
+    return LLMRouter(
+        config,
+        build_providers(config, settings),
+        load_price_table(),
+        store,
+        budget,
+        wait_limits=wait_limits(config, settings),
+    )
 
 
 @lru_cache

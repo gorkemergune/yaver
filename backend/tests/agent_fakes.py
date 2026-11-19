@@ -71,6 +71,7 @@ class ScriptedLLM:
         model: str | None = None,
         on_text: Callable[[str], Awaitable[None]] | None = None,
         on_retry: Callable[[], Awaitable[None]] | None = None,
+        on_wait: Callable[[float, str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
         self.requests.append((agent_id, request))
         self.models.append(model)

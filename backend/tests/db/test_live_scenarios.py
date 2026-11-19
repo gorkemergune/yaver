@@ -48,6 +48,8 @@ async def router(session: AsyncSession) -> AsyncIterator[LLMRouter]:
         )
         config = config.model_copy(update={"routing": routing})
     router = build_router(config=config, store=DbUsageStore(async_sessionmaker(session.bind)))
+    if wait:
+        router.wait_limits = dict.fromkeys(config.providers, float(wait))
     yield router
     await router.aclose()
 
