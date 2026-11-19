@@ -1,0 +1,59 @@
+# Production-like stack. For development, docker-compose.override.yml is loaded automatically
+# by `docker compose up` (hot reload, Vite dev server, exposed ports).
+# Production only:  docker compose -f docker-compose.yml up -d --build
+name: yaver
+
+x-db-env: &db-env
+  POSTGRES_USER: ${POSTGRES_USER:-yaver}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaver}
+  POSTGRES_DB: ${POSTGRES_DB:-yaver}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+      target: prod
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-yaver}:${POSTGRES_PASSWORD:-yaver}@db:5432/${POSTGRES_DB:-yaver}
+      CONFIG_DIR: /config
+    volumes:
+      - ./config:/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  web:
+    build:
+      context: ./web
+      target: prod
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

@@ -1,0 +1,13 @@
+[project]
+name = "yaver-backend"
+version = "0.1.0"
+description = "Yaver API: FastAPI + Postgres/pgvector + LLM agent team"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[tool.uv]
+# The backend is an application, not a library: uv only installs its dependencies.
+package = false
