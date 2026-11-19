@@ -133,7 +133,20 @@ Kurallar:
 
 ## Çalıştırma
 ```bash
-docker compose up -d --build
+# Geliştirme: docker-compose.override.yml otomatik yüklenir (hot reload, Vite dev server)
+docker compose up -d --build          # web: http://localhost:8080, api: http://localhost:8000/docs
 docker compose exec api alembic upgrade head
 docker compose exec api pytest
+
+# Prod benzeri (nginx + build edilmiş web, override'sız)
+docker compose -f docker-compose.yml up -d --build
+```
+`web/package.json` değişince node_modules volume'ünü yenile: `docker compose up -d --build -V web`.
+
+## Kontroller (commit öncesi)
+```bash
+# backend (yerelde uv ile ya da `docker compose exec api ...`)
+cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
+# frontend
+cd web && npm run check        # tsc + eslint
 ```

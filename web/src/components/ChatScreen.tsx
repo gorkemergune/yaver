@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type SubmitEvent } from "react";
 
 import { tr } from "../i18n/tr";
 import { ConnectionStatus } from "./ConnectionStatus";
@@ -29,7 +29,7 @@ export function ChatScreen() {
     setDraft("");
   }
 
-  function onSubmit(event: FormEvent) {
+  function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     send(draft);
   }
@@ -61,7 +61,9 @@ export function ChatScreen() {
                 <button
                   key={example}
                   type="button"
-                  onClick={() => setDraft(example)}
+                  onClick={() => {
+                    setDraft(example);
+                  }}
                   className="rounded-full border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   {example}
@@ -90,7 +92,9 @@ export function ChatScreen() {
       >
         <textarea
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+          }}
           onKeyDown={onKeyDown}
           placeholder={tr.chat.inputPlaceholder}
           rows={1}

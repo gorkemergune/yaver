@@ -54,4 +54,4 @@ def test_invalid_timezone_rejected() -> None:
 def test_empty_api_key_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GROQ_API_KEY", "")
 
-    assert Settings(_env_file=None).groq_api_key is None  # type: ignore[call-arg]
+    assert Settings(_env_file=None).groq_api_key is None

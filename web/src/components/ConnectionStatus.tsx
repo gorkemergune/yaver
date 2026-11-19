@@ -2,9 +2,9 @@ import { useReadiness } from "../api/health";
 import { tr } from "../i18n/tr";
 
 export function ConnectionStatus() {
-  const { data, isPending, isError } = useReadiness();
+  const { data, isPending, isSuccess } = useReadiness();
 
-  const state = isPending ? "checking" : !isError && data?.status === "ok" ? "online" : "offline";
+  const state = isPending ? "checking" : isSuccess && data.status === "ok" ? "online" : "offline";
   const dotClass = {
     checking: "bg-amber-400",
     online: "bg-emerald-500",

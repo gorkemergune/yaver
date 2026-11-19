@@ -8,7 +8,7 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Backend: FastAPI app, `config.py` (pydantic-settings), `/health`
 - [x] Alembic kurulumu, async SQLAlchemy session
 - [x] Frontend: Vite + React + TS + Tailwind + TanStack Query, boş sohbet ekranı
-- [ ] ruff, mypy, pytest, eslint ayarları
+- [x] ruff, mypy, pytest, eslint ayarları
 
 ## 0.2 Veri modeli
 - [ ] Modeller + ilk migration: terms, courses, recurring_blocks, block_overrides, events, attendance, tasks, followups, memories, conversations, messages, change_log, llm_usage

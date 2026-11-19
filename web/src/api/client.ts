@@ -10,10 +10,10 @@ export class ApiError extends Error {
 
 /** Fetch JSON from the backend. All paths are relative to `/api`. */
 export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    ...init,
-    headers: { Accept: "application/json", ...init?.headers },
-  });
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+
+  const response = await fetch(`/api${path}`, { ...init, headers });
   if (!response.ok) {
     throw new ApiError(response.status, `${response.status} ${response.statusText}`);
   }
