@@ -159,3 +159,17 @@ async def test_plain_chat_endpoint_still_works(
 
     assert body["reply"] == "Merhaba!"
     assert body["changes"] == []
+
+
+async def test_team_activity(client: httpx2.AsyncClient, llm: ScriptedLLM) -> None:
+    llm.scripts = week_setup_script().scripts
+    await stream(client, "kurulum")
+
+    activity = (await client.get("/api/team/activity", params={"per_agent": 2})).json()["activity"]
+
+    assert set(activity) == {"yaver", "academic", "agenda", "discipline"}
+    assert len(activity["academic"]) == 2  # limited, newest first
+    assert activity["academic"][0]["entity"] == "recurring_blocks"
+    assert activity["academic"][0]["data"]["title"] == "EE211 Lab"
+    assert activity["discipline"][0]["data"]["title"] == "Spor"
+    assert activity["agenda"] == []

@@ -60,7 +60,11 @@ yaver/
       rag/                   # ingest, chunk, embed, retrieve
     alembic/
     tests/
-  web/                       # React PWA
+  web/                       # React PWA (mobile-first)
+    src/api/                 # tipler, istemci, TanStack Query kancaları, SSE chat
+    src/chat/                # sohbet: model.ts (akış olayları → görünüm, saf + testli), useChat, bileşenler
+    src/plan/, src/status/   # Bugün/Yarın/Hafta (salt okunur), devamsızlık + harcama
+    src/i18n/tr.ts           # kullanıcıya görünen tüm metinler
   desktop/                   # Tauri (Faz 4)
   config/
     providers.example.yaml   # repoda; local kopya providers.yaml (gitignore)
@@ -123,7 +127,8 @@ Kurallar:
 - Belirsiz eşleşmede araç `candidates` döner; değiştirilecek bir şey yoksa ajan başka tarih/blok seçmez, sorar.
 - Koordinatör `delegate` talimatına kullanıcının kelimelerini aynen yazar; tarih/saat eklemez.
 - Her cevap `trace` (tüm araç çağrıları + argümanlar) taşır; prompt ayarı yaparken canlı senaryo çıktısına bakılır.
-- HTTP: `POST /api/chat` (mesaj → cevap), `POST /api/changes/{change_set_id}/undo` ("Geri al" butonu).
+- HTTP: `POST /api/chat/stream` (SSE: turn/text/reset/tool/delegate/agent_reply, sonra done/error; bağlantı koparsa mesaj iptal ve rollback), `POST /api/chat` (akışsız), `POST /api/changes/{change_set_id}/undo` ("Geri al" butonu). Arayüz verisi: `/api/team`, `/api/plan/day`, `/api/plan/week`, `/api/attendance`, `/api/conversations/...`, `/api/usage/month`.
+- Yaver etiket rengi `agents.yaml`'da (`color`); yoksa varsayılan palet.
 
 ## LLM router
 - Tier'lar: `fast` (Groq), `fallback` (Claude Haiku 5.5), `smart` (Claude Sonnet 5.5), `local` (Ollama). Model ID'leri `config/providers.yaml`'da, koda gömülmez.
@@ -166,5 +171,5 @@ docker compose -f docker-compose.yml up -d --build
 # backend (yerelde uv ile ya da `docker compose exec api ...`)
 cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 # frontend
-cd web && npm run check        # tsc + eslint
+cd web && npm run check        # tsc + eslint + vitest
 ```

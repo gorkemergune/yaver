@@ -31,7 +31,6 @@ export const tr = {
     send: "Gönder",
     sending: "Yanıt bekleniyor…",
     micSoon: "Sesli komut yakında (Faz 2)",
-    agentNotConnected: "Ajan henüz bu ekrana bağlı değil — yeni sohbet ekranı geliyor.",
     newChat: "Yeni sohbet",
     thinking: "düşünüyor…",
     errors: {
@@ -67,6 +66,8 @@ export const tr = {
     today: "bugün",
   },
   status: {
+    team: "Ekip",
+    noActivity: "Henüz bir şey yapmadı.",
     attendance: "Devamsızlık",
     noCourses: "Henüz ders yok. Sohbete ders programını yazarak başlayabilirsin.",
     absences: (n: number) => `${n} devamsızlık`,

@@ -45,6 +45,32 @@ async def team(members: Team = Depends(get_team)) -> dict[str, Any]:
     }
 
 
+@router.get("/team/activity")
+async def team_activity(
+    per_agent: int = Query(5, ge=1, le=20),
+    members: Team = Depends(get_team),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Recent changes per yaver (newest first) for the team page."""
+    activity: dict[str, Any] = {}
+    for member in (members.coordinator, *members.agents):
+        entries = list(
+            (
+                await session.scalars(
+                    select(ChangeLog)
+                    .where(ChangeLog.agent_id == member.id)
+                    .order_by(ChangeLog.id.desc())
+                    .limit(per_agent)
+                )
+            ).all()
+        )
+        changes = await describe_changes(session, entries)
+        for change, entry in zip(changes, entries, strict=True):
+            change["at"] = entry.created_at
+        activity[member.id] = changes
+    return {"activity": activity}
+
+
 @router.get("/plan/day")
 async def day_plan(
     date: dt.date | None = Query(None, description="YYYY-MM-DD; default today"),

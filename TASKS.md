@@ -41,11 +41,11 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Fake-LLM ile senaryo testleri ("bugün linear iptal", "yarın quiz var", "EE211'e gitmedim")
 
 ## 0.6 Web arayüzü
-- [ ] Sohbet ekranı (streaming), değişiklik kartı + Geri al
-- [ ] Mesajlarda yaver adı + renk etiketi; "Ekip" sayfası (her yaverin alanı, son yaptıkları)
-- [ ] Bugün / Yarın / Hafta görünümleri (salt-okunur, Dayframe stili)
-- [ ] Devamsızlık özeti kartı (ders başına kalan hak)
-- [ ] Aylık Claude harcaması göstergesi
+- [x] Sohbet ekranı (streaming), değişiklik kartı + Geri al
+- [x] Mesajlarda yaver adı + renk etiketi; "Ekip" sayfası (her yaverin alanı, son yaptıkları) — Durum sekmesinde kart olarak
+- [x] Bugün / Yarın / Hafta görünümleri (salt-okunur, Dayframe stili)
+- [x] Devamsızlık özeti kartı (ders başına kalan hak)
+- [x] Aylık Claude harcaması göstergesi
 
 ## 0.7 İlk kurulum
 - [ ] İlk açılışta onboarding sohbeti: ad, dönem tarihleri, ders programı (serbest metin/yapıştırma), devamsızlık limitleri, spor günleri, sabit bilgiler (ör. "Cuma Medipol")
