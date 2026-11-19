@@ -1,5 +1,7 @@
 # secrets & personal data
 .env
+.env.*
+!.env.example
 data/
 uploads/
 *.db
@@ -11,14 +13,19 @@ config/providers.yaml
 # python
 __pycache__/
 *.pyc
+*.egg-info/
 .venv/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
 # node
 node_modules/
 dist/
+*.tsbuildinfo
+npm-debug.log*
 
 # tauri
 desktop/src-tauri/target/

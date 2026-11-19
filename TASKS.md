@@ -3,7 +3,7 @@
 Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 
 ## 0.1 İskelet
-- [ ] Repo yapısı (CLAUDE.md'deki klasör yapısı), `.gitignore`, `.env.example`
+- [x] Repo yapısı (CLAUDE.md'deki klasör yapısı), `.gitignore`, `.env.example`
 - [ ] `docker-compose.yml`: `db` (pgvector/pgvector:pg16), `api` (FastAPI, uvicorn --reload dev'de), `web` (Vite dev / nginx prod)
 - [ ] Backend: FastAPI app, `config.py` (pydantic-settings), `/health`
 - [ ] Alembic kurulumu, async SQLAlchemy session
