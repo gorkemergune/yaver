@@ -118,7 +118,7 @@ def test_tool_schema_keeps_fields_named_title_and_flattens_optionals() -> None:
 
     assert schema["properties"]["title"] == {"type": "string"}
     start_time = schema["properties"]["start_time"]
-    assert start_time["type"] == "string"
+    assert start_time["type"] == ["string", "null"]  # models send null for unused fields
     assert "anyOf" not in start_time
     # Not format=time: Groq validates that as RFC 3339 and rejects "09:00".
     assert "format" not in start_time

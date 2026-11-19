@@ -133,12 +133,15 @@ class Coordinator:
                 max_steps=self.max_steps,
             )
         else:
+            delegated: dict[str, dict[str, Any]] = {}
 
             async def delegate(arguments: dict[str, Any]) -> dict[str, Any]:
                 agent = self.team.get(str(arguments.get("agent_id", "")))
                 instruction = str(arguments.get("instruction", "")).strip()
                 if agent is None or not instruction:
                     return {"error": "unknown agent_id or empty instruction"}
+                if agent.id in delegated:  # one delegation per yaver per message
+                    return {"already_done": True, **delegated[agent.id]}
                 sub = await run_agent(
                     self.llm,
                     agent,
@@ -148,7 +151,8 @@ class Coordinator:
                     max_steps=self.max_steps,
                 )
                 runs.append(sub)
-                return {"agent": agent.name, "reply": sub.reply, "tools_used": sub.tool_calls}
+                delegated[agent.id] = {"agent": agent.name, "reply": sub.reply}
+                return {**delegated[agent.id], "tools_used": sub.tool_calls}
 
             final = await run_agent(
                 self.llm,

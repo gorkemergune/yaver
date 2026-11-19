@@ -60,7 +60,11 @@ class LLMUnavailableError(Exception):
         self.attempts = attempts
 
 
-def _matches_json_type(value: Any, type_name: str) -> bool:
+def _matches_json_type(value: Any, type_name: str | list[str]) -> bool:
+    if isinstance(type_name, list):  # ["string", "null"]
+        return any(_matches_json_type(value, t) for t in type_name)
+    if type_name == "null":
+        return value is None
     if type_name in ("integer", "number") and isinstance(value, bool):
         return False  # bool is an int subclass in Python, not in JSON
     expected: dict[str, tuple[type, ...]] = {
@@ -95,7 +99,7 @@ def tool_call_problems(
             problems.append(f"{call.name}: missing {', '.join(missing)}")
         properties: dict[str, Any] = spec.parameters.get("properties", {})
         for key, value in call.arguments.items():
-            type_name = str(properties.get(key, {}).get("type", ""))
+            type_name = properties.get(key, {}).get("type", "")
             if not _matches_json_type(value, type_name):
                 problems.append(f"{call.name}: {key} should be {type_name}")
     return problems

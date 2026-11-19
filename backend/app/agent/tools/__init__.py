@@ -73,11 +73,15 @@ def json_schema(model: type[BaseModel]) -> dict[str, Any]:
             return [clean(item) for item in node]
         if not isinstance(node, dict):
             return node
-        # Optional fields: {"anyOf": [X, {"type": "null"}]} -> X (absence already = None).
+        # Optional fields: {"anyOf": [X, {"type": "null"}]} -> X with type [t, "null"].
+        # Models often send null for unused optional fields and Groq validates the schema
+        # server-side, so null must stay allowed.
         options = node.get("anyOf")
         if isinstance(options, list) and len(options) == 2 and {"type": "null"} in options:
             merged = {k: v for k, v in node.items() if k != "anyOf"}
             merged.update(next(o for o in options if o != {"type": "null"}))
+            if isinstance(merged.get("type"), str):
+                merged["type"] = [merged["type"], "null"]
             node = merged
         if node.get("format") == "time":
             # JSON-schema "time" is RFC 3339 (09:00:00+00:00) and providers that validate

@@ -9,6 +9,7 @@ the end the failover rate and invalid tool calls, so prompt changes can be compa
 """
 
 import datetime as dt
+import os
 from collections import Counter
 from collections.abc import AsyncIterator
 from decimal import Decimal
@@ -23,6 +24,7 @@ from app.config import get_settings
 from app.core.time_resolver import normalize
 from app.db.models import Attendance, BlockOverride, Course, Event, LlmUsage, RecurringBlock
 from app.db.models.enums import BlockKind, OverrideAction
+from app.llm.config import load_providers_config
 from app.llm.router import LLMRouter, build_router, env_value
 from app.llm.usage import DbUsageStore
 
@@ -36,7 +38,16 @@ IST_OFFSET = dt.timedelta(hours=3)
 async def router(session: AsyncSession) -> AsyncIterator[LLMRouter]:
     if not env_value(get_settings(), "GROQ_API_KEY"):
         pytest.skip("GROQ_API_KEY not set")
-    router = build_router(store=DbUsageStore(async_sessionmaker(session.bind)))
+    config = load_providers_config()
+    # Measurement mode: LIVE_RATE_LIMIT_WAIT=30 waits out Groq's per-minute limits instead
+    # of failing over, so tool-call accuracy of the Groq models is measured on its own.
+    wait = os.environ.get("LIVE_RATE_LIMIT_WAIT")
+    if wait:
+        routing = config.routing.model_copy(
+            update={"rate_limit_max_wait_seconds": float(wait), "rate_limit_max_waits": 20}
+        )
+        config = config.model_copy(update={"routing": routing})
+    router = build_router(config=config, store=DbUsageStore(async_sessionmaker(session.bind)))
     yield router
     await router.aclose()
 
@@ -153,6 +164,9 @@ async def _summary(session: AsyncSession, replies: list[ChatReply]) -> None:
     total = sum((row.cost_usd for row in rows), Decimal(0))
     print("\n=== summary")
     print(f"LLM calls answered: {len(calls)} by tier {dict(by_tier)}")
+    print(f"by model: {dict(Counter(call.model for call in calls))}")
+    rate_limited = [row for row in errors if row.error and "429" in row.error]
+    print(f"429s: {len(rate_limited)} (short ones waited out on the same tier)")
     rate = failovers / len(calls) if calls else 0
     print(f"failover rate: {failovers}/{len(calls)} = {rate:.0%}")
     print(f"invalid tool-call attempts: {len(invalid)}; provider errors: {len(provider_errors)}")

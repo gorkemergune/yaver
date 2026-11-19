@@ -418,3 +418,35 @@ async def test_fast_path_simple_message_without_delegation(session: AsyncSession
     )
     assert entry is not None
     assert entry.agent_id == "yaver"
+
+
+async def test_second_delegation_to_the_same_yaver_is_not_run_again(session: AsyncSession) -> None:
+    llm = ScriptedLLM()
+
+    def check(request: LLMRequest) -> LLMResponse:
+        assert last_result(request)["already_done"] is True
+        return say("Tamam.")
+
+    llm.add(
+        "yaver",
+        call("delegate", agent_id="discipline", instruction="salı spor ekle"),
+        call("delegate", agent_id="discipline", instruction="salı spor ekle"),
+        check,
+    )
+    llm.add(
+        "discipline",
+        call(
+            "add_recurring_block",
+            kind="sport",
+            title="Spor",
+            weekdays=["tuesday"],
+            start_time="19:00",
+            end_time="20:00",
+        ),
+        say("Eklendi."),
+    )
+
+    reply = await send(session, llm, "salı 19-20 spor")
+
+    assert await count(session, RecurringBlock) == 1
+    assert [a["agent_id"] for a in reply.agents] == ["discipline"]

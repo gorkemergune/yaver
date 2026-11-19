@@ -373,3 +373,14 @@ async def test_model_override_is_dropped_when_the_budget_changes_the_tier() -> N
     await router.complete(request(), tier="smart", model="sonnet-special")
 
     assert claude.calls[0][1] == "haiku"
+
+
+def test_nullable_optional_arguments_are_valid() -> None:
+    spec = GET_DAY_PLAN.__class__(
+        "t",
+        "",
+        {"type": "object", "properties": {"note": {"type": ["string", "null"]}}},
+    )
+
+    assert not tool_call_problems([ToolCall("1", "t", {"note": None})], [spec], required=False)
+    assert tool_call_problems([ToolCall("1", "t", {"note": 3})], [spec], required=False)
