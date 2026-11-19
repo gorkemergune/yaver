@@ -116,6 +116,9 @@ export const tr = {
     loading: "Yükleniyor…",
     error: "Plan alınamadı.",
     today: "bugün",
+    showDetails: "Ayrıntıları göster",
+    hideDetails: "Ayrıntıları gizle",
+    detail: { time: "Saat", kind: "Tür", place: "Yer", note: "Not", moved: "Değişiklik" },
   },
   status: {
     team: "Ekip",
