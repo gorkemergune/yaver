@@ -56,6 +56,8 @@ select = [
     "DTZ",      # naive datetimes (DB is UTC, display is APP_TIMEZONE)
     "RUF",
 ]
+# Turkish user-facing text uses dotless ı / dotted İ on purpose.
+allowed-confusables = ["ı", "İ"]
 ignore = [
     "B008",     # FastAPI's Depends()/Query() in argument defaults
 ]

@@ -12,8 +12,8 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 
 ## 0.2 Veri modeli
 - [x] Modeller + migration'lar (5 gruba bölündü): terms, courses, recurring_blocks, block_overrides, events, attendance, tasks, followups, memories, conversations, messages, change_log, llm_usage
-- [ ] `services/schedule.py`: bir tarih için "etkin plan" hesaplama (recurring + overrides + events + tasks)
-- [ ] Testler: iptal edilen blok görünmüyor, taşınan blok yeni saatte, dönem dışı blok yok
+- [x] `services/schedule.py`: bir tarih için "etkin plan" hesaplama (recurring + overrides + events + tasks)
+- [x] Testler: iptal edilen blok görünmüyor, taşınan blok yeni saatte, dönem dışı blok yok
 
 ## 0.3 Zaman çözümleyici
 - [ ] `core/time_resolver.py`: Türkçe göreli tarihler (bugün, yarın, öbür gün, bu/gelecek <gün>, hafta sonu, "28-29 kasım", "3 hafta sonra")
