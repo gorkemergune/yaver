@@ -7,8 +7,8 @@
 # cost it returns per request; these numbers are only a fallback there.
 
 anthropic:
-  # Anthropic API pricing (first-party). Cache write = 1.25x input; cache read ~0.1x input
-  # for Haiku (assumed), $0.10 for Sonnet 5.5 (documented).
+  # Anthropic API pricing (first-party). Cache write = 1.25x input (5-min TTL).
+  # Cache reads: Haiku 5.5 $0.01/M, Sonnet 5.5 $0.10/M (0.05x) - confirmed.
   claude-haiku-5-5:
     input: 0.10
     output: 0.50

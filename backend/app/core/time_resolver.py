@@ -33,8 +33,11 @@ Clock times (in Turkish a time takes the locative: "14'te", a date the possessiv
 "14'ünde"):
 - "14:00", "9:15" are literal 24h times; "14'te", "saat 14", "11-13" too when an hour is
   12 or more. "akşam 8'de" -> 20:00.
-- "9'da", "3'te", "9-11" without a part of day -> AMBIGUOUS (`am_or_pm`): the date is
-  kept in `span`, the readings are in `time_candidates`.
+- A bare hour 1-11 follows the ClockConvention (default: 8-11 -> morning, 1-7 ->
+  afternoon, as people say it: "9'da ders", "3'te toplantı" = 15:00). "11-1" -> 11-13.
+- Only real ambiguity is asked (AMBIGUOUS `am_or_pm`, date kept in `span`, readings in
+  `time_candidates`): a range the convention can't order ("7-9": 07-09 or 19-21?) or an
+  hour the convention leaves uncovered.
 """
 
 import datetime as dt
@@ -117,6 +120,36 @@ class DateSpan:
 
     def to_dict(self) -> dict[str, str]:
         return {"start": self.start.isoformat(), "end": self.end.isoformat()}
+
+
+@dataclass(frozen=True, slots=True)
+class ClockConvention:
+    """How a bare hour 1-11 ("9'da", "3'te") is read. Inclusive hour ranges; an hour in
+    neither range is ambiguous and the agent asks."""
+
+    morning: tuple[int, int] = (8, 11)
+    afternoon: tuple[int, int] = (1, 7)  # read as 13:00-19:00
+
+    def __post_init__(self) -> None:
+        for low, high in (self.morning, self.afternoon):
+            if not 1 <= low <= high <= 11:
+                raise ValueError(f"clock hour range must be within 1-11: {low}-{high}")
+        if self._in(self.morning, self.afternoon[0]) or self._in(self.afternoon, self.morning[0]):
+            raise ValueError("morning and afternoon hour ranges overlap")
+
+    @staticmethod
+    def _in(bounds: tuple[int, int], hour: int) -> bool:
+        return bounds[0] <= hour <= bounds[1]
+
+    def read(self, hour: int) -> int | None:
+        if self._in(self.morning, hour):
+            return hour
+        if self._in(self.afternoon, hour):
+            return hour + 12
+        return None
+
+
+DEFAULT_CLOCK = ClockConvention()
 
 
 @dataclass(frozen=True, slots=True)
@@ -836,8 +869,10 @@ def _slot(start_h: int, start_m: int, end_h: int | None, end_m: int) -> TimeSlot
     return TimeSlot(start, end) if end > start else Reason.INVALID_TIME
 
 
-def _interpret_time(raw: _RawTime, part: PartOfDay | None) -> tuple[TimeSlot, ...] | Reason:
-    """One slot = clear; two slots = AM/PM ambiguity ('yarın 9'da', 'cuma 9-11')."""
+def _interpret_time(
+    raw: _RawTime, part: PartOfDay | None, clock: ClockConvention
+) -> tuple[TimeSlot, ...] | Reason:
+    """One slot = clear; two slots = AM/PM ambiguity ('cuma 7-9')."""
     hours = [raw.hour] if raw.end_hour is None else [raw.hour, raw.end_hour]
     if part is not None:
         adjusted = [_hour_with_part(h, part) for h in hours]
@@ -851,13 +886,27 @@ def _interpret_time(raw: _RawTime, part: PartOfDay | None) -> tuple[TimeSlot, ..
     if raw.literal or any(h == 0 or h >= 12 for h in hours):
         slot = _slot(raw.hour, raw.minute, raw.end_hour, raw.end_minute)
         return slot if isinstance(slot, Reason) else (slot,)
-    # Only hours 1-11 and no part of day: morning or afternoon/evening?
-    morning = _slot(raw.hour, raw.minute, raw.end_hour, raw.end_minute)
+    # Only hours 1-11 and no part of day: apply the convention ("9'da" -> 09, "3'te" -> 15).
+    start, end = clock.read(raw.hour), None
+    if raw.end_hour is not None:
+        end = clock.read(raw.end_hour)
+    if start is not None and (raw.end_hour is None or end is not None):
+        conventional = _slot(start, raw.minute, end, raw.end_minute)
+        if not isinstance(conventional, Reason):
+            return (conventional,)
+    # Convention can't decide ("7-9": 19-09 makes no sense): offer both readings.
     later_end = raw.end_hour + 12 if raw.end_hour is not None else None
-    evening = _slot(raw.hour + 12, raw.minute, later_end, raw.end_minute)
-    if isinstance(morning, Reason) or isinstance(evening, Reason):
+    readings = [
+        slot
+        for slot in (
+            _slot(raw.hour, raw.minute, raw.end_hour, raw.end_minute),
+            _slot(raw.hour + 12, raw.minute, later_end, raw.end_minute),
+        )
+        if not isinstance(slot, Reason)
+    ]
+    if not readings:
         return Reason.INVALID_TIME
-    return (morning, evening)
+    return tuple(readings)
 
 
 def _match_date(phrase: str, ctx: _Context) -> _Outcome:
@@ -895,6 +944,7 @@ def resolve(
     term_start: dt.date | None = None,
     term_end: dt.date | None = None,
     direction: Direction | str = Direction.ANY,
+    clock: ClockConvention = DEFAULT_CLOCK,
 ) -> Resolution:
     """Resolve a Turkish date phrase relative to `today` (a local date in APP_TIMEZONE).
 
@@ -913,7 +963,7 @@ def resolve(
 
     slots: tuple[TimeSlot, ...] = ()
     if parsed.raw_time is not None:
-        interpreted = _interpret_time(parsed.raw_time, parsed.part)
+        interpreted = _interpret_time(parsed.raw_time, parsed.part, clock)
         if isinstance(interpreted, Reason):
             return Resolution(text, Status.UNRESOLVED, reason=interpreted)
         slots = interpreted

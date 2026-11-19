@@ -4,8 +4,10 @@ from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import SecretStr, field_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.time_resolver import ClockConvention
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_DIR = BACKEND_DIR.parent
@@ -43,6 +45,10 @@ class Settings(BaseSettings):
     # --- Budget guard ---
     claude_monthly_budget_usd: float = 4.0
 
+    # --- Clock convention for bare hours ("9'da" -> 09:00, "3'te" -> 15:00) ---
+    clock_morning_hours: str = "8-11"
+    clock_afternoon_hours: str = "1-7"
+
     # --- LLM ---
     # Check on startup that the configured models exist (logs only, never blocks startup).
     llm_check_models_on_startup: bool = True
@@ -64,6 +70,33 @@ class Settings(BaseSettings):
     @property
     def tz(self) -> ZoneInfo:
         return ZoneInfo(self.app_timezone)
+
+    @property
+    def clock(self) -> ClockConvention:
+        return ClockConvention(
+            morning=_hour_range(self.clock_morning_hours),
+            afternoon=_hour_range(self.clock_afternoon_hours),
+        )
+
+    @field_validator("clock_morning_hours", "clock_afternoon_hours")
+    @classmethod
+    def _validate_hour_range(cls, value: str) -> str:
+        _hour_range(value)
+        return value
+
+    @model_validator(mode="after")
+    def _validate_clock(self) -> "Settings":
+        _ = self.clock  # ranges within 1-11 and not overlapping
+        return self
+
+
+def _hour_range(value: str) -> tuple[int, int]:
+    """'8-11' -> (8, 11)"""
+    try:
+        low, high = (int(part) for part in value.split("-"))
+    except ValueError as exc:
+        raise ValueError(f"hour range must look like '8-11', got {value!r}") from exc
+    return low, high
 
 
 @lru_cache

@@ -6,12 +6,14 @@ import pytest
 
 from app.core.time_resolver import (
     CalendarDay,
+    ClockConvention,
     DateSpan,
     Direction,
     PartOfDay,
     Reason,
     Resolution,
     Status,
+    TimeSlot,
     build_calendar_context,
     format_calendar_context,
     normalize,
@@ -828,14 +830,36 @@ def test_date_range_is_not_mistaken_for_a_time_range() -> None:
 
 
 @pytest.mark.parametrize(
-    ("text", "iso", "slots"),
+    ("text", "iso", "start", "end"),
     [
-        ("yarın 9'da", "2026-11-20", ["09:00", "21:00"]),
-        ("saat 3'te", "2026-11-19", ["03:00", "15:00"]),
-        ("cuma 9-11", "2026-11-20", ["09:00-11:00", "21:00-23:00"]),
+        ("yarın 9'da", "2026-11-20", "09:00", None),  # 8-11 -> morning
+        ("yarın 11'de", "2026-11-20", "11:00", None),
+        ("saat 3'te", "2026-11-19", "15:00", None),  # 1-7 -> afternoon
+        ("cuma 7'de", "2026-11-20", "19:00", None),
+        ("cuma 9-11", "2026-11-20", "09:00", "11:00"),
+        ("cuma 2-4", "2026-11-20", "14:00", "16:00"),
+        ("cuma 11-1", "2026-11-20", "11:00", "13:00"),  # "11-1" said for 11:00-13:00
+        ("yarın sabah 7'de", "2026-11-20", "07:00", None),  # part of day overrides it
     ],
 )
-def test_hour_without_part_of_day_is_am_or_pm(text: str, iso: str, slots: list[str]) -> None:
+def test_bare_hours_follow_the_clock_convention(
+    text: str, iso: str, start: str, end: str | None
+) -> None:
+    result = res(text)
+
+    assert_day(result, iso)
+    assert result.time == dt.time.fromisoformat(start)
+    assert result.end_time == (dt.time.fromisoformat(end) if end else None)
+
+
+@pytest.mark.parametrize(
+    ("text", "iso", "slots"),
+    [
+        ("cuma 7-9", "2026-11-20", ["07:00-09:00", "19:00-21:00"]),  # 19-09 is no range
+        ("cuma 6-8", "2026-11-20", ["06:00-08:00", "18:00-20:00"]),
+    ],
+)
+def test_only_real_ambiguity_is_asked(text: str, iso: str, slots: list[str]) -> None:
     result = res(text)
 
     assert result.status is Status.AMBIGUOUS
@@ -843,6 +867,34 @@ def test_hour_without_part_of_day_is_am_or_pm(text: str, iso: str, slots: list[s
     assert result.span == DateSpan.day(d(iso))  # the date itself is known
     assert result.time is None
     assert [str(slot) for slot in result.time_candidates] == slots
+
+
+def test_clock_convention_is_configurable() -> None:
+    clock = ClockConvention(morning=(9, 11), afternoon=(1, 6))
+
+    assert resolve("yarın 8'de", THU, clock=clock).reason is Reason.AM_OR_PM  # uncovered
+    assert resolve("yarın 9'da", THU, clock=clock).time == dt.time(9)
+    assert resolve("yarın 7'de", THU, clock=clock).time_candidates == (
+        TimeSlot(dt.time(7)),
+        TimeSlot(dt.time(19)),
+    )
+
+
+@pytest.mark.parametrize(
+    ("morning", "afternoon"), [((0, 11), (1, 7)), ((8, 12), (1, 7)), ((5, 11), (1, 7))]
+)
+def test_invalid_clock_conventions(morning: tuple[int, int], afternoon: tuple[int, int]) -> None:
+    with pytest.raises(ValueError, match=r"1-11|overlap"):
+        ClockConvention(morning=morning, afternoon=afternoon)
+
+
+def test_clock_convention_from_settings() -> None:
+    from app.config import Settings
+
+    settings = Settings(_env_file=None, clock_morning_hours="9-11", clock_afternoon_hours="1-6")
+    assert settings.clock == ClockConvention(morning=(9, 11), afternoon=(1, 6))
+    with pytest.raises(ValueError, match="overlap"):
+        Settings(_env_file=None, clock_morning_hours="5-11", clock_afternoon_hours="1-7")
 
 
 def test_time_with_ambiguous_date_keeps_both_ambiguities_visible() -> None:
@@ -861,4 +913,4 @@ def test_to_dict_with_time_range_and_time_candidates() -> None:
         "time": "11:00",
         "end_time": "13:00",
     }
-    assert res("yarın 9'da").to_dict()["time_candidates"] == ["09:00", "21:00"]
+    assert res("cuma 7-9").to_dict()["time_candidates"] == ["07:00-09:00", "19:00-21:00"]
