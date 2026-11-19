@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     config_dir: Path = REPO_DIR / "config"
 
     # --- Database ---
-    database_url: str = "postgresql+asyncpg://yaver:yaver@localhost:5432/yaver"
+    database_url: str = "postgresql+asyncpg://yaver:yaver@127.0.0.1:5432/yaver"
 
     # --- LLM providers (BYOK) ---
     groq_api_key: SecretStr | None = None
