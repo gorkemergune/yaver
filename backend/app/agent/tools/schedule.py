@@ -20,7 +20,7 @@ from app.services.schedule import DayPlan, PlanItem, get_day_plan
 
 Weekday = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 BlockKindName = Literal["class", "lab", "sport", "work", "other"]
-ISO_DATE = "ISO date YYYY-MM-DD (use resolve_date for words like 'yarın')"
+ISO_DATE = "YYYY-MM-DD"  # the prompts explain resolve_date once; keep schemas small
 
 
 def _hhmm(value: dt.datetime | dt.time) -> str:

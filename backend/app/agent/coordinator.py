@@ -44,6 +44,7 @@ class ChatReply:
     change_set_id: uuid.UUID | None
     agents: list[dict[str, str]] = field(default_factory=list)  # [{agent_id, name, reply}]
     actions: list[dict[str, Any]] = field(default_factory=list)
+    trace: list[dict[str, Any]] = field(default_factory=list)
     llm_calls: list[LLMCall] = field(default_factory=list)
 
     @property
@@ -191,6 +192,7 @@ class Coordinator:
             change_set_id=stored_set,
             agents=[{"agent_id": r.agent_id, "name": r.name, "reply": r.reply} for r in runs],
             actions=ctx.actions,
+            trace=ctx.trace,
             llm_calls=[
                 LLMCall(
                     run.agent_id,

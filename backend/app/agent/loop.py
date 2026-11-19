@@ -78,6 +78,14 @@ async def run_agent(
                 # A delegate call earlier in this turn may have switched the active yaver.
                 ctx.agent_id = ctx.recorder.agent_id = member.id
                 result = await run_tool(call.name, call.arguments, ctx)
+            ctx.trace.append(
+                {
+                    "agent_id": member.id,
+                    "tool": call.name,
+                    "arguments": call.arguments,
+                    "error": result.get("error"),
+                }
+            )
             if "error" in result:
                 logger.info("%s: %s -> %s", member.id, call.name, result["error"])
             history.append(

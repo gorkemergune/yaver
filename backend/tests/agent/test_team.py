@@ -1,6 +1,7 @@
 """Team config validation, prompts, tool schemas (no database, no LLM)."""
 
 import datetime as dt
+import re
 import uuid
 from typing import Any
 from unittest.mock import MagicMock
@@ -116,8 +117,14 @@ def test_tool_schema_keeps_fields_named_title_and_flattens_optionals() -> None:
     schema = json_schema(AddEventArgs)
 
     assert schema["properties"]["title"] == {"type": "string"}
-    assert schema["properties"]["start_time"]["type"] == "string"
-    assert "anyOf" not in schema["properties"]["start_time"]
+    start_time = schema["properties"]["start_time"]
+    assert start_time["type"] == "string"
+    assert "anyOf" not in start_time
+    # Not format=time: Groq validates that as RFC 3339 and rejects "09:00".
+    assert "format" not in start_time
+    assert re.fullmatch(start_time["pattern"], "09:00")
+    assert not re.fullmatch(start_time["pattern"], "9:00")
+    assert schema["properties"]["date"]["format"] == "date"
     assert schema["required"] == ["kind", "title", "date"]
     assert schema["additionalProperties"] is False
 

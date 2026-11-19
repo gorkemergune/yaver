@@ -22,6 +22,8 @@ class ToolContext:
     agent_id: str = "yaver"
     # Action log for the reply ("Friday: EE211 lab eklendi"), filled by the tool runner.
     actions: list[dict[str, object]] = field(default_factory=list)
+    # Every tool call (reads too) with its arguments, for debugging and prompt tuning.
+    trace: list[dict[str, object]] = field(default_factory=list)
 
     @property
     def today(self) -> dt.date:

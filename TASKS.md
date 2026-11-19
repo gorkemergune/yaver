@@ -29,16 +29,16 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Her çağrıda `llm_usage` kaydı; `GET /api/usage/month`
 
 ## 0.5 Ajan ve Yaver ekibi
-- [ ] System prompt şablonları: koordinatör + yaver (persona, alan, kullanıcı adı `agents.yaml` ve `.env`'den)
-- [ ] Tool registry + şema üretimi (Pydantic → JSON schema); yaver başına araç filtresi
-- [ ] `team.py`: `config/agents.yaml` yükleme ve doğrulama (bilinmeyen araç adı → başlangıçta hata)
-- [ ] `coordinator.py`: `delegate(agent_id, instruction)` aracı, karışık mesajı bölme, sonuçları birleştirme, ortak `change_set_id`
-- [ ] Ada göre doğrudan yönlendirme ("Friday, ...")
-- [ ] Senaryo testi: "Bugün linear iptal, yarın 14'te Iceberg toplantısı var, akşam spora gidemem" → 3 yaver, tek geri al
-- [ ] Araçlar: get_day_plan, get_week_plan, add/update_recurring_block, cancel_block_on, move_block_on, add/update/delete_event, log_attendance, get_attendance_summary, add/complete_task, add/update_followup, remember/forget, undo
-- [ ] `change_log` entegrasyonu; cevapta `change_set` özeti
-- [ ] Döngü: max 6 adım, belirsizlikte soru sor, toplu silmede onay iste
-- [ ] Fake-LLM ile senaryo testleri ("bugün linear iptal", "yarın quiz var", "EE211'e gitmedim")
+- [x] System prompt şablonları: koordinatör + yaver (persona, alan, kullanıcı adı `agents.yaml` ve `.env`'den)
+- [x] Tool registry + şema üretimi (Pydantic → JSON schema); yaver başına araç filtresi
+- [x] `team.py`: `config/agents.yaml` yükleme ve doğrulama (bilinmeyen araç adı → başlangıçta hata)
+- [x] `coordinator.py`: `delegate(agent_id, instruction)` aracı, karışık mesajı bölme, sonuçları birleştirme, ortak `change_set_id`
+- [x] Ada göre doğrudan yönlendirme ("Friday, ...")
+- [x] Senaryo testi: "Bugün linear iptal, yarın 14'te Iceberg toplantısı var, akşam spora gidemem" → 3 yaver, tek geri al
+- [x] Araçlar: get_day_plan, get_week_plan, add/update_recurring_block, cancel_block_on, move_block_on, add/update/delete_event, log_attendance, get_attendance_summary, add/complete_task, add/update_followup, remember/forget, undo
+- [x] `change_log` entegrasyonu; cevapta `change_set` özeti
+- [x] Döngü: max 6 adım, belirsizlikte soru sor, toplu silmede onay iste (toplu silme aracı henüz yok; silme tekli)
+- [x] Fake-LLM ile senaryo testleri ("bugün linear iptal", "yarın quiz var", "EE211'e gitmedim")
 
 ## 0.6 Web arayüzü
 - [ ] Sohbet ekranı (streaming), değişiklik kartı + Geri al

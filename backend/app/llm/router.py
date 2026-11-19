@@ -199,6 +199,7 @@ class LLMRouter:
             except ProviderError as exc:
                 latency = _elapsed_ms(started)
                 if not isinstance(exc, ProviderNotConfiguredError):
+                    prefix = "invalid tool calls: " if exc.invalid_tool_call else ""
                     await self._record(
                         UsageRecord(
                             provider.name,
@@ -207,9 +208,12 @@ class LLMRouter:
                             purpose,
                             agent_id=agent_id,
                             latency_ms=latency,
-                            error=str(exc)[:500],
+                            error=(prefix + str(exc))[:500],
                         )
                     )
+                if exc.invalid_tool_call:
+                    logger.warning("Tier %s: provider rejected the tool call (%s)", tier_name, exc)
+                    continue  # same as an invalid tool call: retry, then fail over
                 if not exc.retryable:
                     raise
                 attempts.append(f"{tier_name}: {exc}")

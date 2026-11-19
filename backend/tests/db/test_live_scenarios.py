@@ -46,6 +46,9 @@ def _report(step: str, reply: ChatReply) -> None:
     print(f"reply ({reply.speaker}): {reply.reply}")
     for agent in reply.agents:
         print(f"  {agent['name']}: {agent['reply']}")
+    for entry in reply.trace:
+        error = f"  -> ERROR {entry['error']}" if entry["error"] else ""
+        print(f"  call [{entry['agent_id']}] {entry['tool']}({entry['arguments']}){error}")
     for action in reply.actions:
         print(f"  action [{action['agent_id']}] {action['tool']}: {action['result']}")
     for call in reply.llm_calls:
@@ -95,9 +98,19 @@ async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
         overrides = (await session.scalars(select(BlockOverride))).all()
         print(f"  DB overrides: {[(o.date, o.action.value, o.block_id) for o in overrides]}")
         linear = next(b for b in blocks if b.weekday == 0)
-        assert [(o.block_id, o.date, o.action) for o in overrides] == [
-            (linear.id, dt.date(2026, 11, 23), OverrideAction.CANCEL)
-        ]  # there is no sport on Mondays: nothing else may be cancelled
+        tuesday_sport = next(b for b in blocks if b.weekday == 1)
+        found_overrides = {(o.block_id, o.date, o.action) for o in overrides}
+        assert (linear.id, dt.date(2026, 11, 23), OverrideAction.CANCEL) in found_overrides
+        # "akşam spora gidemem" after "yarın 14'te ...": there is no sport today (Monday);
+        # acceptable: ask back (no change) or read it as tomorrow evening (Tuesday sport).
+        # Anything else (another day, another block) is a guess.
+        others = found_overrides - {(linear.id, dt.date(2026, 11, 23), OverrideAction.CANCEL)}
+        assert others in (
+            set(),
+            {(tuesday_sport.id, dt.date(2026, 11, 24), OverrideAction.CANCEL)},
+        ), others
+        print(f"  sport reading: {'asked back' if not others else 'tomorrow evening (Tuesday)'}")
+        sport_cancelled_tomorrow = bool(others)
         events = (await session.scalars(select(Event))).all()
         print(f"  DB events: {[(e.title, e.start_at + IST_OFFSET) for e in events]}")
         assert len(events) == 1
@@ -116,14 +129,15 @@ async def test_live_scenarios(session: AsyncSession, router: LLMRouter) -> None:
         fourth = await send("4", "Yarın ne var?")
         answer = normalize(fourth.reply)
         assert "iceberg" in answer, fourth.reply
-        assert "spor" in answer, fourth.reply
+        if not sport_cancelled_tomorrow:
+            assert "spor" in answer, fourth.reply
         assert fourth.change_set_id is None
 
         # 5) undo the last change (the attendance)
         await send("5", "Son değişikliği geri al")
         assert await _count(session, Attendance) == 0
         assert await _count(session, Event) == 1
-        assert await _count(session, BlockOverride) == 1
+        assert await _count(session, BlockOverride) == len(found_overrides)
     finally:
         await _summary(session, replies)
 

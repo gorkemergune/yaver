@@ -99,6 +99,7 @@ class OpenAICompatProvider:
                 exc.message,
                 retryable=exc.status_code == 429 or exc.status_code >= 500,
                 status_code=exc.status_code,
+                invalid_tool_call=_is_tool_call_rejection(exc),
             ) from exc
         except openai.APIConnectionError as exc:  # includes timeouts
             raise ProviderError(self.name, str(exc), retryable=True) from exc
@@ -186,6 +187,21 @@ def _parse_tool_call(call: Any) -> ToolCall:
     if not isinstance(parsed, dict):
         return ToolCall(call.id, call.function.name, None, raw, "arguments are not an object")
     return ToolCall(call.id, call.function.name, cast(dict[str, Any], parsed), raw)
+
+
+_TOOL_CALL_REJECTIONS = ("tool call validation failed", "failed to call a function")
+
+
+def _is_tool_call_rejection(exc: openai.APIStatusError) -> bool:
+    """Groq answers 400 (code tool_use_failed) when the model's tool call is malformed."""
+    if exc.status_code != 400:
+        return False
+    body = exc.body if isinstance(exc.body, dict) else {}
+    error = body.get("error", body)
+    code = error.get("code") if isinstance(error, dict) else None
+    return code == "tool_use_failed" or any(
+        marker in exc.message.lower() for marker in _TOOL_CALL_REJECTIONS
+    )
 
 
 def _reported_cost(usage: Any) -> Decimal | None:

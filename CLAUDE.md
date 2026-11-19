@@ -111,7 +111,7 @@ Kurallar:
 - Maliyet: delegasyon ekstra bir LLM çağrısıdır. Tek alanlı basit mesajlarda (ör. sadece "EE211'e gitmedim") koordinatör ilgili aracı doğrudan çağırabilsin diye `fast_path` opsiyonu düşünülür (Faz 0 sonu değerlendirme).
 
 ## Ajan araçları (ilk set)
-`get_day_plan(date)`, `get_week_plan(week_start)`, `add_recurring_block`, `update_recurring_block`, `cancel_block_on(date, block)`, `move_block_on`, `add_event`, `update_event`, `delete_event`, `log_attendance`, `get_attendance_summary`, `add_task`, `complete_task`, `add_followup`, `update_followup`, `remember`, `forget`, `search_materials` (Faz 3), `generate_study_sheet` (Faz 3), `undo(change_set_id)`.
+`resolve_date(expression, direction)`, `get_day_plan(date)`, `get_week_plan(date)`, `add_recurring_block`, `update_recurring_block`, `cancel_block_on(date, block)`, `move_block_on`, `add_event`, `update_event`, `delete_event`, `log_attendance`, `get_attendance_summary`, `set_absence_limit`, `add_task`, `complete_task`, `add_followup`, `update_followup`, `remember`, `forget`, `search_materials` (Faz 3), `generate_study_sheet` (Faz 3), `undo(change_set_id)`.
 
 Kurallar:
 - Belirsiz eşleşmede (iki "linear" bloğu varsa) araç hata döner, ajan kullanıcıya sorar.
@@ -119,6 +119,11 @@ Kurallar:
 - `resolve()`'un `direction` parametresi araca göre sabittir, modele bırakılmaz: **ekleme/planlama araçları** (`add_event`, `add_recurring_block`, `move_block_on`, `add_task`, `add_followup`…) `direction="future"`, **geçmiş kayıt araçları** (`log_attendance`, geçmiş bir günü sorgulayan/işaretleyen araçlar) `direction="past"`, salt okuma (`get_day_plan`) `"any"` kullanır. Böylece "bu salı" ekleme aracında gelecek salıya, "bu salı gitmedim"de geçen salıya çözülür.
 - Toplu silme (>3 kayıt) için ajan önce onay ister.
 - Araç çıktıları kısa JSON; asistan cevabında değişiklik özeti + geri al.
+- Araçlar sadece ISO tarih (`YYYY-MM-DD`) ve `HH:MM` kabul eder; göreli ifadeler önce `resolve_date`'ten geçer. Her araç `app/agent/tools/` altında, Pydantic argüman modeli + handler; şema `json_schema()` ile üretilir. Saat alanlarında JSON-schema `format: time` kullanılmaz (Groq şemayı sunucuda RFC 3339'a göre doğrular, "09:00"ı reddeder) - `HH:MM` regex'i kullanılır.
+- Belirsiz eşleşmede araç `candidates` döner; değiştirilecek bir şey yoksa ajan başka tarih/blok seçmez, sorar.
+- Koordinatör `delegate` talimatına kullanıcının kelimelerini aynen yazar; tarih/saat eklemez.
+- Her cevap `trace` (tüm araç çağrıları + argümanlar) taşır; prompt ayarı yaparken canlı senaryo çıktısına bakılır.
+- HTTP: `POST /api/chat` (mesaj → cevap), `POST /api/changes/{change_set_id}/undo` ("Geri al" butonu).
 
 ## LLM router
 - Tier'lar: `fast` (Groq), `fallback` (Claude Haiku 5.5), `smart` (Claude Sonnet 5.5), `local` (Ollama). Model ID'leri `config/providers.yaml`'da, koda gömülmez.
@@ -154,7 +159,7 @@ docker compose -f docker-compose.yml up -d --build
 `web/package.json` değişince node_modules volume'ünü yenile: `docker compose up -d --build -V web`.
 
 ## Canlı LLM testleri (gerçek para)
-`@pytest.mark.live` testleri normal `pytest`'te çalışmaz. Elle: `docker compose exec api pytest -m live -v -s`. Harcama gerçek `llm_usage` tablosuna yazılır. Claude'u çağırmayan değişikliklerde gerekmez.
+`@pytest.mark.live` testleri normal `pytest`'te çalışmaz. Elle: `docker compose exec api pytest -m live -v -s`. Sağlayıcı testleri harcamayı gerçek `llm_usage` tablosuna yazar. Prompt veya araç değişikliğinden sonra uçtan uca senaryolar: `docker compose exec api pytest -m live -k scenarios -s` (test DB'sinde 5 mesaj; adım başına tier/maliyet, sonda failover oranı ve geçersiz araç çağrıları).
 
 ## Kontroller (commit öncesi)
 ```bash

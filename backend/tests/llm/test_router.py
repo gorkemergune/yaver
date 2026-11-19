@@ -159,6 +159,37 @@ async def test_two_invalid_tool_calls_escalate_to_the_next_tier() -> None:
     assert [r.tier for r in store.records] == ["fast", "fast", "fallback"]
 
 
+async def test_provider_rejected_tool_call_is_retried_then_fails_over() -> None:
+    rejected = ProviderError(
+        "groq",
+        "Tool call validation failed",
+        retryable=False,
+        status_code=400,
+        invalid_tool_call=True,
+    )
+    groq = FakeProvider("groq", [rejected, rejected])
+    router, store = make_router({"groq": groq})
+
+    response = await router.complete(request())
+
+    assert response.tier == "fallback"
+    assert len(groq.calls) == 2
+    assert [
+        r.error is not None and r.error.startswith("invalid tool calls") for r in store.records
+    ] == [
+        True,
+        True,
+        False,
+    ]
+
+
+async def test_provider_rejected_tool_call_then_success_stays_on_tier() -> None:
+    rejected = ProviderError("groq", "x", retryable=False, status_code=400, invalid_tool_call=True)
+    router, _ = make_router({"groq": FakeProvider("groq", [rejected, tool_reply()])})
+
+    assert (await router.complete(request())).tier == "fast"
+
+
 async def test_required_tool_call_missing_counts_as_invalid() -> None:
     groq = FakeProvider("groq", [text_reply("Bilmiyorum"), text_reply("Hâlâ bilmiyorum")])
     router, _ = make_router({"groq": groq, "claude": FakeProvider("claude", [tool_reply()])})

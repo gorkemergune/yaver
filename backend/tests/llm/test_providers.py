@@ -417,6 +417,27 @@ async def test_openai_error_mapping(error: Exception, retryable: bool) -> None:
     assert info.value.retryable is retryable
 
 
+@pytest.mark.parametrize(
+    ("message", "body", "expected"),
+    [
+        ("Tool call validation failed: parameters did not match schema", None, True),
+        ("Failed to call a function. Please adjust your prompt.", None, True),
+        ("bad", {"error": {"code": "tool_use_failed", "message": "bad"}}, True),
+        ("model not found", {"error": {"code": "model_not_found"}}, False),
+    ],
+)
+async def test_groq_tool_call_rejections_are_flagged(
+    message: str, body: dict[str, Any] | None, expected: bool
+) -> None:
+    error = openai.BadRequestError(message, response=_response(400, "http://x"), body=body)
+
+    with pytest.raises(ProviderError) as info:
+        await _openai(_Recorder(error=error)).complete(_request(), "m", {})
+
+    assert info.value.invalid_tool_call is expected
+    assert info.value.retryable is False
+
+
 async def test_openai_has_model_uses_the_model_list() -> None:
     provider = OpenAICompatProvider(
         "groq",

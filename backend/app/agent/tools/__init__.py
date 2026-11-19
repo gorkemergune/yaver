@@ -15,6 +15,7 @@ from app.agent.context import ToolContext
 from app.llm.types import ToolSpec
 
 ToolResult = dict[str, Any]
+HHMM_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
 Handler = Callable[[Any, ToolContext], Awaitable[ToolResult]]
 
 
@@ -78,6 +79,11 @@ def json_schema(model: type[BaseModel]) -> dict[str, Any]:
             merged = {k: v for k, v in node.items() if k != "anyOf"}
             merged.update(next(o for o in options if o != {"type": "null"}))
             node = merged
+        if node.get("format") == "time":
+            # JSON-schema "time" is RFC 3339 (09:00:00+00:00) and providers that validate
+            # server-side (Groq) reject "09:00"; we want HH:MM.
+            node = {k: v for k, v in node.items() if k != "format"}
+            node["pattern"] = HHMM_PATTERN
         return {
             key: clean(value)
             for key, value in node.items()

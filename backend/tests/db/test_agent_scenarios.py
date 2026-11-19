@@ -366,3 +366,30 @@ async def test_history_is_sent_with_the_next_message(session: AsyncSession) -> N
     assert [m.role for m in sent] == ["user", "assistant", "user"]
     assert sent[1].content == "Atlas derslerini, Coach sporu ekledi."
     assert "Şu an: 2026-11-23 10:00 Pazartesi" in (llm.requests[0][1].system_suffix or "")
+
+
+async def test_tomorrow_quiz(session: AsyncSession) -> None:
+    await send(session, week_setup_script(), "kurulum")
+    llm = ScriptedLLM()
+    llm.add(
+        "yaver",
+        call("delegate", agent_id="academic", instruction="Yarın EE211 quiz var"),
+        say("Atlas quiz'i ekledi."),
+    )
+    llm.add(
+        "academic",
+        call("resolve_date", expression="yarın", direction="future"),
+        then("add_event", kind="quiz", title="EE211 Quiz", date=resolved(), course="EE211"),
+        say("Yarın EE211 quiz eklendi."),
+    )
+
+    reply = await send(session, llm, "Yarın EE211 quiz var")
+
+    event = await session.scalar(select(Event))
+    assert event is not None
+    assert (event.kind.value, event.all_day) == ("quiz", True)
+    assert event.start_at == dt.datetime(2026, 11, 23, 21, 0, tzinfo=dt.UTC)  # 24 Nov 00:00 IST
+    course = await session.scalar(select(Course).where(Course.code == "EE211"))
+    assert course is not None
+    assert event.course_id == course.id
+    assert reply.change_set_id is not None
