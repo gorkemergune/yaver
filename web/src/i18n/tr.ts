@@ -65,6 +65,18 @@ export const tr = {
       upload_upload_failed: "Görsel yüklenemedi.",
     } as Record<string, string>,
   },
+  design: {
+    title: "Tasarım önizleme",
+    aTitle: "A · Aurora",
+    aNote: "Serin gece: süzülen renk alanları, buzlu cam kartlar, geometrik yazı (Space Grotesk), parlayan yaver küreleri.",
+    bTitle: "B · Kor",
+    bNote: "Sıcak, dergi tadında: kömürden mora akşam, hafif film greni, serif selamlama (Fraunces), balonsuz yaver yazıları.",
+    both: "İkisi",
+    dark: "Koyu",
+    light: "Açık",
+    replay: "Animasyonları oynat",
+    pick: "Hangisini uygulayayım? A, B ya da ikisinden parçalar (ör. A'nın arka planı + B'nin yazısı) söylemen yeterli.",
+  },
   onboarding: {
     title: "Yaver'i birlikte kuralım",
     intro: "Birkaç dakikalık bir sohbetle programını kuralım. İstediğin adımı atlayabilirsin.",

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 
-export const ROUTES = ["chat", "today", "tomorrow", "week", "status"] as const;
+// "design-preview" is not in the navigation: opened by link (#/design-preview or /design-preview).
+export const ROUTES = ["chat", "today", "tomorrow", "week", "status", "design-preview"] as const;
 export type Route = (typeof ROUTES)[number];
 
 function current(): Route {
+  if (window.location.pathname === "/design-preview") return "design-preview";
   const hash = window.location.hash.replace(/^#\/?/, "");
   return (ROUTES as readonly string[]).includes(hash) ? (hash as Route) : "chat";
 }

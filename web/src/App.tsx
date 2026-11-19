@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 
 import { useMonthUsage } from "./api/queries";
 import { ChatView } from "./chat/ChatView";
@@ -28,8 +28,17 @@ const NAV: { route: Route; label: string; icon: ReactNode }[] = [
   { route: "status", label: tr.nav.status, icon: <GaugeIcon /> },
 ];
 
+const DesignPreview = lazy(() => import("./design/DesignPreview").then((m) => ({ default: m.DesignPreview })));
+
 export function App() {
   const route = useRoute();
+  if (route === "design-preview") {
+    return (
+      <Suspense fallback={null}>
+        <DesignPreview />
+      </Suspense>
+    );
+  }
   return (
     <div className="flex h-dvh flex-col">
       <Header route={route} />
