@@ -21,12 +21,12 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Kapsamlı testler (yıl sonu geçişi, Pazar/Pazartesi hafta başı)
 
 ## 0.4 LLM router
-- [ ] `config/providers.yaml` + `llm/pricing.yaml`
-- [ ] OpenAI-compatible provider (Groq, OpenRouter, Ollama)
-- [ ] Anthropic provider (prompt caching ile)
-- [ ] Ortak tool-call formatına normalizasyon
-- [ ] Failover (429/5xx, geçersiz tool call x2) ve budget guard
-- [ ] Her çağrıda `llm_usage` kaydı; `GET /api/usage/month`
+- [x] `config/providers.yaml` + `llm/pricing.yaml`
+- [x] OpenAI-compatible provider (Groq, OpenRouter, Ollama)
+- [x] Anthropic provider (prompt caching ile)
+- [x] Ortak tool-call formatına normalizasyon
+- [x] Failover (429/5xx, geçersiz tool call x2) ve budget guard
+- [x] Her çağrıda `llm_usage` kaydı; `GET /api/usage/month`
 
 ## 0.5 Ajan ve Yaver ekibi
 - [ ] System prompt şablonları: koordinatör + yaver (persona, alan, kullanıcı adı `agents.yaml` ve `.env`'den)

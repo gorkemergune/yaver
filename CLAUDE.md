@@ -46,9 +46,12 @@ yaver/
         prompts/             # system prompt şablonları (Jinja2)
         tools/               # her araç bir dosya; schema + handler
       llm/
-        router.py            # tier seçimi, failover, budget guard
-        providers/           # openai_compat.py, anthropic.py
-        pricing.yaml
+        router.py            # tek giriş noktası: tier seçimi, failover, araç çağrısı doğrulama, kırpma
+        providers/           # openai_compat.py (Groq/OpenRouter/Ollama), anthropic.py (prompt caching)
+        budget.py            # aylık Claude bütçesi
+        usage.py             # maliyet hesabı, llm_usage kaydı, aylık özet
+        check_models.py      # `python -m app.llm.check_models`
+        pricing.yaml         # USD / 1M token; OpenRouter maliyeti kendisi bildirir
       core/
         time_resolver.py
         change_log.py        # undo altyapısı
@@ -121,8 +124,11 @@ Kurallar:
 - Tier'lar: `fast` (Groq), `fallback` (Claude Haiku 5.5), `smart` (Claude Sonnet 5.5), `local` (Ollama). Model ID'leri `config/providers.yaml`'da, koda gömülmez.
 - Failover: 429/5xx veya aynı turda 2 geçersiz tool call → bir üst tier.
 - Budget guard: `CLAUDE_MONTHLY_BUDGET_USD`. %80'de `smart` → `fallback`, %100'de sadece `fast`/`local`.
-- Prompt caching: system prompt + araç şemaları sabit tutulup cache'lenir.
-- Haiku 5.5'te prompt 100k token'ı geçmemeli (fiyat katlanır); router uyarı loglar ve kırpar.
+- Prompt caching: system prompt + araç şemaları sabit tutulup cache'lenir. System prompt'a **bugünün tarihi, kullanıcıya özel veya istek başına değişen hiçbir şey yazılmaz** (prefix değişir, cache hiç tutmaz); takvim bağlamı ve tarih mesajlara eklenir. Araç listesi deterministik sırada verilir.
+- Haiku 5.5'te prompt 100k token'ı geçmemeli (fiyat 5 katına çıkar); `max_prompt_tokens` olan tier'da router uyarı loglar ve en eski turları atar.
+- Anthropic isteklerinde `temperature`/`top_p`/`top_k` gönderilmez (güncel API sürümünde 400). Opus/Sonnet 5.5 zorunlu `tool_choice` kabul etmez: `required` → `auto` + router doğrulaması (araç çağrılmazsa geçersiz sayılır).
+- Her deneme (hatalı olanlar dahil) `llm_usage`'a yazılır; aylık özet `GET /api/usage/month`.
+- Model ID'leri sağlayıcıda var mı: `python -m app.llm.check_models` (açılışta da arka planda çalışır, `LLM_CHECK_MODELS_ON_STARTUP`).
 
 ## Kod kuralları
 - Kod, değişken, commit mesajı İngilizce; kullanıcıya dönen metinler Türkçe (i18n dosyası ile).
@@ -146,6 +152,9 @@ docker compose exec api pytest
 docker compose -f docker-compose.yml up -d --build
 ```
 `web/package.json` değişince node_modules volume'ünü yenile: `docker compose up -d --build -V web`.
+
+## Canlı LLM testleri (gerçek para)
+`@pytest.mark.live` testleri normal `pytest`'te çalışmaz. Elle: `docker compose exec api pytest -m live -v -s`. Harcama gerçek `llm_usage` tablosuna yazılır. Claude'u çağırmayan değişikliklerde gerekmez.
 
 ## Kontroller (commit öncesi)
 ```bash
