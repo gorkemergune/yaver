@@ -44,6 +44,7 @@ class OpenAICompatProvider:
     ) -> None:
         self.name = name
         self.reports_cost = reports_cost
+        self.supports_vision = False  # images go to Claude only (privacy + routing decision)
         self._base_url = base_url
         self._api_key = api_key
         self._api_key_required = api_key_required

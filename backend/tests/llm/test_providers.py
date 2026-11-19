@@ -21,6 +21,7 @@ from app.llm.providers.anthropic import (
 from app.llm.providers.openai_compat import OpenAICompatProvider, to_openai_messages
 from app.llm.types import (
     ChatMessage,
+    ImagePart,
     LLMRequest,
     ProviderError,
     ProviderNotConfiguredError,
@@ -617,3 +618,22 @@ async def test_anthropic_stream() -> None:
     assert deltas == ["Merhaba ", "Görkem"]
     assert response.text == "Merhaba Görkem"
     assert messages.kwargs["cache_control"] == {"type": "ephemeral"}
+
+
+def test_anthropic_sends_images_before_the_text() -> None:
+    message = ChatMessage("user", "Bu ne?", images=[ImagePart("image/png", b"\x89PNG")])
+
+    converted = to_anthropic_messages([message])
+
+    assert converted == [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw=="},
+                },
+                {"type": "text", "text": "Bu ne?"},
+            ],
+        }
+    ]

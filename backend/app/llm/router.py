@@ -108,11 +108,16 @@ def tool_call_problems(
     return problems
 
 
+# A 1600 px image is ~(w*h)/750 tokens on Claude: at most ~2.5k.
+IMAGE_TOKENS = 2500
+
+
 def estimate_tokens(request: LLMRequest) -> int:
     chars = len(request.system or "") + len(request.system_suffix or "")
     chars += sum(len(json.dumps(tool.parameters)) + len(tool.description) for tool in request.tools)
     for message in request.messages:
         chars += len(message.content)
+        chars += IMAGE_TOKENS * CHARS_PER_TOKEN * len(message.images)
         chars += sum(len(call.arguments_json()) for call in message.tool_calls)
     return chars // CHARS_PER_TOKEN
 
@@ -193,6 +198,17 @@ class LLMRouter:
             if status.level is not BudgetLevel.OK:
                 logger.info("Budget %s (%s): tiers %s", status.level, _spent(status), chain)
 
+        if any(message.images for message in request.messages):
+            vision = [t for t in chain if self._supports_vision(t)]
+            if not vision:
+                raise LLMUnavailableError(
+                    [
+                        f"{t}: provider {self.config.tiers[t].provider} cannot read images"
+                        for t in chain
+                    ]
+                )
+            chain = vision
+
         attempts: list[str] = []
         stream = _Stream(on_text, on_retry, on_wait)
         for tier_name in chain:
@@ -205,6 +221,10 @@ class LLMRouter:
             if response is not None:
                 return response
         raise LLMUnavailableError(attempts)
+
+    def _supports_vision(self, tier_name: str) -> bool:
+        provider = self.providers.get(self.config.tiers[tier_name].provider)
+        return bool(provider is not None and getattr(provider, "supports_vision", False))
 
     async def _try_tier(
         self,

@@ -6,6 +6,7 @@ from app.llm.types import LLMRequest, LLMResponse, TextCallback
 class Provider(Protocol):
     name: str
     reports_cost: bool
+    supports_vision: bool  # False: requests with images skip this provider
 
     @property
     def configured(self) -> bool:

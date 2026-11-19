@@ -36,9 +36,11 @@ class FakeProvider:
         configured: bool = True,
         reports_cost: bool = False,
         models: list[str] | None = None,
+        supports_vision: bool | None = None,
     ) -> None:
         self.name = name
         self.reports_cost = reports_cost
+        self.supports_vision = name == "claude" if supports_vision is None else supports_vision
         self._configured = configured
         self.steps = list(steps or [])
         self.calls: list[tuple[LLMRequest, str, dict[str, Any]]] = []

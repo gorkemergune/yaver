@@ -1,5 +1,6 @@
 """Provider-neutral request/response types. Every provider converts to and from these."""
 
+import base64
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -33,6 +34,17 @@ class ToolCall:
         return self.raw_arguments or "{}"
 
 
+@dataclass(frozen=True, slots=True)
+class ImagePart:
+    """An image sent with a user message (already re-encoded: JPEG or PNG)."""
+
+    media_type: str
+    data: bytes
+
+    def base64(self) -> str:
+        return base64.b64encode(self.data).decode("ascii")
+
+
 @dataclass(slots=True)
 class ChatMessage:
     role: Role
@@ -43,6 +55,7 @@ class ChatMessage:
     # Provider-native content to replay verbatim on the same provider (e.g. Anthropic
     # thinking blocks with signatures). Ignored by other providers.
     provider_state: dict[str, Any] | None = None
+    images: list[ImagePart] = field(default_factory=list)  # role == "user"; vision providers
 
 
 @dataclass(slots=True)

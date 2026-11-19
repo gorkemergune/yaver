@@ -4,7 +4,7 @@ import pytest
 
 from app.llm.config import ProvidersConfig
 from app.llm.router import LLMUnavailableError, estimate_tokens, fit_prompt, tool_call_problems
-from app.llm.types import ChatMessage, LLMRequest, ProviderError, ToolCall
+from app.llm.types import ChatMessage, ImagePart, LLMRequest, ProviderError, ToolCall
 from tests.llm.fakes import (
     GET_DAY_PLAN,
     FakeProvider,
@@ -467,3 +467,36 @@ async def test_streaming_text_and_reset_before_failover() -> None:
 
     assert response.tier == "fallback"
     assert events == ["<reset>", "Merhaba ", "dünya "]
+
+
+def image_request() -> LLMRequest:
+    return LLMRequest(
+        system="Read the image.",
+        messages=[ChatMessage("user", "?", images=[ImagePart("image/jpeg", b"jpeg")])],
+    )
+
+
+async def test_images_skip_providers_without_vision() -> None:
+    groq = FakeProvider("groq")
+    claude = FakeProvider("claude")
+    router, store = make_router({"groq": groq, "claude": claude})
+
+    response = await router.complete(image_request())  # default tier: fast = Groq
+
+    assert groq.calls == []
+    assert response.provider == "claude"
+    assert [r.tier for r in store.records] == ["fallback"]
+
+
+async def test_images_with_no_vision_provider_left_are_unavailable() -> None:
+    from tests.llm.test_budget import store_with
+
+    groq = FakeProvider("groq")
+    claude = FakeProvider("claude")
+    router, _ = make_router({"groq": groq, "claude": claude}, store=store_with("1.00"))
+
+    with pytest.raises(LLMUnavailableError, match="cannot read images"):
+        await router.complete(image_request())  # budget limit: Claude tiers dropped
+
+    assert groq.calls == []
+    assert claude.calls == []

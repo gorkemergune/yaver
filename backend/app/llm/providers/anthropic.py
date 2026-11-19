@@ -50,6 +50,7 @@ class AnthropicProvider:
     ) -> None:
         self.name = name
         self.reports_cost = False
+        self.supports_vision = True
         self._api_key = api_key
         self._client = client
         self._timeout = timeout_seconds
@@ -200,6 +201,21 @@ def to_anthropic_messages(messages: list[ChatMessage]) -> list[dict[str, Any]]:
                 converted.append({"role": "user", "content": [block]})
         elif message.role == "assistant":
             converted.append({"role": "assistant", "content": _assistant_content(message)})
+        elif message.images:
+            content: list[dict[str, Any]] = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.media_type,
+                        "data": image.base64(),
+                    },
+                }
+                for image in message.images
+            ]
+            if message.content:
+                content.append({"type": "text", "text": message.content})
+            converted.append({"role": message.role, "content": content})
         else:  # user, or a mid-conversation system message
             converted.append({"role": message.role, "content": message.content})
     return converted
