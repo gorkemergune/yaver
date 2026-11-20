@@ -200,20 +200,21 @@ async def test_followups_are_asked_when_due(session: AsyncSession, settings: Set
 
 
 def test_due_now_windows() -> None:
-    settings = Settings(_env_file=None)  # 08:00 briefing, 21:00 check-in, 12:00 follow-ups
+    # 08:00 briefing, 21:00 check-in, 12:00 follow-ups, 21:15 day report
+    settings = Settings(_env_file=None, briefing_time="08:00")
 
     assert due_now(settings, at(23, 7, 59)) == []
     assert due_now(settings, at(23, 10)) == ["briefing"]  # computer turned on at 10:00
     assert due_now(settings, at(23, 15)) == ["briefing", "followups"]
     assert due_now(settings, at(23, 17)) == ["followups"]  # briefing window (8 h) is over
-    assert due_now(settings, at(23, 23, 30)) == ["checkin"]
+    assert due_now(settings, at(23, 23, 30)) == ["checkin", "day_report"]
 
 
 async def test_scheduler_keeps_its_jobs_in_postgres(settings: Settings) -> None:
     scheduler = start_scheduler(settings)
     try:
         jobs = {job.id: job for job in scheduler.get_jobs()}
-        core = {"briefing", "checkin", "followups", "weekly_plan", "exam_prep"}
+        core = {"briefing", "checkin", "followups", "weekly_plan", "exam_prep", "day_report"}
         # plus every employee's shift jobs from agents.yaml (app.office.shift_jobs)
         shifts = {p.key for p in shift_plans(load_team_config())}
         assert set(jobs) == core | shifts

@@ -74,11 +74,12 @@ class Settings(BaseSettings):
 
     # --- Scheduler: briefing, evening check-in, follow-ups (local times, APP_TIMEZONE) ---
     scheduler_enabled: bool = True
-    briefing_time: str = "08:00"
+    briefing_time: str = "09:00"  # with the office: the standup, then the briefing
     checkin_time: str = "21:00"
     followup_time: str = "12:00"
     weekly_plan_time: str = "20:00"  # Sundays: the coming week's draft (smart tier)
     exam_prep_time: str = "18:00"  # daily: review plan for exams a week away
+    day_report_time: str = "21:15"  # Yaver's day report from the notebooks (after check-in)
 
     # --- Integrations (O3): missing keys = the employee shows "entegrasyon bekliyor" ---
     web_search_provider: str = "auto"  # auto (the first with a key) | tavily | brave
@@ -113,7 +114,12 @@ class Settings(BaseSettings):
         )
 
     @field_validator(
-        "briefing_time", "checkin_time", "followup_time", "weekly_plan_time", "exam_prep_time"
+        "briefing_time",
+        "checkin_time",
+        "followup_time",
+        "weekly_plan_time",
+        "exam_prep_time",
+        "day_report_time",
     )
     @classmethod
     def _hhmm(cls, value: str) -> str:

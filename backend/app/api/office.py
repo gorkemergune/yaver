@@ -12,17 +12,33 @@ GET /api/office/stream sends, in order:
 """
 
 import asyncio
+import datetime as dt
 from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.team import load_team_config
 from app.api.chat import SSE_HEADERS, sse
+from app.config import get_settings
+from app.db.session import get_session
+from app.office.board import board
 from app.office.state import Office, get_office
 
 router = APIRouter(tags=["office"])
 PING_SECONDS = 15.0
+
+
+@router.get("/office/board")
+async def task_board(
+    session: AsyncSession = Depends(get_session),
+    office: Office | None = Depends(get_office),
+) -> dict[str, Any]:
+    """The görev panosu: waiting / running / approval / done cards (app.office.board)."""
+    now = dt.datetime.now(dt.UTC)
+    return await board(session, load_team_config(), get_settings(), office, now)
 
 
 @router.get("/office/snapshot")

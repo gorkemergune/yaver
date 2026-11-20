@@ -222,8 +222,10 @@ const MEET: [number, number, number, boolean, number][] = [
 ];
 const COFFEE: number[][] = [[7.95, 1.05], [9.75, 1.05], [10.15, 1.2], [8.6, 2.15], [4.6, 0.5, 1.05], [5.55, 0.5, 1.05], [6.5, 0.5, 1.05]];
 const WALK: number[][] = [[9.35, 7.95, 8.42, 1], [10.25, 7.95, 8.42, 1], [6.5, 8.0], [5.0, 8.8], [7.2, 2.2], [11.7, 6.6], [11.0, 9.4], [3.4, 4.6]];
-export const MEET_COUNT = MEET.length;
-/** Table seats (0-2 near side, 3-5 across); 6-8 are the sofa. */
+// Standing room for the standup (Yaver + 9 employees > 9 seats): by the screen and the door.
+const STAND: Point[] = [[0.45, 7.0], [0.45, 7.6], [3.3, 5.75]];
+export const MEET_COUNT = MEET.length + STAND.length;
+/** Table seats (0-2 near side, 3-5 across); 6-8 are the sofa; 9-11 standing. */
 export const MEET_TABLE_SIDE = 3;
 export const COFFEE_COUNT = COFFEE.length;
 export const WALK_COUNT = WALK.length;
@@ -242,6 +244,9 @@ export const SPOTS: Readonly<Record<string, Spot>> = (() => {
   MEET.forEach(([x, y, elev, back, appY], i) => {
     const appX = y > 9 ? (x < 1 ? 0.62 : x < 2 ? 1.62 : 2.42) : x + (y < 7 ? 0.01 : 0.18);
     spot(`meet:${String(i)}`, [x, y], [appX, appY], { elev, back });
+  });
+  STAND.forEach((pt, i) => {
+    spot(`meet:${String(MEET.length + i)}`, pt);
   });
   COFFEE.forEach((c, i) => {
     const [x = 0, y = 0, appY] = c;

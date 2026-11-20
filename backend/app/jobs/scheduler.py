@@ -48,6 +48,8 @@ def plans(settings: Settings, team: TeamConfig | None = None) -> list[Plan]:
 def _core_plans(settings: Settings) -> list[Plan]:
     checkin = parse_hhmm(settings.checkin_time)
     until_midnight = dt.timedelta(hours=23 - checkin.hour, minutes=59 - checkin.minute)
+    day_report = parse_hhmm(settings.day_report_time)
+    day_report_window = dt.timedelta(hours=23 - day_report.hour, minutes=59 - day_report.minute)
     weekly = parse_hhmm(settings.weekly_plan_time)
     weekly_window = min(
         dt.timedelta(hours=3), dt.timedelta(hours=23 - weekly.hour, minutes=59 - weekly.minute)
@@ -58,6 +60,7 @@ def _core_plans(settings: Settings) -> list[Plan]:
         Plan("checkin", checkin, min(dt.timedelta(hours=3), until_midnight)),
         Plan("followups", parse_hhmm(settings.followup_time), dt.timedelta(hours=8)),
         Plan("exam_prep", parse_hhmm(settings.exam_prep_time), dt.timedelta(hours=4)),
+        Plan("day_report", day_report, min(dt.timedelta(hours=3), day_report_window)),
     ]
 
 

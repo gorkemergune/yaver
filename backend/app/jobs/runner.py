@@ -24,6 +24,7 @@ from app.jobs.content import Voice, build_briefing, build_checkin, build_followu
 from app.jobs.exam_prep import draft_exam_prep
 from app.jobs.weekly_plan import draft_week
 from app.llm.router import get_router
+from app.office.rituals import day_report, meeting, standup_reports, standup_section
 from app.office.shifts import OverBudgetError, run_shift
 from app.office.state import Office
 from app.services.push import Notification, preview, send_push
@@ -31,8 +32,15 @@ from app.services.push import Notification, preview, send_push
 logger = logging.getLogger(__name__)
 PROPOSAL_NOTE = re.compile(r"öneri #(\d+)")
 
-JobId = Literal["briefing", "checkin", "followups", "weekly_plan", "exam_prep"]
-JOB_IDS: tuple[JobId, ...] = ("briefing", "checkin", "followups", "weekly_plan", "exam_prep")
+JobId = Literal["briefing", "checkin", "followups", "weekly_plan", "exam_prep", "day_report"]
+JOB_IDS: tuple[JobId, ...] = (
+    "briefing",
+    "checkin",
+    "followups",
+    "weekly_plan",
+    "exam_prep",
+    "day_report",
+)
 # Notification titles; the body is the start of the chat message.
 PUSH_TITLES: dict[str, str] = {
     "briefing": "Günaydın ☀️",
@@ -40,6 +48,7 @@ PUSH_TITLES: dict[str, str] = {
     "followups": "Takip: haber var mı?",
     "weekly_plan": "Haftalık plan taslağı",
     "exam_prep": "Sınav hazırlığı 📚",
+    "day_report": "Gün sonu raporu 🌆",
 }
 # Whose shift each job is in the office (unknown ids: the coordinator's) and what it shows.
 JOB_EMPLOYEES: dict[str, str] = {
@@ -48,11 +57,12 @@ JOB_EMPLOYEES: dict[str, str] = {
     "exam_prep": "academic",
 }
 SHIFT_TASKS: dict[str, str] = {
-    "briefing": "Sabah brifingini hazırlıyor",
+    "briefing": "Sabah standup'ı ve brifing",
     "checkin": "Akşam check-in'ini hazırlıyor",
     "followups": "Bekleyen takipleri soruyor",
     "weekly_plan": "Haftalık plan taslağını yazıyor",
     "exam_prep": "Sınav tekrar planını çıkarıyor",
+    "day_report": "Gün sonu raporunu yazıyor",
 }
 
 
@@ -93,7 +103,7 @@ async def run_job(
                 office,
                 employee,
                 SHIFT_TASKS[job_id],
-                lambda: _build(job_id, session, now, today, settings, team, llm),
+                lambda: _build(job_id, session, now, today, settings, team, llm, office),
                 check_budget=not force,
             )
         except OverBudgetError:
@@ -141,12 +151,19 @@ async def _build(
     settings: Settings,
     team: Team,
     llm: Any = None,
+    office: Office | None = None,
 ) -> tuple[str | None, str | None]:
-    """(message, hidden context replayed to the model) for the job."""
-    voice = Voice(team, load_team_config().briefing_style != "single_voice")
+    """(message, hidden context replayed to the model) for the job. With the office, the
+    briefing starts with the standup and the weekly plan is drafted in a meeting."""
+    config = load_team_config()
+    voice = Voice(team, config.briefing_style != "single_voice")
+    host = team.coordinator.id
     if job_id == "weekly_plan":
-        drafted = await draft_week(session, llm or get_router(), today, settings.tz)
+        async with meeting(office, host, config.weekly_plan.order, "Haftalık toplantı"):
+            drafted = await draft_week(session, llm or get_router(), today, settings.tz)
         return drafted if drafted else (None, None)
+    if job_id == "day_report":
+        return await day_report(session, team, llm or get_router(), now, settings.tz), None
     if job_id == "exam_prep":
         prepared = await draft_exam_prep(session, today, settings.tz, voice)
         return prepared if prepared else (None, None)
@@ -159,6 +176,14 @@ async def _build(
             settings.app_user_name,
             unanswered_checkin=await _checkin_unanswered(session, today - dt.timedelta(days=1)),
         )
+        if office is not None:  # the office's morning: everyone meets, then the briefing
+            guests = [a.id for a in team.agents]
+            async with meeting(office, host, guests, "Sabah standup'ı"):
+                lines = await standup_reports(
+                    session, team, llm or get_router(), now, settings.tz, config, office
+                )
+            if text and lines:
+                text = f"{text}\n\n{standup_section(lines)}"
     elif job_id == "checkin":
         text = await build_checkin(session, today, settings.tz, voice)
     else:

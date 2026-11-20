@@ -210,6 +210,7 @@ class Member:
     domain: str = ""
     model: Mapping[str, str] = field(default_factory=dict)  # provider -> model
     color: str = "#6366f1"
+    role: str = ""  # office title ("Akademik")
 
     def tool_specs(self, delegate_spec: ToolSpec | None = None) -> list[ToolSpec]:
         specs = [tool.spec() for tool in self.tools]
@@ -318,6 +319,7 @@ def build_team(
             domain=agent.domain,
             model=agent.model,
             color=agent.color or AGENT_COLORS[index % len(AGENT_COLORS)],
+            role=agent.role or (agent.briefing_section or ""),
         )
         for index, agent in enumerate(config.agents)
     )
