@@ -17,10 +17,12 @@ from app.db.models.schedule import (
     RecurringBlock,
 )
 from app.db.models.screen import ScreenTimeDay
+from app.db.models.secrets import AppSecret
 from app.db.models.study import StudySheet
 from app.db.models.weeks import WeekLabel
 
 __all__ = [
+    "AppSecret",
     "Attachment",
     "Attendance",
     "AttendanceBaseline",

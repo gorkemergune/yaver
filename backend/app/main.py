@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI
 from app import __version__
 from app.api import (
     auth,
+    calendar,
     chat,
     health,
     jobs,
@@ -79,9 +80,11 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(health.router, prefix="/api", include_in_schema=False)
     app.include_router(auth.router, prefix="/api")
+    # the phone's calendar can't log in: the feed checks its own secret token
+    app.include_router(calendar.feed_router, prefix="/api")
     # Everything else needs a login when APP_PASSWORD is set.
     guarded = [Depends(require_auth)]
-    for module in (usage, chat, views, uploads, jobs, voice, screen_time, push, study):
+    for module in (usage, chat, views, uploads, jobs, voice, screen_time, push, study, calendar):
         app.include_router(module.router, prefix="/api", dependencies=guarded)
     return app
 
