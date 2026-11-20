@@ -269,7 +269,8 @@ export interface EmployeeNote {
 export type OfficeEvent =
   | ({ type: "snapshot" } & OfficeSnapshot)
   | ({ type: "state" } & EmployeeState)
-  | { type: "note"; employee_id: string; note: EmployeeNote; ts: string };
+  | { type: "note"; employee_id: string; note: EmployeeNote; ts: string }
+  | { type: "ping"; ts: string };
 
 export interface EmployeeTask {
   id: number;

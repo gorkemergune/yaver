@@ -522,7 +522,8 @@ async def test_stream_sends_snapshot_then_changes_and_pings(office: Office) -> N
     change = await anext(events)
     assert change.startswith('data: {"type": "state", "employee_id": "academic"')
     assert '"task": "Günün planına bakıyor"' in change
-    assert await anext(events) == ": ping\n\n"
+    # a data event, not a comment: the browser's EventSource only sees data
+    assert (await anext(events)).startswith('data: {"type": "ping", "ts": ')
     await events.aclose()
     assert office.hub.subscribers == 0
 

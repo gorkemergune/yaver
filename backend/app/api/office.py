@@ -6,7 +6,9 @@ GET /api/office/stream sends, in order:
   data: {"type": "state", "employee_id", "activity", "task", "tool", "meeting_with",
          "needs_user", "needs_user_reason", "since", "ts"}       on every change
   data: {"type": "note", "employee_id", "note": {id, content, created_at}, "ts"}
-  : ping                           every 15 s, keeps proxies from closing the stream
+  data: {"type": "ping", "ts"}     every 15 s: keeps proxies from closing the stream and lets
+                                   the browser notice a dead one (comments never reach
+                                   EventSource; a proxy may keep a stream open after the API died)
 """
 
 import asyncio
@@ -37,7 +39,7 @@ async def office_events(office: Office, ping_seconds: float = PING_SECONDS) -> A
             try:
                 event = await asyncio.wait_for(queue.get(), ping_seconds)
             except TimeoutError:
-                yield ": ping\n\n"
+                yield sse({"type": "ping", "ts": office.clock().isoformat()})
                 continue
             yield sse(event)
 

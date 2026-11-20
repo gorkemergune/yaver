@@ -82,6 +82,7 @@ describe("applyOfficeEvent", () => {
     expect(applyOfficeEvent(STAFF, state("nobody", { activity: "working" }))).toBe(STAFF);
     const note: OfficeEvent = { type: "note", employee_id: "academic", note: { id: 1, content: "x", created_at: null }, ts: "" };
     expect(applyOfficeEvent(STAFF, note)).toBe(STAFF);
+    expect(applyOfficeEvent(STAFF, { type: "ping", ts: "" })).toBe(STAFF);
   });
 });
 

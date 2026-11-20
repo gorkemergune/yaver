@@ -17,6 +17,9 @@ export interface FeedItem {
 
 const FEED_SIZE = 8;
 const MAX_RETRY_MS = 15_000;
+// The server sends a ping every 15 s: this long without any event = a dead stream (a proxy
+// can keep it open after the API went away, a laptop can wake up on a stale one).
+export const SILENCE_MS = 40_000;
 
 export const officeKeys = {
   notes: (id: string) => ["office", "notes", id] as const,
@@ -42,6 +45,7 @@ export function useOffice() {
     let attempt = 0;
     let stopped = false;
     let counter = 0;
+    let lastSeen = Date.now();
 
     const push = (employeeId: string, text: string, at: string): void => {
       counter += 1;
@@ -58,8 +62,10 @@ export function useOffice() {
       } else if (event.type === "note") {
         push(event.employee_id, tr.office.feed.noted(event.note.content), event.ts);
         void queryClient.invalidateQueries({ queryKey: officeKeys.notes(event.employee_id) });
-      } else {
+      } else if (event.type === "snapshot") {
         setReady(event.ready);
+      } else {
+        return; // ping: only keeps the watchdog quiet
       }
       const next = applyOfficeEvent(before, event);
       current.current = next;
@@ -73,12 +79,16 @@ export function useOffice() {
       .catch(() => undefined); // the stream brings it too
 
     const connect = (): void => {
+      lastSeen = Date.now();
       source = new EventSource("/api/office/stream");
       source.onopen = () => {
         attempt = 0;
+        lastSeen = Date.now();
         setLink("live");
       };
       source.onmessage = (message: MessageEvent<string>) => {
+        lastSeen = Date.now();
+        setLink("live");
         try {
           handle(JSON.parse(message.data) as OfficeEvent);
         } catch {
@@ -96,10 +106,18 @@ export function useOffice() {
       };
     };
     connect();
+    const watchdog = window.setInterval(() => {
+      if (stopped || !source || Date.now() - lastSeen < SILENCE_MS) return;
+      source.close(); // silent for too long: start over (the server sends a snapshot first)
+      setLink("reconnecting");
+      window.clearTimeout(timer);
+      connect();
+    }, 5_000);
     return () => {
       stopped = true;
       source?.close();
       window.clearTimeout(timer);
+      window.clearInterval(watchdog);
     };
   }, [queryClient]);
 
