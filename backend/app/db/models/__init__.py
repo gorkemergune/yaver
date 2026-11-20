@@ -5,11 +5,18 @@ from app.db.models.audit import ChangeLog, LlmUsage
 from app.db.models.conversation import Attachment, Conversation, Message
 from app.db.models.planning import Followup, Memory, Task
 from app.db.models.proposals import Proposal
-from app.db.models.schedule import Attendance, BlockOverride, Event, RecurringBlock
+from app.db.models.schedule import (
+    Attendance,
+    AttendanceBaseline,
+    BlockOverride,
+    Event,
+    RecurringBlock,
+)
 
 __all__ = [
     "Attachment",
     "Attendance",
+    "AttendanceBaseline",
     "BlockOverride",
     "ChangeLog",
     "Conversation",

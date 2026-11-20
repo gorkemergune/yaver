@@ -23,6 +23,7 @@ ONBOARDING_TOOLS = (
     "propose_schedule",
     "apply_proposal",
     "set_absence_limit",
+    "set_attendance_baseline",
     "add_recurring_block",
     "remember",
     "get_week_plan",

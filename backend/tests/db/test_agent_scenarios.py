@@ -201,26 +201,31 @@ async def test_full_week_story(session: AsyncSession) -> None:
         "add_event",
     }
 
-    # 3) "Geçen salı EE211'e gitmedim" -> resolved in the past
+    # 3) "Geçen çarşamba EE211'e gitmedim" -> resolved in the past, counted in class hours
     llm = ScriptedLLM()
     llm.add(
         "yaver",
-        call("delegate", agent_id="academic", instruction="Geçen salı EE211'e gitmedim"),
+        call("delegate", agent_id="academic", instruction="Geçen çarşamba EE211'e gitmedim"),
         say("Atlas devamsızlığı kaydetti."),
     )
     llm.add(
         "academic",
-        call("resolve_date", expression="geçen salı", direction="past"),
-        then("log_attendance", course="EE211", date=resolved(), status="absent"),
-        say("EE211 devamsızlık kaydedildi."),
+        call("resolve_date", expression="geçen çarşamba", direction="past"),
+        then(
+            "log_attendance",
+            course="EE211",
+            dates=lambda request: [last_result(request)["start"]],
+            status="absent",
+        ),
+        say("EE211 devamsızlık kaydedildi: 18 Kasım Çarşamba 13:00-15:00, 2 saat."),
     )
-    third = await send(session, llm, "Geçen salı EE211'e gitmedim")
+    third = await send(session, llm, "Geçen çarşamba EE211'e gitmedim")
     attendance = await session.scalar(select(Attendance))
     assert attendance is not None
-    assert attendance.date == dt.date(2026, 11, 17)
+    assert (attendance.date, attendance.hours) == (dt.date(2026, 11, 18), 2)
     logged = third.actions[0]["result"]
-    assert logged["summary"]["absences"] == 1
-    assert "warning" in logged  # EE211 meets on Wednesdays, not Tuesday
+    assert logged["summary"]["absent_hours"] == 2
+    assert "not_logged" not in logged
 
     # 4) "Yarın ne var?" -> read only, answered by the coordinator itself
     llm = ScriptedLLM()

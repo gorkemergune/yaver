@@ -33,6 +33,9 @@ agents:
       - delete_event
       - log_attendance
       - get_attendance_summary
+      - list_attendance          # sessions with date, class time, hours (fix with delete_attendance)
+      - delete_attendance
+      - set_attendance_baseline  # absence hours from before Yaver
       - set_absence_limit
       - search_materials         # Faz 3
       - generate_study_sheet     # Faz 3, tier=smart

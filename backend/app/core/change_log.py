@@ -163,7 +163,7 @@ async def describe_changes(session: AsyncSession, entries: list[ChangeLog]) -> l
         if entry.entity == "block_overrides" and snapshot.get("block_id"):
             block = await session.get(_model_for_table("recurring_blocks"), snapshot["block_id"])
             data["title"] = getattr(block, "title", None)
-        if entry.entity == "attendance" and snapshot.get("course_id"):
+        if entry.entity in ("attendance", "attendance_baselines") and snapshot.get("course_id"):
             course = await session.get(_model_for_table("courses"), snapshot["course_id"])
             data["course"] = getattr(course, "code", None)
         described.append(

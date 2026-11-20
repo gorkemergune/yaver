@@ -12,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    Integer,
     SmallInteger,
     String,
     Text,
@@ -118,13 +119,41 @@ class Event(TimestampMixin, Base):
 
 
 class Attendance(TimestampMixin, Base):
+    """One class session (a block on a date) attended or missed. Absences are counted in
+    class hours: a 09:00-11:00 block missed is 2 hours. The same session can be recorded
+    only once (course, date, block)."""
+
     __tablename__ = "attendance"
-    __table_args__ = (UniqueConstraint("course_id", "date", name="uq_attendance_course_date"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "course_id", "date", "recurring_block_id", name="uq_attendance_course_date_block"
+        ),
+        CheckConstraint("hours > 0", name="hours_positive"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="RESTRICT"))
-    date: Mapped[dt.date]
+    date: Mapped[dt.date]  # local date the session took place (a moved one: its new day)
+    # NULL only for records whose block was deleted later (or that had no block to match).
+    recurring_block_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recurring_blocks.id", ondelete="SET NULL"), index=True
+    )
+    hours: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     status: Mapped[AttendanceStatus] = mapped_column(
         str_enum(AttendanceStatus, "attendance_status")
     )
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class AttendanceBaseline(TimestampMixin, Base):
+    """Absence hours from before Yaver kept track (one line per course in summaries)."""
+
+    __tablename__ = "attendance_baselines"
+    __table_args__ = (CheckConstraint("hours >= 0", name="hours_not_negative"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), unique=True
+    )
+    hours: Mapped[int] = mapped_column(Integer)
     note: Mapped[str | None] = mapped_column(Text)

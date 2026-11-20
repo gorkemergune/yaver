@@ -222,23 +222,24 @@ async def test_event_times_are_stored_in_utc(
 
 
 async def test_attendance_with_limit(session: AsyncSession) -> None:
-    await add_linear(session)
+    await add_linear(session)  # Mondays 09:00-11:00
     ctx = context(session)
 
-    first = await tool(ctx, "log_attendance", course="linear", date="2026-11-16")
-    limit = await tool(ctx, "set_absence_limit", course="Linear Algebra", absence_limit=4)
-    second = await tool(ctx, "log_attendance", course="linear", date="2026-11-23")
-    unknown = await tool(ctx, "log_attendance", course="kimya", date="2026-11-23")
+    first = await tool(ctx, "log_attendance", course="linear", dates=["2026-11-16"])
+    limit = await tool(ctx, "set_absence_limit", course="Linear Algebra", hours=8)
+    second = await tool(ctx, "log_attendance", course="linear", dates=["2026-11-23"])
+    unknown = await tool(ctx, "log_attendance", course="kimya", dates=["2026-11-23"])
 
-    assert first["summary"]["limit"] is None  # agent should ask for it
-    assert "warning" not in first  # Linear meets on Mondays
-    assert limit["summary"]["remaining"] == 4 - 1
+    assert first["summary"]["limit_hours"] is None  # agent should ask for it
+    assert first["hours_logged"] == 2
+    assert limit["summary"]["remaining_hours"] == 8 - 2
     assert second["summary"] == {
         "course": "Linear Algebra",
         "name": "Linear Algebra",
-        "absences": 2,
-        "limit": 4,
-        "remaining": 2,
+        "absent_hours": 4,
+        "recorded_hours": 4,
+        "limit_hours": 8,
+        "remaining_hours": 4,
     }
     assert unknown["known_courses"] == ["Linear Algebra"]
 
