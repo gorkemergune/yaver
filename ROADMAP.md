@@ -38,14 +38,18 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 - Orion (startup), Lyra (reklam), Mira (içerik), Ece (sosyal çevre), Nova (kariyer), Arda (araştırma) + `office/shifts.py` mesai işleri
 - Web arama ve diğer entegrasyonlar; anahtar yoksa çalışan "entegrasyon bekliyor" durumunda
 
+**Durum: kod tamam (2026-11-21).** Web arama (Tavily/Brave) ve Meta reklam anahtarları yok: Orion, Mira ve Lyra "entegrasyon bekliyor" notu yazıyor (kırmızı nokta değil). Mesai işleri kodla yazılıyor (LLM yok). Canlı yönlendirme seti (`pytest -m live -k routing`): 8/9.
+
 **Bitti sayılır:**
-- [ ] Her çalışan en az bir gerçek mesai işini yapıp defterine yazıyor
+- [x] Her çalışan en az bir gerçek mesai işini yapıp defterine yazıyor — canlı (test DB'si, `POST /api/jobs/shift:<çalışan>:<iş>/run`): Nova "Dönüş bekleniyor: Iceberg staj başvurusu dönüşü (2 gündür)", Arda "Yaklaşan teslimler: TÜBİTAK ara rapor teslimi", Ece "Ali'nin doğum günü", Orion / Mira "Web arama anahtarı bekleniyor", Lyra "Meta reklam hesabı bağlı değil"
 
 ### O4 — Ritüeller
 - 09:00 standup (herkes toplantı odasında, brifing), 21:00 gün sonu raporu, Pazar haftalık toplantı, görev panosu (kanban)
 
+**Durum: kod tamam (2026-11-21).** Standup brifing işinin içinde (`BRIEFING_TIME`, varsayılan artık 09:00), gün sonu raporu 21:15 (check-in'den sonra), Pazar planı toplantı odasında, görev panosu sekmesi; dev modda ritüel düğmeleri.
+
 **Bitti sayılır:**
-- [ ] Standup sahnede görünüyor ve brifing sohbete düşüyor
+- [x] Standup sahnede görünüyor ve brifing sohbete düşüyor — canlı (test DB'si): 10 kişi toplantı odasında birlikte (9 koltuk + 3 ayakta yer), her çalışanın 1-2 cümlesi brifingin "Standup" bölümünde; sabah gerçek kurulumda denenecek
 
 ### O5 — Cila
 - Mesai dışı (`off`) durumu, ses efektleri (kapatılabilir), masaya tıklayınca yakınlaştırma, performans

@@ -65,6 +65,12 @@ yaver/
         sync.py              # agents.yaml -> employees
         budget.py            # çalışan başına günlük harcama
         shifts.py            # mesai işi sarmalayıcı: working -> break, bütçe aşılınca durur
+        shift_jobs.py        # agents.yaml `shift_jobs` (web_scan, ads_report, social_reminders, followup_watch,
+                             #   deadline_watch) -> "shift:<çalışan>:<iş>" zamanlayıcı işleri, sonuç deftere (LLM yok)
+        rituals.py           # standup (brifingin içinde), gün sonu raporu, Pazar toplantısı (meeting bağlamı)
+        board.py             # görev panosu: Bekliyor / Çalışıyor / Onay bekliyor / Bitti
+        notebook.py          # write_note (çalışan yoksa yazmaz, durum notları günde bir), record_shift (gelen kutusu)
+      integrations/          # web_search.py (Tavily/Brave, anahtar yoksa None), meta_ads.py (iskelet)
         labels.py            # araç adı -> "Takvime bakıyor" gibi görev metni
       jobs/                  # scheduler işleri
       rag/                   # ingest, chunk, embed, retrieve

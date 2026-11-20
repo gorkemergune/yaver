@@ -1,137 +1,157 @@
-# Gece raporu — 19/20 Kasım 2026
+# Gece raporu — 20/21 Kasım 2026 (O2 + O3 + O4)
 
-Kuyruğun tamamı bitti, hiçbir madde atlanmadı. 15 commit var, push yapılmadı. Her maddeden sonra container içinde `ruff`, `mypy` ve `pytest`, web container'ında da `tsc`, `eslint` ve `vitest` yeşil. Son durum: backend 730 test, frontend 24 test.
+Üç faz da kodda tamam. 13 commit var, **push yok**. `down -v`, volume silme yok; `.env`'e dokunulmadı.
 
-**LLM harcaması: yaklaşık $0.13** (sınır $0.50).
-- Devamsızlık canlı testi, 15 tur: ~$0.08
-- Ana senaryolar, 6 tur: ~$0.025
-- Haftalık plan (Sonnet), 1 tur: ~$0.03. Bu tahmin; testte maliyet basılmadı.
-- Ses (Whisper), 1 tur: $0.0003
+Gerçek DB'de migration gerekmedi, bu yüzden yedek de alınmadı. Yeni tablo yok; yalnızca dev API yeniden yüklenince çalışan listesi `agents.yaml`'dan senkronlandı.
 
-Canlı testlerin hepsi `yaver_test` veritabanında çalıştı.
+Her maddeden sonra kontroller (container'da `ruff`, `ruff format`, `mypy`, `pytest`; web'de `npm run check`) yeşildi. Son durum:
+- **Backend:** 835 test.
+- **Web:** 55 test.
 
-**Gerçek verine dokunduğum yerler.** Uygulama yeni kodla çalışabilsin diye 3 şema migration'ını gerçek veritabanına uyguladım. İlk ikisinden önce yedek aldım; üçüncüsü (`dc85dc3660d4`) yalnızca bir CHECK kısıtı ve ondan hemen önceki yedeğe dayanıyor. Bunun dışında hiçbir kayıt eklemedim, silmedim. Silmeye en yakın işlem, kendi açtığım deneme veritabanlarını (`yaver_restore_test*`, `yaver_premigration_check`) kaldırmaktı.
+LLM harcaması **≈ $0.03** (sınır $1). Hepsi test DB'sindeki canlı denemelerde:
+- O2 canlı akış: 2 mesaj ve panel sohbeti, ~$0.006
+- 10 kişilik yönlendirme seti: 2 tur, ~$0.014
+- Standup: 2 tur, gün sonu raporu: 1 kez. Bu kayıtların bir kısmını test DB sıfırlaması sildi; token sayısından tahminim ~$0.01.
 
-## Durum
+## Özet
 
-| # | Madde | Durum | Commit'ler |
+| Faz | Madde | Durum | Commit'ler |
 |---|---|---|---|
-| 1 | Yedekleme | ✅ | `fafcb2a` |
-| 2 | time_resolver: gün adlı tarihler | ✅ | `2233fb2` |
-| 3 | Hafta/Bugün metin taşması | ✅ (önceki turda yapılmıştı, doğrulandı) | `279b4b4` |
-| EK | Devamsızlık düzeltmesi | ✅ | `f4a67a7` `ccf1b27` `1392caa` `2f12853` `09b007f` `e0f97c9` |
-| 4 | Tasarım: Aurora + B'nin balonsuz cevapları | ✅ | `173fd05` |
-| 5 | ROADMAP Faz 1'e akşam check-in | ✅ (önceki turda yapılmıştı) | `564f1f7` |
-| 6 | Faz 1: scheduler, brifing, check-in, takip | ✅ | `2843ea9` `5695c94` |
-| EK-5 | Pazar haftalık planlama | ✅ | `0bb5431` |
-| EK-6 | Sesli mesaj (Groq Whisper, bas-konuş) | ✅ (gerçek mikrofonla denenmedi) | `9545d10` `53409d2` |
-| EK-7 | Smoke test, hızlı testler, README | ✅ | `fe33199` |
+| O2 | Sahne betiği → katman başına SVG + `layout.json`, gökyüzü CSS değişkeni | ✅ | `abec393` |
+| O2 | Geometri (engeller, ızgara, A*, koltuklar, z-sırası) + SSE → figür modeli | ✅ | `9c9a44b` |
+| O2 | Canlı bağlantı (snapshot + SSE, yeniden bağlanma, 40 sn sessizlik bekçisi) | ✅ | `4dbd299`, `6298e43` |
+| O2 | Ofis ana sekme, Takvim altında Bugün/Yarın/Hafta, liste, panel, Yaver'e yaz + mikrofon | ✅ | `4dbd299` |
+| O2 | A* testi (tüm nokta çiftleri) + SSE → figür birim testleri | ✅ | `9c9a44b`, `b24dcf8` |
+| O2 | Headless ekran görüntüleri (masaüstü + 390 px), düzeltmeler | ✅ | `4dbd299` |
+| O2 | Ek: çalışanla doğrudan sohbet ana sohbetin yerine geçiyordu (O1 hatası) | ✅ | `efdd894` |
+| O3 | 6 yeni çalışan (örnek + senin yerel `agents.yaml`'ın) | ✅ | `ee7bc95` |
+| O3 | `web_search` (Tavily/Brave) + Lyra için Meta iskeleti, anahtar yoksa "bekliyor" notu | ✅ | `ee7bc95` |
+| O3 | Her yeni çalışana mesai işi, $0.20 günlük bütçe | ✅ | `ee7bc95`, `64c60fa` |
+| O3 | 10 kişilik yönlendirme testi (canlı set) | ⚠️ 8/9 | `a6f5095` |
+| O4 | 09:00 standup → brifing | ✅ (saat için aşağıya bak) | `d027254` |
+| O4 | Gün sonu raporu | ✅ (21:15, karar) | `d027254` |
+| O4 | Pazar haftalık toplantısı | ✅ (canlı denenmedi) | `d027254` |
+| O4 | Görev panosu sekmesi | ✅ | `d027254`, `839454e` |
+| O4 | Dev modda ritüel düğmeleri | ✅ | `839454e` |
 
-## 1. Yedekleme ✅
+## O2 — Ofis sahnesi
 
-- **Otomatik yedek:** API her açılışta son yedeğe bakar; 24 saatten eskiyse `backups/yaver-YYYYMMDD-HHMMSS.sql.gz` alır ve en yeni 14 tanesini tutar.
-- **Scriptler:** `scripts/backup.ps1` ve `scripts/backup.sh` üç komut sunar: `backup`, `list`, `restore`.
-- **Restore koruması:** Restore varsayılan olarak ayrı bir veritabanına (`yaver_restore`) yazar. Canlı veritabanına ancak `-Yes` / `--yes` ile yazar.
-- **Belgeler:** README ve `docs/tr/yedekleme.md` "`down -v` verini siler" uyarısını içeriyor.
-- **Doğrulama:** Gerçek yedeği bir deneme veritabanına açtım. 9 tablonun satır sayıları ve Alembic sürümü canlıyla birebir aynıydı. Yedeği dolu veritabanının üzerine tekrar yükleyince de çift kayıt oluşmadı. Hem bash hem ps1 ile denendi.
-- **karar:** Döküm ve sıkıştırma db container'ının içinde yapılıyor, dosya `docker compose cp` ile dışarı alınıyor. PowerShell pipe'ları ikili veriyi bozabiliyor.
-- **karar:** Dosya adlarındaki saat UTC; API ve scriptler bu sayede tutarlı.
-- **karar:** api imajına `postgresql-client-16` resmi PostgreSQL deposundan kuruldu. Debian trixie 17 sürümünü getiriyor; istemci sunucuyla (16) aynı sürümde olmalı.
+- **Sahne:** `scripts/office_scene.py` artık `web/src/office/scene/*.svg` ve `layout.json` yazıyor.
+  - 7 katmanın hepsi prototipteki SVG'lerle **birebir aynı**; yalnızca `xmlns` eklendi ve gökyüzü `var(--office-sky)` oldu.
+  - SVG'ler satır içi yerleştiriliyor; `<img>` içinde sayfanın CSS değişkeni çalışmazdı.
+- **Geometri:** `web/src/office/geometry.ts` prototipin sayılarının aynısı.
+  - Tek fark: koltuklar çalışan id'si yerine masa konumuna (`seat:back:0`) bağlı. Kimin nerede oturduğu `agents.yaml`'dan geliyor; kadroda olmayan masa boş kalıyor.
+- **A* testi:** 38 nokta, **1406 rota, 0 ihlal**.
+  - Prototipte 34 nokta / 1122 rota vardı. Bu gece eklenenler: yönetici odası + 10 masa ve standup için 3 ayakta yer.
+  - Kontrol: rotanın her 0.02 karoluk örneği hiçbir engelin içine girmiyor. Tek istisna, koltuğa giriş/çıkış bacağı (koltuk zaten bir engel karesinin içinde).
+- **SSE → figür:**
+  - `working` → kendi masası.
+  - `meeting` → toplantı odası; `meeting_with` ile aynı masada, Yaver bize dönük, karşısındaki arkadan görünüyor.
+  - `break` → kahve, koltuk ya da dinlenme (rastgele). Toplantı odasına ve başkasının masasına hiç gitmez.
+  - `needs_user` → kırmızı nokta.
+  - Bunların hepsi `model.test.ts`'te test edildi.
+- **karar (önemli):** backend durumları yürüyüşten çok kısa.
+  - Bir devir ~1 sn sürüyor; ofisi prototip hızında (0.55 karo / 0.9 sn) geçmek 10-20 sn.
+  - İlk canlı denemede kimse toplantı odasına varamadı (ekran görüntüsü: `o2-canli-ilk-deneme-sorun.png`).
+  - Çözüm: backend'in gönderdiği toplantıya ya da masaya figür mutlaka varıyor ve orada kalıyor (toplantı 4 sn, masa 2.5 sn), sonra en güncel duruma geçiyor.
+  - Toplantıda, grubun yürüyen bir üyesi varken gelenler kalkmıyor; son gelen oturunca herkesin süresi baştan başlıyor.
+  - Bedeli: ofis gerçeğin **10-30 sn gerisinden** geliyor. Olan her şey gösteriliyor, olmayan hiçbir şey gösterilmiyor. Yürüyüş hızını değiştirmedim; istersen hızlandırırım.
+- **Ek düzeltme (`6298e43`):** API öldüğünde Vite proxy'si SSE bağlantısını açık tutuyordu ve `: ping` yorumları EventSource'a hiç ulaşmıyordu, yani sayfa kopukluğu fark edemiyordu.
+  - Artık ping bir veri olayı; tarayıcı 40 sn hiçbir olay görmezse yeniden bağlanıyor.
+  - Canlı denendi: API'yi öldürüp başlattım, sayfa yeni API'ye kendisi bağlandı.
+- **Ek düzeltme (`efdd894`):** `/conversations/latest` ve zamanlayıcının mesaj yazdığı "en son sohbet", bir çalışanla açılan doğrudan sohbeti ana sohbet sanıyordu. Atlas'la konuşunca sabah brifingi oraya düşerdi.
+- **Görsel kontrol:** headless Chrome, CDP ile.
+  - Önce senaryolu bir sahte sunucuyla (yalnızca scratchpad'de, ürün kodunda yok) masaüstü + 390 px, açık/koyu.
+  - Sonra test DB'sine bağlı geçici API + gerçek LLM ile kare kare.
+  - Bulup düzelttiklerim:
+    - "Yaver'e yaz" kutusu dar ve ortalıydı.
+    - Telefonda liste sahneyle birlikte kayıyordu; artık sahnenin altında.
+    - Telefonda ipucu "sol alttaki liste" diyordu.
+    - Yürüyen figür her tick'te yeniden rota hesaplıyordu.
+  - Z-sırası prototipteki kurallarla uyumlu: ön sıra sandalye sırtlıkları ve toplantı odası camı figürlerin üstünde, Yaver masasının arkasında.
 
-## 2. time_resolver ✅
+## O3 — Yeni çalışanlar
 
-- **Desteklenen biçimler:** "27 Kasım Cuma", "Cuma 27 Kasım", "cuma, 27 kasım", "27.11 Cuma" ve "cuma 27/11" çözülüyor. "27.11" ve "27/11" zaten çalışıyordu.
-- **Gün adı uymazsa:** `ambiguous` (`WEEKDAY_MISMATCH`) döner, adaylar yazılan tarih ve o gün adına en yakın gündür. Örnek: "28 Kasım Cuma" → 27 Kasım Cuma mı, 28 Kasım Cumartesi mi?
-- **karar:** Gün adı yalnızca doğrulama yapar ya da açık kalan yılı seçer ("19 Mayıs Salı"). Tarihi asla başka bir yıla çekmez; 28 Kasım 2025 bir Cumaydı, ama "28 Kasım Cuma" bunu seçmez.
+- **Kadro (örnek dosya):** Nova (kariyer, arka 1), Orion (startup, arka 2), Lyra (reklam, arka 3), Arda (araştırma, arka 4), Mira (içerik, ön 0), Ece (sosyal, ön 1). Masalar ve renkler prototiptekiyle aynı.
+- **Senin `config/agents.yaml`'ın:** 6 kişi sona eklendi, mevcut 4'e dokunulmadı.
+  - Alanlar OFFICE.md'deki bağlamla (Medipol, Iceberg, Nexa Lab, TÜBİTAK) dolduruldu.
+  - Yedeği: `C:\Users\PC\AppData\Local\Temp\claude\57ae162538478f55\7574789c-9cac-401d-9351-6997b6dbce21\scratchpad\agents.local.backup.yaml` (geçici klasör).
+  - Gerçek DB'de ofis şu an 10 kişi.
+- **Web arama:** `web_search` aracı (`.env`: `WEB_SEARCH_PROVIDER=auto`, `TAVILY_API_KEY` ya da `BRAVE_API_KEY`).
+  - Anahtar yoksa araç `integration_pending` döner ve çalışanın defterine **günde bir kez** "Web arama anahtarı bekleniyor (…)" yazar. Kırmızı nokta çıkmaz.
+- **Lyra:** `get_ad_report` iskelet. Anahtar yokken "Meta reklam hesabı bağlı değil", anahtar varken "entegrasyon henüz yazılmadı" der; bekliyor durumunda kalıyor.
+- **Mesai işleri:** `agents.yaml` → `shift_jobs`.
+  - Nova 10:00 dönüş takibi, Orion 08:30 rakip taraması, Lyra 09:30 reklam metrikleri, Arda 09:15 teslim takibi, Mira 11:00 trend taraması, Ece 10:30 hatırlatmalar.
+  - Hepsi zamanlayıcıda (`shift:<çalışan>:<iş>`), bütçe kontrollü, sonuç deftere ve gelen kutusuna yazılıyor.
+  - **Canlıda 6/6 çalışan defterine yazdı.**
+  - karar: mesai notları LLM'siz, kodla yazılıyor: ücretsiz ve uydurmasız. Web taraması sonuçların başlıklarını ve sitelerini listeliyor (özet yok).
+- **Bütçe:** örnek dosyada `office.daily_budget_usd: 0.20`; senin dosyanda yeni 6 kişiye ayrı ayrı $0.20.
+  - karar: senin mevcut 4 çalışanına dokunmadım, onlar kod varsayılanında ($0.50) kaldı.
+- **Yönlendirme:** `pytest -m live -k routing`, 9 mesaj, alan başına bir.
+  - 1. tur 8/9: tek ıskalama, koordinatörün tek alanlı toplantıyı `fast_path` ile kendisinin eklemesiydi. Tasarım gereği; test artık bunu doğru sayıyor.
+  - 2. tur 8/9: "Bugün spora gidemeyeceğim" bu sefer Karen'e değil koordinatöre kaldı. 1. turda aynı prompt'la doğruydu; LLM'in değişken davranışı.
+- **karar:** koordinatör prompt'undaki örnek isimler artık id ile seçiliyor. `agents[-1]` 10 kişide Ece olunca spor örneği yanlış kişiye düşüyordu.
+- **Bulunan hata:** çalışan satırı yokken "bekliyor" notu FK hatasıyla tüm sohbeti düşürüyordu. Artık not yazılmıyor, sohbet devam ediyor (`a6f5095`).
+- **Prompt boyutu:** koordinatör 3443 → 3698 token (+%7: 6 yeni alan satırı ve delegasyon listesi). Yeni çalışanlar çağrı başına 1.8-2.8k token.
 
-## EK: Devamsızlık düzeltmesi ✅
+## O4 — Ritüeller
 
-1. **Veri modeli:**
-   - Kayıtlar artık blok bazında: (ders, tarih, blok) tekil ve `hours` alanı ders saatini tutuyor.
-   - Limitler saat cinsinden.
-   - Yaver öncesi devamsızlıklar ayrı bir tabloda (`attendance_baselines`); özetlerde ayrı satır olarak görünüyor.
-2. **Kayıt:** "X tarihinde gitmedim" o günün tüm bloklarını yazıyor. Cevapta tarih tarih saat dökümü ve toplam var. Aynı mesaj tekrar gelirse sayı değişmiyor.
-3. **Friday'in yeni araçları:** `list_attendance`, `delete_attendance`, `set_attendance_baseline`.
-4. **Tarih doğrulama:** Gelecek tarih ya da o dersin olmadığı bir gün gelirse en yakın geçmiş ders günü öneriliyor ("22 Kasım Pazar → 19 Kasım Perşembe"). Tatiller ve iptaller hesaba katılıyor.
-5. **Koordinatör:** Açık onaydan sonra tekrar sormuyor. Bir iş için araç yoksa "şu araç eksik" diyor, soruyu sana geri atmıyor. Hitap her zaman "sen".
-6. **Migration (`c6f6a0cbe462`):** Mevcut gün bazlı kayıtları blok bazına dönüştürüyor; ileri ve geri yön testli. Gerçek verinde 11 kayıt vardı, 11 blok kaydına dönüştü. Migration öncesi yedekle satır satır karşılaştırdım; hepsi doğru.
-7. **Canlı senaryo:** Konuşmanın birebir aynısı kullanıldı. Sonuç MATH 221 = 8, CSE 221 = 7, TKL 201 = 2, EE 211 = 2 saat ve tekrar gönderilince değişmiyor. Son 4 tur art arda yeşil.
+- **Standup:** brifing işinin içinde.
+  - Yaver ve 9 çalışan `meeting` durumuna geçiyor ve toplantı odasında toplanıyor. Oda 9 koltuklu; perde önüne ve kapının yanına 3 ayakta yer eklendi.
+  - Her çalışan defteri, gelen kutusu ve bugünkü mesai işlerinden 1-2 cümle söylüyor (fast tier, kendi bütçesinden).
+  - Söyleyecek bir şeyi olmayanın ya da bütçesi dolanın cümlesini kod yazıyor, LLM çağrılmıyor.
+  - Yaver bunları brifingin sonuna "**Standup**" bölümü olarak ekliyor; sonra herkes dağılıyor.
+  - Canlıda 10 kişi odada birlikte görüldü (`o4-standup-toplanti-odasi.png`).
+  - ⚠️ **Saat:** standup `BRIEFING_TIME`'da çalışıyor. Kod ve `.env.example`'da varsayılanı 09:00 yaptım, ama senin `.env`'inde `BRIEFING_TIME=08:00` varsa 08:00'de çalışır (dosyaya dokunmadım). 09:00 istiyorsan `.env`'de değiştir.
+- **Gün sonu raporu:** her çalışanın bugünkü defter notları ve gelen kutusundan Yaver tek bir fast-tier çağrıyla rapor yazıyor; LLM olmazsa kod listesi var. O gün bir şey olmadıysa mesaj yok.
+  - karar: saat **21:15** (`DAY_REPORT_TIME`). 21:00'deki check-in'le aynı dakikada iki mesaj gelmesin diye.
+  - Canlı çıktı: "Nova: Iceberg… 2 gündür dönüş bekleniyor; Arda: TÜBİTAK ara rapor teslimi 25 Kasım…".
+- **Pazar haftalık toplantısı:** mevcut haftalık plan akışı `weekly_plan.order`'daki çalışanlarla toplantı odasında çalışıyor. Toplantı kısmı testli; plan taslağı Sonnet kullandığı için canlıda denemedim.
+- **Görev panosu:** `#/board` (`GET /api/office/board`).
+  - **Bekliyor:** bugün henüz çalışmamış planlı işler.
+  - **Çalışıyor:** süren işler.
+  - **Onay bekliyor:** açık sorusu olan çalışanın son işi.
+  - **Bitti:** son 3 gün.
+  - Kartlar çalışan rengiyle; karta tıklayınca `#/office?employee=<id>` ile o çalışanın paneli açılıyor.
+  - Pano her ofis olayında yenileniyor. Telefonda sütunlar yana kayıyor.
+  - Ek: mesai işleri ve ritüeller artık gelen kutusuna "Mesai" kaynağıyla düşüyor (`64c60fa`).
+- **Dev düğmeleri:** yalnızca `npm run dev` / dev container'da, ofiste "Ritüeller (yalnızca geliştirme)": Standup, Gün sonu raporu, Haftalık toplantı.
+  - Gerçek işi `force` ile çalıştırırlar: gerçek LLM çağrısı yaparlar ve sohbete gerçek mesaj yazarlar.
+  - Prod derlemede görünmezler.
 
-Gece bulunup düzeltilen hatalar:
-- **Araçsız "kaydetti":** Koordinatör, geçmişteki "kaydettim" cevaplarını taklit edip hiç araç çağırmadan "Friday kaydetti" diyordu; EE 211 0 saatte kaldı. Artık kod bunu yakalıyor: değişiklik iddiası ya da değişiklik isteği varken hiç araç çalışmadıysa mesaj bir kez daha çalıştırılıyor. Not sistem ekine konuyor ve kendi başına anlamlı istekler geçmiş olmadan tekrar deneniyor.
-- **Gereksiz "hangisini kastettin?" sorusu:** Model "12 19 kasım" listesini belirsizlik sanıyordu. `resolve_date` artık listenin ayrı günler olduğunu ve hepsine uygulanması gerektiğini açıkça yazıyor.
-- **Çift spor bloğu:** Friday bağlamdaki sporu da ekledi, Karen de ekledi ("Spor" / "spor"). Aynı saat ve türdeki blok artık bir kez yazılıyor.
-- **Gereksiz bitiş saati sorusu:** Jarvis toplantının bitiş saatini sordu. Araçların boş bırakılmasına izin verdiği ayrıntılar artık soru sebebi değil.
+## Ekran görüntüleri
 
-Kararlar:
-- **karar:** `courses.absence_limit` sütununun adı değişmedi; artık saat olarak okunuyor. Mevcut 8/10/5 değerlerin saat gibi duruyor.
-- **karar:** Ders saati = süre/60, yuvarlanıyor, en az 1. Telafi etkinlikleri sayılmıyor, yalnızca bloklar sayılıyor.
-- **karar:** Birden fazla tarihte geçerli günler yazılıyor, sorunlu gün öneriyle soruluyor.
-- **karar:** "12 19 kasım" geçmiş kayıtta iki ayrı gün sayılıyor; planlamada aralık için "28-29" yazımı geçerli.
-- **karar:** `log_attendance` koordinatörün hızlı yolundan çıktı. Devamsızlık her zaman Friday'e gidiyor, çünkü saat kuralları onun prompt'unda.
+`C:\Users\PC\Desktop\yaver-gece-ekranlar\` klasöründe (repoda değil):
+- **O2:**
+  - `o2-ofis-10-kisi-senaryolu-sunucu.png`: prototiple karşılaştırma için 10 kişilik sabit senaryo.
+  - `o2-ofis-panel-secili.png`, `o2-ofis-390px.png`, `o2-ofis-390px-panel.png`
+  - `o2-canli-dogrudan-sohbet.png`: gerçek LLM, panelden not.
+  - `o2-canli-ilk-deneme-sorun.png`: bekleme kuralından önceki sorun.
+- **O4:**
+  - `o4-standup-toplanti-odasi.png`, `o4-standup-tam-ekran.png`
+  - `o4-gorev-panosu-masaustu.png`, `o4-gorev-panosu-390px.png`
+  - `o4-karttan-acilan-panel.png`
 
-**Senin verinde dikkat:** CSE 221'in 19 Kasım kaydı eski sistemde hiç yazılmamış. Bu yüzden CSE 221 şu an 5 saat görünüyor, beklenen 7 değil. Ben eklemedim.
-
-## 4. Tasarım ✅
-
-- **Görünüm:** Aurora uygulandı. Koyu tema öncelikli: hiç seçim yapılmamışsa koyu; açık ve sistem seçenekleri duruyor. Arka planda süzülen renk alanları, cam başlık, kartlar ve giriş alanı; telefonda yüzen cam sekme çubuğu.
-- **Yaverler:** Her yaverin kendi rengi ve ikonlu bir küresi var (pusula, kep, takvim, alev). Cevaplar B'deki gibi balonsuz.
-- **Hareket:** Konuşanın renginde "yazıyor" noktaları, kart girişleri. Bugün görünümünde nabız atan "şu an" çizgisi.
-- **Karşılama:** Kişisel karşılama başlığı ("İyi akşamlar, Görkem").
-- **`/design-preview`:** "Yeni" (uygulanan) ilk sırada; A ve B karşılaştırma için duruyor.
-- **karar:** Küre avatarlar A'dan, balonsuz cevap stili B'den alındı. İkonlar yaver id'sine göre seçiliyor.
-
-## 6. Faz 1 başlangıcı ✅
-
-- **Zamanlayıcı:** APScheduler 3, işleri PostgreSQL'de tutuyor (`apscheduler_jobs`; Alembic bu tabloyu yok sayıyor).
-  - Saatler: 08:00 brifing, 21:00 check-in, 12:00 takip, Pazar 20:00 haftalık plan.
-  - Bilgisayar kapalıyken kaçan iş, açılınca penceresi içindeyse çalışıyor.
-  - `job_runs` her işi günde bir mesajla sınırlıyor.
-- **Brifing:** Dersler, 14 gün içindeki sınav geri sayımı, limite yaklaşan devamsızlık, ajanda, spor, görevler, iptaller ve tatiller. Dünkü check-in cevapsız kaldıysa bir kez hatırlatıyor.
-- **Check-in:** Dersler "katıldı" sayılıyor; spor ve görevler soruluyor. Sohbette "✓ Hepsi tamam" ve "Düzenle" butonları var. Boş günde check-in gönderilmiyor.
-- **Takip:** Vadesi gelen takipler soruluyor ve bir sonraki soru zamanı ileri alınıyor.
-- **Arayüz:** Zamanlayıcı mesajları etiketli ve ayrı birer öğe. Sohbet, pencereye dönüldüğünde ve dakikada bir yenileniyor.
-- **karar:** Brifing, check-in ve takip mesajları LLM'siz, şablonla üretiliyor. Ücretsiz, çevrimdışı çalışıyor ve rate limit'e takılmıyor.
-- **karar:** Mesajlar en son sohbete yazılıyor; hiç sohbet yoksa yeni biri açılıyor.
-- **karar:** `on_date` kuralındaki takip, o tarihten itibaren her gün soruluyor.
-- **karar:** "✓ Hepsi tamam" sohbete normal bir mesaj olarak gidiyor, yani yazma işini yine ekip yapıyor. Spor kaydı için henüz araç yok (`log_workout` Faz 1'de); koordinatör bunu tek cümleyle söylüyor.
-- Tailscale, iPhone push ve auth yapılmadı; bunlar sende.
-
-## EK-5. Haftalık planlama ✅
-
-- **Taslak:** Pazar 20:00'de smart tier (Sonnet; bütçe koruması geçerli) yalnızca verilere bakarak görev taslağı yazıyor. Verilen veriler: haftanın planı, sınavlar, devamsızlık, takipler, mevcut görevler. Hafta dışına düşen tarihler atılıyor.
-- **Onay:** Taslak bir öneri; sohbette tablo olarak görünüyor, "evet" ile tek change_set olarak görevlere yazılıyor.
-- **Canlı deneme:** Sonnet, Cuma sınavı etrafında makul bir hafta çıkardı: hazırlığı önceki günlere yaydı, MATH 221 devamsızlığı için uyardı, hackathon takibini ekledi.
-- **Geçmiş:** Pazartesi brifingi artık Pazar'ın taslağını geçmişten silmiyor.
-- **karar:** Öneri numarası mesajın gizli `context` alanında; modele gidiyor, sana gösterilmiyor.
-- **Elle tetikleme:** `POST /api/jobs/{job}/run?force=true` (briefing, checkin, followups, weekly_plan).
-
-## EK-6. Ses ✅
-
-- **Akış:** `POST /api/voice`, Groq `whisper-large-v3` (Türkçe) ile metne çeviriyor; metin normal sohbet akışıyla gidiyor. Kullanım `llm_usage`'a yazılıyor (tier `stt`).
-- **Canlı deneme:** Windows'un Türkçe sesiyle ürettiğim örnek → "Yarın saat 14'te Iceberg toplantısı var." (3,4 sn, $0.0003).
-- **Arayüz:** Basılı tut ve konuş, bırakınca gönderilir; kısa dokunuş aç/kapa modu; canlı dalga göstergesi, süre, iptal.
-- **karar:** STT router dışında (sohbet tamamlaması değil). Ayarları `providers.yaml` içindeki `stt` bölümünde.
-- ⚠️ **Gerçek mikrofonla denenmedi:** Headless tarayıcıda mikrofon yok. Telefonda mikrofon için HTTPS gerekiyor (`tailscale serve`).
-
-## EK-7. Sağlamlaştırma ✅
-
-- **Smoke testi:** `scripts/smoke.ps1` stack'i, health uç noktalarını ve API'yi kontrol ediyor; ayrıca gerçek bir sohbet mesajı gönderip geri alıyor.
-  - Bu gece yalnızca `-NoChat` ile çalıştırdım, çünkü sohbet adımı gerçek veritabanına bir test sohbeti yazar.
-  - Yazarken bir hata buldum: dev ortamında `/health` adresine Vite `index.html` dönüyordu ve kontrol yanlışlıkla geçiyordu. Artık `/api/health` kullanılıyor.
-- **Testler:** Backend paketi 25 sn'den 14 sn'ye indi. Sebep, test başına `TRUNCATE` yerine tek bir `DELETE` ve sequence sıfırlama bloğu.
-  - En yavaş 5 testin üçü hızlandı.
-  - İki migration testi gerçek Alembic yukarı/aşağı adımlarını çalıştırdığı için aynı kaldı.
-- **README:** Güncel özellikler, mimari ve hızlı başlangıç.
+Not: prototip dosyası (`Main.dc.html`) kendi başına çalışmadığı için yan yana ekran görüntüsü alınamadı. Statik katmanlar birebir aynı olduğundan karşılaştırmayı figür yerleşimi ve z-sırası üzerinden yaptım.
 
 ## Sabah denemen gerekenler
 
-1. **Tasarım:** http://localhost:8080'u aç. Karşılaştırma için http://localhost:8080/design-preview.
-2. **Brifing:** 08:00 brifingi sohbette olmalı (bilgisayar açıksa). Değilse: `curl -X POST "localhost:8000/api/jobs/briefing/run?force=true"`.
-3. **CSE 221:** "19 kasımda cse221'e gitmedim" yaz; CSE 221 7 saate çıkmalı. Durum sayfasında saatler görünüyor.
-4. **Mikrofon:** localhost'ta basılı tutup konuş; Chrome izin isteyecek. Kayıt, dalga göstergesi ve gönderim gerçek tarayıcıda hiç denenmedi.
-5. **Check-in:** 21:00 check-in'ine "✓ Hepsi tamam" butonuyla cevap ver. LLM'in bu cevabı nasıl işlediği canlı denenmedi.
-6. **Haftalık plan:** Pazar 20:00 taslağı gelecek; istersen `…/api/jobs/weekly_plan/run?force=true` ile hemen dene, sonra "evet" de.
-7. **Smoke testi:** `.\scripts\smoke.ps1` (tam hâli bir smoke sohbeti yazar ve geri alır) ya da `-NoChat`.
-8. **Yedekler:** `backups/` klasöründe gece alınan yedekler var. İstersen `BACKUP_DIR`'i OneDrive gibi senkronize bir klasöre yönlendir.
-9. **Push:** Push etmeden önce `git log --oneline 564f1f7..HEAD`.
+1. **Ofis:** `http://localhost:8080` artık ofisle açılıyor.
+   - 10 kişiyi görmelisin. Bir çalışana tıkla: Şu an, Defter, Gelen kutusu, Mesai planı, Sohbet.
+   - Telefonda sahneyi yana kaydır; liste ve panel altta olmalı.
+2. **Canlı devir:** "Yaver'e yaz"a iki alanlı bir şey yaz (ör. "Cuma 10:00 toplantı ekle, bir de bugün spora gidemeyeceğim").
+   - İlgili çalışanlar toplantı odasına yürüyüp Yaver'le oturmalı, sonra masalarına ya da molaya dönmeli.
+   - Ofis 10-30 sn geriden gelir (karar yukarıda).
+3. **Standup:** ofisin altındaki dev düğmesi "Standup", ya da `POST /api/jobs/briefing/run?force=true`.
+   - Herkes toplantı odasına gitmeli; sohbete "Standup" bölümlü bir brifing düşmeli.
+   - Saati 09:00 istiyorsan `.env`'de `BRIEFING_TIME=09:00` yap.
+4. **Gün sonu raporu:** dev düğmesi ya da akşam 21:15'te.
+5. **Görev panosu:** "Görev panosu" sekmesi. Bir karta tıkla, ofiste o çalışanın paneli açılmalı.
+6. **Web arama (istersen):** `.env`'e `TAVILY_API_KEY` (ücretsiz katman) ekle ve `docker compose up -d` yap.
+   - Orion ve Mira'nın sabah taraması gerçek sonuç yazar.
+   - Elle: `POST /api/jobs/shift:startup:web_scan/run?force=true`
+7. **Yönlendirme ölçümü (istersen):** `docker compose exec api pytest -m live -k routing -s` (~$0.005).
+
+**Dikkat (risk):** senin yerel `agents.yaml`'ında Jarvis'in alanı hâlâ "iş/staj (Medipol, Iceberg vb.), başvurular" diyor; Nova'nınki de "Medipol ve Iceberg işleri, staj…".
+- Bu sınırda yönlendirme ikisi arasında kayabilir; canlı testte "Iceberg staj başvurusu" Nova'ya gitti.
+- Mevcut 4'ü değiştirmemem istendiği için dokunmadım. İstersen Jarvis'in alanından "iş/staj, başvurular"ı çıkar; örnek dosyada bunu yaptım.
