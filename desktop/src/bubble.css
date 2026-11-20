@@ -1,0 +1,36 @@
+/* The window itself is transparent; only the round logo is visible. */
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+}
+
+#bubble {
+  all: unset;
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+#bubble img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 35%));
+}
+
+#bubble:hover {
+  transform: scale(1.06);
+}
+
+#bubble:active {
+  transform: scale(0.96);
+}

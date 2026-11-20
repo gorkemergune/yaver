@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Yaver</title>
+    <link rel="stylesheet" href="/src/chat.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="bar" data-tauri-drag-region>
+        <img class="bar-logo" src="/logo.svg" alt="" data-tauri-drag-region />
+        <span class="bar-title" id="title" data-tauri-drag-region>Yaver</span>
+        <nav class="bar-actions" id="actions"></nav>
+      </header>
+
+      <section class="view" id="view-chat">
+        <ol class="messages" id="messages" aria-live="polite"></ol>
+        <form class="composer" id="composer">
+          <textarea id="input" rows="1" autocomplete="off"></textarea>
+          <button type="submit" id="send" class="send"></button>
+        </form>
+      </section>
+
+      <section class="view screen" id="view-screen" hidden></section>
+
+      <section class="view settings" id="view-settings" hidden>
+        <form id="settings-form">
+          <label for="api-url" id="api-url-label"></label>
+          <input id="api-url" type="text" spellcheck="false" autocomplete="off" />
+          <p class="hint" id="api-url-hint"></p>
+          <p class="hint warn" id="api-url-env" hidden></p>
+          <div class="row">
+            <button type="submit" id="save-url"></button>
+            <button type="button" id="test-url" class="secondary"></button>
+          </div>
+          <p class="status" id="settings-status" role="status"></p>
+        </form>
+        <div class="toggle-row">
+          <input type="checkbox" id="autostart" />
+          <label for="autostart" id="autostart-label"></label>
+        </div>
+        <p class="hint" id="autostart-hint"></p>
+        <p class="status" id="autostart-status" role="status"></p>
+      </section>
+    </main>
+    <script type="module" src="/src/chat.ts"></script>
+  </body>
+</html>

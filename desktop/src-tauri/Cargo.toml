@@ -1,0 +1,32 @@
+[package]
+name = "yaver-desktop"
+version = "0.1.0"
+description = "Yaver desktop companion: floating logo + mini chat"
+edition = "2021"
+rust-version = "1.82"
+publish = false
+
+[lib]
+# The `_lib` suffix keeps the lib and bin names apart (cargo issue #8519 on Windows).
+name = "yaver_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["time"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+tauri-plugin-notification = "2.4.0"
+tauri-plugin-log = "2.9.2"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_UI_Input_KeyboardAndMouse", "Win32_System_SystemInformation", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp"] }

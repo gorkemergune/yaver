@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Bubble, chat and notice windows: drag themselves, listen to app events, call the app's own commands. Autostart and notifications are driven from Rust, not from JS.",
+  "windows": [
+    "bubble",
+    "chat",
+    "notice"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
+}
