@@ -7,12 +7,14 @@ import pytest
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.agent.team import load_team_config
 from app.agent.tools import run_tool
 from app.config import Settings
 from app.db.models import Followup, JobRun, Message
 from app.db.models.enums import FollowupCheckRule, MessageRole
 from app.jobs.runner import run_job
 from app.jobs.scheduler import due_now, jobstore_url, start_scheduler
+from app.office.shift_jobs import shift_plans
 from tests.agent_fakes import example_team
 from tests.db.test_agent_tools import context
 
@@ -211,7 +213,11 @@ async def test_scheduler_keeps_its_jobs_in_postgres(settings: Settings) -> None:
     scheduler = start_scheduler(settings)
     try:
         jobs = {job.id: job for job in scheduler.get_jobs()}
-        assert set(jobs) == {"briefing", "checkin", "followups", "weekly_plan", "exam_prep"}
+        core = {"briefing", "checkin", "followups", "weekly_plan", "exam_prep"}
+        # plus every employee's shift jobs from agents.yaml (app.office.shift_jobs)
+        shifts = {p.key for p in shift_plans(load_team_config())}
+        assert set(jobs) == core | shifts
+        assert all(key.startswith("shift:") for key in shifts)
         assert jobs["weekly_plan"].next_run_time.astimezone(IST).weekday() == 6  # Sunday
         assert jobs["checkin"].next_run_time.astimezone(IST).time() == dt.time(21, 0)
         assert jobs["briefing"].misfire_grace_time == 8 * 3600

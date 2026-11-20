@@ -38,6 +38,12 @@ DESK_COLUMNS = 5  # the office has 5 desk pairs: back 0-4, front 0-4
 # Where the default team sits when agents.yaml names no desk (the approved prototype).
 DEFAULT_DESKS: dict[str, tuple[str, int]] = {
     "academic": ("back", 0),
+    "career": ("back", 1),
+    "startup": ("back", 2),
+    "ads": ("back", 3),
+    "research": ("back", 4),
+    "content": ("front", 0),
+    "social": ("front", 1),
     "agenda": ("front", 2),
     "discipline": ("front", 3),
 }
@@ -55,6 +61,30 @@ class DeskConfig(_Strict):
     col: int = Field(0, ge=0, lt=DESK_COLUMNS)
 
 
+# Shift jobs an employee can be given in agents.yaml (implemented in app.office.shift_jobs).
+SHIFT_JOB_KINDS = (
+    "web_scan",  # search the web for `topics`, note the top results
+    "ads_report",  # Meta ad metrics (skeleton: notes that the integration is pending)
+    "social_reminders",  # birthdays / plans in the next days
+    "followup_watch",  # follow-ups still waiting for an answer
+    "deadline_watch",  # deadlines in the next days
+)
+
+
+class ShiftJobConfig(_Strict):
+    job: Literal["web_scan", "ads_report", "social_reminders", "followup_watch", "deadline_watch"]
+    at: str = Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")  # local time
+    weekday: int | None = Field(None, ge=0, le=6)  # 0 = Monday; None = every day
+    title: str = ""  # shown while it runs ("Sabah rakip taraması")
+    topics: list[str] = Field(default_factory=list)  # web_scan: what to search
+
+    @model_validator(mode="after")
+    def _topics(self) -> "ShiftJobConfig":
+        if self.job == "web_scan" and not self.topics:
+            raise ValueError("web_scan needs topics")
+        return self
+
+
 class MemberConfig(_Strict):
     id: str
     name: str
@@ -63,6 +93,7 @@ class MemberConfig(_Strict):
     desk: DeskConfig | None = None  # default: DEFAULT_DESKS, then the first free desk
     shift: str = ""  # the shift plan shown in the office panel
     daily_budget_usd: Decimal | None = Field(None, ge=0)  # default: office.daily_budget_usd
+    shift_jobs: list[ShiftJobConfig] = Field(default_factory=list)
     tier: str = "fast"
     # Optional, per provider: {groq: openai/gpt-oss-20b} = whenever this yaver's call runs on
     # Groq (fast or fallback tier), use that model. Other providers keep the tier's model.
@@ -249,10 +280,20 @@ def build_team(
         if unknown:
             raise ValueError(f"agents.yaml uses unknown tier(s): {', '.join(unknown)}")
     env = _environment()
+    by_id = {agent.id: agent.name for agent in config.agents}
+    first = config.agents[0].name if config.agents else config.coordinator.name
     context: dict[str, Any] = {
         "user_name": user_name,
         "coordinator": config.coordinator,
         "agents": config.agents,
+        # names for the answer examples, by area (the list order changes as the team grows)
+        "example": {
+            "classes": by_id.get("academic", first),
+            "meetings": by_id.get(
+                "agenda", config.agents[1].name if len(config.agents) > 1 else first
+            ),
+            "sport": by_id.get("discipline", config.agents[-1].name if config.agents else first),
+        },
     }
     coordinator = Member(
         id=config.coordinator.id,

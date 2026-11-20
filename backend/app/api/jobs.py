@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agent.team import Team, get_team
 from app.api.chat import get_session_factory
 from app.jobs.runner import JOB_IDS, JobId, run_job
+from app.office.shift_jobs import is_shift, run_shift_job
 from app.office.state import Office, get_office
 
 router = APIRouter(tags=["jobs"])
@@ -22,6 +23,9 @@ async def run_now(
     office: Office | None = Depends(get_office),
 ) -> dict[str, Any]:
     """`force=true` runs it even if it already ran today (a second message)."""
+    if is_shift(job_id):  # an employee's shift job: "shift:academic:deadline_watch"
+        note = await run_shift_job(job_id, sessionmaker=session_factory, office=office, force=force)
+        return {"job": job_id, "note": note}
     if job_id not in JOB_IDS:
         raise HTTPException(404, detail={"code": "unknown_job", "jobs": list(JOB_IDS)})
     known: JobId = job_id

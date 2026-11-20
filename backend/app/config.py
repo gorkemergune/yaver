@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     weekly_plan_time: str = "20:00"  # Sundays: the coming week's draft (smart tier)
     exam_prep_time: str = "18:00"  # daily: review plan for exams a week away
 
+    # --- Integrations (O3): missing keys = the employee shows "entegrasyon bekliyor" ---
+    web_search_provider: str = "auto"  # auto (the first with a key) | tavily | brave
+    tavily_api_key: SecretStr | None = None
+    brave_api_key: SecretStr | None = None
+    meta_access_token: SecretStr | None = None  # Lyra: Meta Marketing API (skeleton)
+    meta_ad_account_id: str | None = None
+
     # --- Web Push (Phase 1) ---
     vapid_public_key: str | None = None
     vapid_private_key: SecretStr | None = None

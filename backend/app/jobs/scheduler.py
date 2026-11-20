@@ -16,8 +16,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import make_url
 
+from app.agent.team import TeamConfig, load_team_config
 from app.config import Settings, get_settings
-from app.jobs.runner import JobId, parse_hhmm, run_job
+from app.jobs.runner import JOB_IDS, JobId, parse_hhmm, run_job
+from app.office.shift_jobs import is_shift, run_shift_job, shift_plans
 from app.office.state import get_office
 
 logger = logging.getLogger(__name__)
@@ -25,13 +27,25 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class Plan:
-    job_id: JobId
+    job_id: str  # a JobId, or "shift:<employee>:<kind>" (app.office.shift_jobs)
     at: dt.time
     window: dt.timedelta  # how late it may still run (misfire / catch-up)
     weekday: int | None = None  # only on this day (0 = Monday); None = every day
 
 
-def plans(settings: Settings) -> list[Plan]:
+SHIFT_WINDOW = dt.timedelta(hours=4)
+
+
+def plans(settings: Settings, team: TeamConfig | None = None) -> list[Plan]:
+    """The scheduled jobs; with `team`, also every employee's shift jobs."""
+    shifts = [
+        Plan(p.key, parse_hhmm(p.job.at), SHIFT_WINDOW, weekday=p.job.weekday)
+        for p in (shift_plans(team) if team is not None else [])
+    ]
+    return _core_plans(settings) + shifts
+
+
+def _core_plans(settings: Settings) -> list[Plan]:
     checkin = parse_hhmm(settings.checkin_time)
     until_midnight = dt.timedelta(hours=23 - checkin.hour, minutes=59 - checkin.minute)
     weekly = parse_hhmm(settings.weekly_plan_time)
@@ -47,10 +61,16 @@ def plans(settings: Settings) -> list[Plan]:
     ]
 
 
-async def run_scheduled(job_id: JobId) -> None:
+async def run_scheduled(job_id: str) -> None:
     """Entry point stored in the job store (importable, arguments are plain strings)."""
     try:
-        await run_job(job_id, office=get_office())
+        if is_shift(job_id):
+            await run_shift_job(job_id, office=get_office())
+        elif job_id in JOB_IDS:
+            known: JobId = job_id  # narrowed by the `in JOB_IDS` check
+            await run_job(known, office=get_office())
+        else:  # a job removed from the code, still in the job store
+            logger.warning("Unknown scheduled job %s", job_id)
     except Exception:  # a failing job must not stop the scheduler
         logger.exception("Scheduled job %s failed", job_id)
 
@@ -68,7 +88,8 @@ def start_scheduler(settings: Settings | None = None) -> AsyncIOScheduler:
         timezone=settings.tz,
         job_defaults={"coalesce": True, "max_instances": 1},
     )
-    for plan in plans(settings):
+    team = load_team_config()
+    for plan in plans(settings, team):
         scheduler.add_job(
             run_scheduled,
             CronTrigger(
@@ -85,16 +106,17 @@ def start_scheduler(settings: Settings | None = None) -> AsyncIOScheduler:
         )
     scheduler.start()
     logger.info(
-        "Scheduler started: %s", ", ".join(f"{p.job_id} {p.at:%H:%M}" for p in plans(settings))
+        "Scheduler started: %s",
+        ", ".join(f"{p.job_id} {p.at:%H:%M}" for p in plans(settings, team)),
     )
     return scheduler
 
 
-def due_now(settings: Settings, now: dt.datetime) -> list[JobId]:
+def due_now(settings: Settings, now: dt.datetime, team: TeamConfig | None = None) -> list[str]:
     """Jobs whose time today has passed but whose window is still open."""
     local = now.astimezone(settings.tz)
     due = []
-    for plan in plans(settings):
+    for plan in plans(settings, team):
         if plan.weekday is not None and local.weekday() != plan.weekday:
             continue
         start = dt.datetime.combine(local.date(), plan.at, tzinfo=settings.tz)
@@ -105,5 +127,5 @@ def due_now(settings: Settings, now: dt.datetime) -> list[JobId]:
 
 async def catch_up(settings: Settings | None = None) -> None:
     settings = settings or get_settings()
-    for job_id in due_now(settings, dt.datetime.now(dt.UTC)):
+    for job_id in due_now(settings, dt.datetime.now(dt.UTC), load_team_config()):
         await run_scheduled(job_id)

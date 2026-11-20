@@ -89,12 +89,18 @@ async def test_employees_are_synced_from_the_team_config(
         ("academic", "Atlas", DeskRow.BACK, 0),
         ("agenda", "Deniz", DeskRow.FRONT, 2),
         ("discipline", "Kaan", DeskRow.FRONT, 3),
+        ("career", "Nova", DeskRow.BACK, 1),
+        ("startup", "Orion", DeskRow.BACK, 2),
+        ("ads", "Lyra", DeskRow.BACK, 3),
+        ("research", "Arda", DeskRow.BACK, 4),
+        ("content", "Mira", DeskRow.FRONT, 0),
+        ("social", "Ece", DeskRow.FRONT, 1),
     ]
     assert rows[0].is_coordinator
     assert rows[0].role == "Genel Müdür"
     assert rows[1].role == "Akademik"
     assert "log_attendance" in rows[1].tools
-    assert {e.daily_budget_usd for e in rows} == {Decimal("0.5")}
+    assert {e.daily_budget_usd for e in rows} == {Decimal("0.2")}  # office.daily_budget_usd
     states = (await session.scalars(select(EmployeeState))).all()
     assert {(s.employee_id, s.activity) for s in states} == {(e.id, Activity.BREAK) for e in rows}
 
@@ -377,8 +383,8 @@ async def test_over_budget_stops_shifts_with_a_red_dot(
     session: AsyncSession, office: Office
 ) -> None:
     now = dt.datetime.now(dt.UTC)
-    await spend(session, "academic", "0.30", now - dt.timedelta(days=2))  # not today
-    await spend(session, "academic", "0.30", now)
+    await spend(session, "academic", "0.15", now - dt.timedelta(days=2))  # not today
+    await spend(session, "academic", "0.15", now)
 
     async def job() -> str:
         state = office.state("academic")
@@ -392,7 +398,7 @@ async def test_over_budget_stops_shifts_with_a_red_dot(
     assert state.activity is Activity.BREAK
     assert not state.needs_user
 
-    await spend(session, "academic", "0.25", now)  # 0.55 today > 0.50
+    await spend(session, "academic", "0.10", now)  # 0.25 today > 0.20
     with pytest.raises(OverBudgetError):
         await run_shift(office, "academic", "Sınav planı", job)
     state = office.state("academic")
@@ -404,8 +410,8 @@ async def test_over_budget_stops_shifts_with_a_red_dot(
 
     snapshot = await office.snapshot()
     academic = next(e for e in snapshot["employees"] if e["id"] == "academic")
-    assert academic["spent_today_usd"] == pytest.approx(0.55)
-    assert academic["daily_budget_usd"] == pytest.approx(0.5)
+    assert academic["spent_today_usd"] == pytest.approx(0.25)
+    assert academic["daily_budget_usd"] == pytest.approx(0.2)
 
 
 async def test_scheduled_job_over_budget_is_not_recorded(
@@ -505,11 +511,17 @@ async def test_snapshot_endpoint(client: tuple[httpx2.AsyncClient, ScriptedLLM])
         ("academic", {"row": "back", "col": 0}, "break"),
         ("agenda", {"row": "front", "col": 2}, "break"),
         ("discipline", {"row": "front", "col": 3}, "break"),
+        ("career", {"row": "back", "col": 1}, "break"),
+        ("startup", {"row": "back", "col": 2}, "break"),
+        ("ads", {"row": "back", "col": 3}, "break"),
+        ("research", {"row": "back", "col": 4}, "break"),
+        ("content", {"row": "front", "col": 0}, "break"),
+        ("social", {"row": "front", "col": 1}, "break"),
     ]
     first = snapshot["employees"][1]
     assert (first["name"], first["role"], first["color"]) == ("Atlas", "Akademik", "#4cbcff")
     assert first["spent_today_usd"] == 0
-    assert first["daily_budget_usd"] == 0.5
+    assert first["daily_budget_usd"] == 0.2
 
 
 async def test_stream_sends_snapshot_then_changes_and_pings(office: Office) -> None:

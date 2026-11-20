@@ -160,6 +160,12 @@ async def test_plan_attendance_and_team(client: httpx2.AsyncClient, llm: Scripte
         ("Atlas", "#4cbcff"),
         ("Deniz", "#ffa070"),
         ("Kaan", "#ece35e"),
+        ("Nova", "#4fe0c8"),
+        ("Orion", "#ffb547"),
+        ("Lyra", "#ff7eb0"),
+        ("Arda", "#dfe6f5"),
+        ("Mira", "#d29bff"),
+        ("Ece", "#86e886"),
     ]
 
 
@@ -180,7 +186,7 @@ async def test_team_activity(client: httpx2.AsyncClient, llm: ScriptedLLM) -> No
 
     activity = (await client.get("/api/team/activity", params={"per_agent": 2})).json()["activity"]
 
-    assert set(activity) == {"yaver", "academic", "agenda", "discipline"}
+    assert set(activity) == {"yaver", *(agent.id for agent in example_team().agents)}
     assert len(activity["academic"]) == 2  # limited, newest first
     assert activity["academic"][0]["entity"] == "recurring_blocks"
     assert activity["academic"][0]["data"]["title"] == "EE211 Lab"

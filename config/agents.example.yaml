@@ -15,7 +15,7 @@
 #          Aşılınca mesai işleri durur, ofiste kırmızı nokta çıkar. Sohbet çalışmaya devam eder.
 
 office:
-  daily_budget_usd: 0.50
+  daily_budget_usd: 0.20
 
 coordinator:
   id: yaver
@@ -70,7 +70,7 @@ agents:
     desk: {row: front, col: 2}
     color: "#ffa070"           # label colour in the web UI and the office
     shift: Bekleyen takipleri her gün sorar.
-    domain: Toplantılar, iş/staj, etkinlikler, hackathonlar, başvurular, takip edilecek dönüşler ve görevler (yapılacaklar)
+    domain: Toplantılar, takvim, etkinlikler, hackathonlar, takip edilecek dönüşler ve görevler (yapılacaklar)
     persona: Sakin, profesyonel bir kişisel asistan. Bekleyen dönüşleri unutmaz, her gün kibarca sorar.
     tier: fast
     model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model
@@ -109,6 +109,95 @@ agents:
       - set_app_limit            # Faz 4
       - grant_limit_extension    # Faz 4
     briefing_section: Disiplin
+
+  # --- O3: the rest of the office (docs/OFFICE.md). Without a web search key (TAVILY_API_KEY /
+  # BRAVE_API_KEY in .env) web_search answers "entegrasyon bekliyor" and the employee notes it.
+  # shift_jobs: scheduled work (local time; weekday 0 = Monday). Kinds: web_scan (topics),
+  # ads_report, social_reminders, followup_watch, deadline_watch.
+
+  - id: career
+    name: Nova
+    role: Kariyer
+    desk: {row: back, col: 1}
+    color: "#4fe0c8"
+    domain: Kariyer - staj ve iş başvuruları, iş yerindeki projeler, mülakatlar, başvuru dönüşlerinin takibi
+    persona: Hedef odaklı bir kariyer koçu. Başvuruları ve dönüş tarihlerini unutmaz, kısa ve net konuşur.
+    tier: fast
+    model: {groq: openai/gpt-oss-20b}
+    shift: Her sabah bekleyen başvuru dönüşlerini kontrol eder ve defterine yazar.
+    shift_jobs:
+      - {job: followup_watch, at: "10:00", title: Bekleyen başvuru dönüşlerine bakıyor}
+    tools: [add_followup, update_followup, add_task, complete_task, add_event, update_event, remember, web_search]
+
+  - id: startup
+    name: Orion
+    role: Startup
+    desk: {row: back, col: 2}
+    color: "#ffb547"
+    domain: Startup işleri - girişimin haftalık hedefleri, rakipler, sektör haberleri, yatırım ve iş geliştirme
+    persona: Meraklı bir girişim analisti. Rakipleri ve haberleri takip eder, bulduğunu kaynağıyla söyler.
+    tier: fast
+    model: {groq: openai/gpt-oss-20b}
+    shift: Her sabah sektör ve rakip haberlerini tarar, öne çıkanları defterine yazar.
+    shift_jobs:
+      - {job: web_scan, at: "08:30", title: Sabah rakip taraması, topics: [yapay zeka girişim haberleri, girişim yatırımları Türkiye]}
+    tools: [web_search, add_task, complete_task, add_followup, update_followup, remember]
+
+  - id: ads
+    name: Lyra
+    role: Reklam Analisti
+    desk: {row: back, col: 3}
+    color: "#ff7eb0"
+    domain: Reklam performansı - Meta (Instagram/Facebook) kampanyaları, harcama, tıklama ve dönüşüm metrikleri
+    persona: Sayılarla konuşan bir reklam analisti. Bir metrik bozulunca hemen fark eder, abartmaz.
+    tier: fast
+    model: {groq: openai/gpt-oss-20b}
+    shift: Reklam hesabı bağlanınca günlük performansı çeker; şimdilik entegrasyon bekliyor.
+    shift_jobs:
+      - {job: ads_report, at: "09:30", title: Günlük reklam metrikleri}
+    tools: [get_ad_report, add_task, complete_task]
+
+  - id: research
+    name: Arda
+    role: Araştırma · AI
+    desk: {row: back, col: 4}
+    color: "#dfe6f5"
+    domain: Araştırma projeleri - model deneyleri, makaleler, proje başvuruları ve araştırma teslim tarihleri
+    persona: Titiz bir araştırma asistanı. Deney sonuçlarını kısa özetler, teslim tarihlerini önceden hatırlatır.
+    tier: fast
+    model: {groq: openai/gpt-oss-20b}
+    shift: Yaklaşan araştırma teslimlerini her sabah kontrol eder; deney notlarını defterinde tutar.
+    shift_jobs:
+      - {job: deadline_watch, at: "09:15", title: Yaklaşan teslimlere bakıyor}
+    tools: [add_event, update_event, add_task, complete_task, add_followup, update_followup, web_search, remember]
+
+  - id: content
+    name: Mira
+    role: İçerik Üreticisi
+    desk: {row: front, col: 0}
+    color: "#d29bff"
+    domain: Sosyal medya içeriği - post fikirleri, içerik takvimi, paylaşım taslakları ve trendler
+    persona: Yaratıcı ama pratik bir içerik üreticisi. Somut, paylaşılabilir fikirler önerir.
+    tier: fast
+    model: {groq: openai/gpt-oss-20b}
+    shift: Her gün içerik trendlerini tarar; post fikirlerini defterine yazar.
+    shift_jobs:
+      - {job: web_scan, at: "11:00", title: Trend taraması, topics: [Instagram içerik trendleri]}
+    tools: [web_search, add_task, complete_task, add_event]
+
+  - id: social
+    name: Ece
+    role: Sosyal Çevre
+    desk: {row: front, col: 1}
+    color: "#86e886"
+    domain: Sosyal çevre - arkadaşlar, doğum günleri, buluşmalar ve ortak planlar
+    persona: Sıcak ve dikkatli bir arkadaş. Doğum günlerini ve sözleri hatırlatır.
+    tier: fast
+    model: {groq: openai/gpt-oss-20b}
+    shift: Önümüzdeki haftanın doğum günlerini ve buluşmalarını her sabah toplar.
+    shift_jobs:
+      - {job: social_reminders, at: "10:30", title: Bu haftanın hatırlatmaları}
+    tools: [add_event, update_event, delete_event, add_followup, update_followup, add_task, complete_task, remember]
 
 # Haftalık planlama seansı tüm yaverleri sırayla çağırır, koordinatör birleştirir.
 weekly_plan:
