@@ -70,12 +70,15 @@ export interface WeekPlanResponse {
   days: DayPlan[];
 }
 
+/** Absences in class hours (app/services/attendance.py). */
 export interface CourseAttendance {
   course: string;
   name: string;
-  absences: number;
-  limit: number | null;
-  remaining?: number;
+  absent_hours: number; // recorded + baseline
+  recorded_hours: number;
+  baseline?: { hours: number; note: string | null };
+  limit_hours: number | null;
+  remaining_hours?: number;
 }
 
 export interface MonthUsage {

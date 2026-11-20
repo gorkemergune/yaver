@@ -48,11 +48,18 @@ export function describeChange(change: Change): string {
       const time = data.all_day ? tr.plan.allDay.toLowerCase() : localTime(data.start_at);
       return `${tr.kinds[text(data.kind)] ?? "Etkinlik"}: ${text(data.title)}, ${shortDate(data.start_at)} ${time} ${verb}`;
     }
-    case "attendance":
-      return `${text(data.course)} ${shortDate(data.date)}: ${data.status === "absent" ? "devamsızlık" : text(data.status)} kaydedildi`;
+    case "attendance": {
+      const hours = typeof data.hours === "number" ? ` (${String(data.hours)} saat)` : "";
+      const what = data.status === "absent" ? `devamsızlık${hours}` : text(data.status);
+      return op === "delete"
+        ? `${text(data.course)} ${shortDate(data.date)}: devamsızlık kaydı silindi`
+        : `${text(data.course)} ${shortDate(data.date)}: ${what} kaydedildi`;
+    }
+    case "attendance_baselines":
+      return `${text(data.course)}: Yaver öncesi devamsızlık ${text(data.hours)} saat`;
     case "courses":
       return op === "update" && data.absence_limit !== undefined
-        ? `${text(data.code)} devamsızlık limiti: ${text(data.absence_limit)}`
+        ? `${text(data.code)} devamsızlık limiti: ${text(data.absence_limit)} saat`
         : `Ders: ${text(data.name) || text(data.code)} ${verb}`;
     case "tasks":
       return data.status === "done" ? `Görev tamamlandı: ${text(data.title)}` : `Görev: ${text(data.title)} ${verb}`;

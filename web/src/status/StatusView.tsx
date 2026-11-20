@@ -89,9 +89,9 @@ function AttendanceCard() {
 }
 
 function CourseRow({ course }: { course: CourseAttendance }) {
-  const limit = course.limit;
-  const remaining = course.remaining ?? null;
-  const ratio = limit ? course.absences / limit : 0;
+  const limit = course.limit_hours;
+  const remaining = course.remaining_hours ?? null;
+  const ratio = limit ? course.absent_hours / limit : 0;
   const tone = remaining !== null && remaining <= 0 ? "bad" : ratio >= 0.75 ? "warn" : "ok";
   return (
     <li>
@@ -102,8 +102,13 @@ function CourseRow({ course }: { course: CourseAttendance }) {
             <span className="font-normal text-slate-500 dark:text-slate-400"> · {course.name}</span>
           )}
         </span>
-        <span className="shrink-0 text-slate-600 dark:text-slate-300">{tr.status.absences(course.absences)}</span>
+        <span className="shrink-0 text-slate-600 dark:text-slate-300">{tr.status.absences(course.absent_hours)}</span>
       </div>
+      {course.baseline && course.baseline.hours > 0 && (
+        <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+          {tr.status.baseline(course.baseline.hours, course.baseline.note)}
+        </p>
+      )}
       {limit ? (
         <>
           <Bar ratio={ratio} tone={tone} />
