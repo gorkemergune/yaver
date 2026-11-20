@@ -17,9 +17,11 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 - Doğrudan sohbet `POST /api/employees/{id}/chat` (aynı change_set/undo), `add_note` aracı
 - Çalışan başına günlük bütçe: aşılınca mesai işleri durur, `needs_user` ile bildirir
 
+**Durum: kod tamam (2026-11-20).** Gerçek DB'ye migration (`7e9c24fbab16`) Görkem'in uygulaması bekleniyor. Ek bulgu: `.gitignore`'daki `models/` kuralı `app/db/models/` altındaki yeni dosyaları yutuyordu (materials, secrets, study hiç commit'lenmemişti), düzeltildi.
+
 **Bitti sayılır:**
-- [ ] Sohbette bir istek verince SSE'de ilgili çalışanın `working` → `break` geçişi görülüyor
-- [ ] Defter API'den okunuyor
+- [x] Sohbette bir istek verince SSE'de ilgili çalışanın `working` → `break` geçişi görülüyor — canlı deneme (test DB'sine bağlı geçici API, gerçek LLM, $0.002): "Friday defterine not alsın…" → Yaver `working` → Yaver + Friday `meeting` → Friday `working` (add_note) → `break` → Yaver `break` + `note` olayı; fake-LLM testleri `tests/db/test_office.py`
+- [x] Defter API'den okunuyor — `GET /api/employees/{id}/notes` (testte yazma, okuma, geri alma)
 
 ### O2 — Ofis sahnesi
 - Prototipin React'e taşınması: statik SVG katmanları (`scripts/office_scene.py` → `web/src/office/scene/`), A* hareket, oturma/yaklaşma noktaları, z-sırası
