@@ -113,14 +113,13 @@ async def test_schedule_photo_is_proposed_then_applied_after_yes(
     await session.refresh(attachment)
     assert attachment.message_id == user_message.id
 
-    # "evet": the proposal comes back with the history; the classes yaver applies it
-    def delegate(request: LLMRequest) -> LLMResponse:
-        assert any("öneri #1" in m.content for m in request.messages if m.role == "user")
-        return call("delegate", agent_id="academic", instruction="Öneri #1'i uygula")
-
-    llm.add("yaver", delegate, say("Atlas: programı ekledi."))
-    llm.add("academic", call("apply_proposal", proposal_id=1), say("Program eklendi."))
+    # "evet": the open proposal (conversation.pending_action) is applied by the code, the
+    # coordinator only reports it (one answer, no tool turn)
+    llm.add("yaver", say("Programını ekledim."))
     done = await yaver.handle(session, "evet", conversation_id=first.conversation_id, now=NOW)
+    assert [(t["tool"], t["arguments"], t.get("bound")) for t in done.trace] == [
+        ("apply_proposal", {"proposal_id": 1}, True)
+    ]
 
     assert await count(session, RecurringBlock) == 3
     sets = (await session.scalars(select(ChangeLog.change_set_id).distinct())).all()

@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from app.agent.context import ToolContext
+from app.agent.pending import observe
 from app.agent.team import Member
 from app.agent.tools import REGISTRY, ToolResult, dump_result, run_tool
 from app.llm.types import (
@@ -69,10 +70,15 @@ async def run_agent(
     delegate_spec: ToolSpec | None = None,
     emit: Emit | None = None,
     stream_text: bool = False,
+    use_tools: bool = True,
 ) -> AgentRun:
+    """`use_tools=False`: one answer without tool calls (the code already ran the tool)."""
     run = AgentRun(member.id, member.name, "")
     history = list(messages)
-    tools = member.tool_specs(delegate_spec if delegate else None)
+    request = next((m.content for m in reversed(messages) if m.role == "user"), "")
+    # Reply-only: no tool list at all. With tools listed and tool_choice "none", Haiku (live
+    # probe) sometimes reasoned in English about calling one and returned no answer.
+    tools = member.tool_specs(delegate_spec if delegate else None) if use_tools else []
 
     async def complete(tool_choice: ToolChoice, max_tokens: int) -> LLMResponse:
         ctx.agent_id = ctx.recorder.agent_id = member.id
@@ -123,6 +129,11 @@ async def run_agent(
         run.responses.append(response)
         return response
 
+    if not use_tools:
+        response = await complete("auto", 1024)
+        run.reply = response.text.strip()
+        return run
+
     for _ in range(max_steps):
         response = await complete("auto", 2048)
         history.append(response.to_message())
@@ -144,6 +155,15 @@ async def run_agent(
                 "error": result.get("error"),
             }
             ctx.trace.append(step)
+            if call.name != "delegate":
+                ask = observe(member.id, request, call.name, call.arguments, result)
+                if ask is not None:
+                    ctx.asks.append(ask)
+                elif "error" not in result:
+                    # the yaver settled it itself (e.g. called again with the right day)
+                    ctx.asks = [
+                        a for a in ctx.asks if (a.agent_id, a.tool) != (member.id, call.name)
+                    ]
             if emit is not None:
                 tool = REGISTRY.get(call.name)
                 await emit({"type": "tool", **step, "mutates": bool(tool and tool.mutates)})

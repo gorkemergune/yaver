@@ -23,6 +23,9 @@ class Conversation(TimestampMixin, Base):
         default=ConversationMode.CHAT,
         server_default=ConversationMode.CHAT.value,
     )
+    # The question the team is waiting on (app.agent.pending): the call that finishes the job
+    # for each option, or just who asked. Replaced or cleared by every message.
+    pending_action: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
 
 
 class Message(CreatedAtMixin, Base):

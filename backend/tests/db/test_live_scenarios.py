@@ -66,6 +66,7 @@ def _report(step: str, reply: ChatReply) -> None:
         print(f"  {agent['name']}: {agent['reply']}")
     for entry in reply.trace:
         error = f"  -> ERROR {entry['error']}" if entry["error"] else ""
+        error += "  (bound by code: answer to the open question)" if entry.get("bound") else ""
         print(f"  call [{entry['agent_id']}] {entry['tool']}({entry['arguments']}){error}")
     for action in reply.actions:
         print(f"  action [{action['agent_id']}] {action['tool']}: {action['result']}")

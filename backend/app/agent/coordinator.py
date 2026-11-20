@@ -17,8 +17,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.context import ToolContext
 from app.agent.documents import DocumentInput, read_documents
 from app.agent.loop import AgentRun, Emit, LLMClient, run_agent
+from app.agent.pending import (
+    Binding,
+    PendingAction,
+    bind,
+    done_note,
+    observe,
+    proposal_pending,
+    reply_note,
+    word_set,
+)
 from app.agent.reply import dedupe_questions
 from app.agent.team import Member, Team
+from app.agent.tools import REGISTRY, dump_result, run_tool
 from app.agent.vision import ImageInput, read_images
 from app.config import Settings
 from app.core.change_log import ChangeRecorder, describe_changes
@@ -30,7 +41,7 @@ from app.core.time_resolver import (
 )
 from app.db.models import Attachment, Conversation, Followup, Memory, Message
 from app.db.models.enums import ConversationMode, FollowupStatus, MessageRole
-from app.llm.types import ChatMessage, ImagePart
+from app.llm.types import ChatMessage, ImagePart, LLMRequest
 from app.services.images import resolve_stored
 
 HISTORY_MESSAGES = 10
@@ -110,6 +121,33 @@ _REQUEST = re.compile(
     r"\b(gitmedim|gidemedim|gitmeyecegim|gidemeyecegim|katilmadim|katilamadim|iptal|ekle|"
     r"kaydet|sil|tasi|ertele|degistir|isaretle|tamamladim|bitirdim)"
 )
+
+
+_ENGLISH = word_set(
+    "the you your and was has have added cancelled canceled would is are to for of it this "
+    "that with will can recorded class today tomorrow meeting there no not"
+)
+_TURKISH = word_set(
+    "ve bir bu icin mi mu da de ile yarin bugun ders iptal ekledi kaydetti var yok sen"
+)
+TURKISH_REWRITE = (
+    "Aşağıdaki asistan cevabını Türkçeye çevir. İçerik, isimler, ders kodları, tarihler, "
+    'saatler ve sayılar aynen kalsın; kullanıcıya "sen" diye hitap et. Yalnızca çeviriyi yaz.'
+)
+
+
+def looks_english(text: str) -> bool:
+    """The answer drifted to English (live runs: after long context blocks, Haiku)."""
+    english = sum(1 for w in re.findall(r"[a-z]+", text.lower()) if w in _ENGLISH)
+    turkish = sum(1 for w in re.findall(r"[a-z]+", normalize(text)) if w in _TURKISH)
+    turkish += sum(1 for ch in text if ch in "ğüşıöçĞÜŞİÖÇ")
+    return english >= 3 and english > turkish
+
+
+def worked(ctx: ToolContext) -> bool:
+    """Any tool call besides resolve_date (live run: the coordinator resolved "geçen salı",
+    then asked "onay verir misin?" without delegating)."""
+    return any(entry["tool"] != "resolve_date" for entry in ctx.trace)
 
 
 def claims_a_change(reply: str) -> bool:
@@ -204,7 +242,7 @@ class Coordinator:
             llm=self.llm,
         )
         memories = list((await session.scalars(select(Memory.content).where(Memory.active))).all())
-        waiting = list(
+        open_followups = list(
             (
                 await session.scalars(
                     select(Followup.title)
@@ -213,7 +251,7 @@ class Coordinator:
                 )
             ).all()
         )
-        suffix = system_suffix(ctx, memories, waiting)
+        suffix = system_suffix(ctx, memories, open_followups)
         runs: list[AgentRun] = []
         attachments, image_context = await self._read_images(session, ctx, attachment_ids, emit)
         model_text = with_image_context(text, image_context)
@@ -222,7 +260,63 @@ class Coordinator:
         final_member: Member = self.team.coordinator
         final_messages = [*history, ChatMessage("user", model_text)]
         final_delegate: Any = None
-        if conversation.mode is ConversationMode.ONBOARDING and self.team.onboarding is not None:
+        # Instruction each yaver got this turn (the open question's context).
+        instructions: dict[str, str] = {}
+
+        waiting = PendingAction.load(conversation.pending_action)
+        conversation.pending_action = None  # answered now, or replaced at the end
+        binding = None
+        if (
+            waiting is not None
+            and not waiting.expired(ctx.now)
+            and conversation.mode is ConversationMode.CHAT
+            and addressed is None
+            and not attachments
+        ):
+            binding = bind(waiting, text)
+            if binding.kind == "reply" and requests_a_change(text):
+                # "Geçen salı EE211'e gitmedim" after Karen's question: a new request (live
+                # run), not an answer; picked options ("evet, kaydet") are not affected
+                binding = Binding("other")
+            logger.info(
+                "Open question of %s, answer %r -> %s", waiting.agent_id, text, binding.kind
+            )
+        answering = None
+        if waiting is not None and binding is not None and binding.kind in ("option", "reply"):
+            answering = self._member(waiting.agent_id)
+            if answering is self.team.coordinator and binding.kind == "reply":
+                answering = None  # the coordinator sees its own question in the history
+
+        if waiting is not None and binding is not None and answering is not None:
+            final_member = answering
+            final_messages = [
+                ChatMessage("user", waiting.request),
+                ChatMessage("assistant", waiting.question),
+                ChatMessage("user", model_text),
+            ]
+            note = reply_note(waiting)
+            done = False
+            if binding.option is not None:
+                tool_name, arguments = waiting.call(binding.option)
+                result = await self._run_bound(ctx, answering, tool_name, arguments, emit)
+                left = observe(answering.id, waiting.request, tool_name, arguments, result)
+                done = "error" not in result and left is None
+                if done:
+                    note = done_note(tool_name, arguments, dump_result(result))
+                else:
+                    note += f"\nKod şunu denedi: {tool_name}({arguments}) -> {dump_result(result)}"
+            final = await run_agent(
+                self.llm,
+                answering,
+                final_messages,
+                ctx,
+                system_suffix=f"{suffix}\n{note}",
+                max_steps=self.max_steps,
+                emit=emit,
+                stream_text=True,
+                use_tools=not done,
+            )
+        elif conversation.mode is ConversationMode.ONBOARDING and self.team.onboarding is not None:
             final_member = self.team.onboarding
             final = await run_agent(
                 self.llm,
@@ -261,6 +355,7 @@ class Coordinator:
                     return {"error": "unknown agent_id or empty instruction"}
                 if agent.id in delegated:  # one delegation per yaver per message
                     return {"already_done": True, **delegated[agent.id]}
+                instructions[agent.id] = instruction
                 if emit is not None:
                     await emit(
                         {
@@ -309,7 +404,7 @@ class Coordinator:
         if (
             not ctx.actions
             and not ctx.new_proposals  # an image's table shown for confirmation: no tool yet
-            and (claims_a_change(final.reply) or (not ctx.trace and requests_a_change(text)))
+            and (claims_a_change(final.reply) or (not worked(ctx) and requests_a_change(text)))
         ):
             # Live runs: after a few "gitmedim" messages Haiku answered the next one with
             # "kaydettim" - or with an apology - and no tool call at all. One more turn: do it
@@ -335,9 +430,17 @@ class Coordinator:
                 stream_text=True,
             )
 
+        if not final.reply.strip() and ctx.actions:
+            final.reply = "Tamam, yaptım."  # never an empty bubble after a change
+        if looks_english(final.reply):
+            await self._rewrite_in_turkish(final, final_member, emit)
         reply_text = dedupe_questions(final.reply)
         if reply_text != final.reply:
             logger.info("Dropped a repeated question from the final answer: %r", final.reply)
+        still_open = self._still_open(
+            ctx, runs, final, reply_text, instructions, waiting if answering else None, model_text
+        )
+        conversation.pending_action = still_open.dump() if still_open else None
         changed = bool(ctx.recorder.entries)
         stored_set = change_set_id if changed else None
         user_message = Message(
@@ -396,6 +499,98 @@ class Coordinator:
                 for resp in run.responses
             ],
         )
+
+    def _member(self, agent_id: str) -> Member | None:
+        if agent_id == self.team.coordinator.id:
+            return self.team.coordinator
+        return self.team.get(agent_id)
+
+    async def _run_bound(
+        self,
+        ctx: ToolContext,
+        member: Member,
+        tool_name: str,
+        arguments: dict[str, Any],
+        emit: Emit | None,
+    ) -> dict[str, Any]:
+        """The tool call the user's short answer picked, run by the code for `member`."""
+        ctx.agent_id = ctx.recorder.agent_id = member.id
+        result = await run_tool(tool_name, arguments, ctx)
+        step: dict[str, Any] = {
+            "agent_id": member.id,
+            "tool": tool_name,
+            "arguments": arguments,
+            "error": result.get("error"),
+            "bound": True,
+        }
+        ctx.trace.append(step)
+        if emit is not None:
+            tool = REGISTRY.get(tool_name)
+            await emit({"type": "tool", **step, "mutates": bool(tool and tool.mutates)})
+        return result
+
+    def _still_open(
+        self,
+        ctx: ToolContext,
+        runs: list[AgentRun],
+        final: AgentRun,
+        reply_text: str,
+        instructions: dict[str, str],
+        answered: PendingAction | None,
+        user_text: str,
+    ) -> PendingAction | None:
+        """The question this answer leaves open, if exactly one yaver asked one."""
+        coordinator = self.team.coordinator.id
+        if len(ctx.new_proposals) == 1:  # a table shown for "evet"
+            pending = proposal_pending(coordinator, user_text, next(iter(ctx.new_proposals)))
+        elif "?" not in reply_text:
+            return None
+        else:
+            asking = {run.agent_id for run in runs if "?" in run.reply}
+            if final.agent_id != coordinator:
+                asking.add(final.agent_id)
+            ask = ctx.asks[-1] if ctx.asks else None
+            if ask is not None and asking <= {ask.agent_id}:
+                pending = ask
+            elif ask is None and len(asking) == 1:
+                agent_id = asking.pop()
+                request = instructions.get(agent_id) or (
+                    answered.request if answered is not None else user_text
+                )
+                pending = PendingAction(agent_id, request)
+            else:
+                return None  # several yavers asked: the coordinator sorts out the answer
+        if answered is not None and pending.agent_id == answered.agent_id:
+            pending.request = answered.request  # still the same job
+        # the yaver's own words: it reads them back as its last message
+        own = [run.reply for run in runs if run.agent_id == pending.agent_id]
+        pending.question = own[-1] if own else reply_text
+        pending.created_at = ctx.now.isoformat()
+        return pending
+
+    async def _rewrite_in_turkish(self, final: AgentRun, member: Member, emit: Emit | None) -> None:
+        """One rewrite of an English answer; the streamed English text is replaced."""
+        logger.warning("Answer in English, rewriting: %r", final.reply)
+        response = await self.llm.complete(
+            LLMRequest(
+                messages=[ChatMessage("user", final.reply)],
+                system=TURKISH_REWRITE,
+                max_tokens=1024,
+                cache=False,
+            ),
+            purpose="language_fix",
+            tier=member.tier,
+            agent_id=member.id,
+        )
+        final.responses.append(response)
+        fixed = response.text.strip()
+        if not fixed or looks_english(fixed):
+            logger.warning("Rewrite still not Turkish: %r", fixed)
+            return
+        final.reply = fixed
+        if emit is not None:
+            await emit({"type": "reset", "agent_id": final.agent_id})
+            await emit({"type": "text", "agent_id": final.agent_id, "delta": fixed})
 
     async def _conversation(
         self,

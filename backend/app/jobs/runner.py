@@ -7,12 +7,14 @@ the message is written once.
 
 import datetime as dt
 import logging
+import re
 from typing import Any, Literal
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.agent.pending import proposal_pending
 from app.agent.team import Team, get_team, load_team_config
 from app.config import Settings, get_settings
 from app.db.models import Conversation, JobRun, Message
@@ -25,6 +27,7 @@ from app.llm.router import get_router
 from app.services.push import Notification, preview, send_push
 
 logger = logging.getLogger(__name__)
+PROPOSAL_NOTE = re.compile(r"öneri #(\d+)")
 
 JobId = Literal["briefing", "checkin", "followups", "weekly_plan", "exam_prep"]
 JOB_IDS: tuple[JobId, ...] = ("briefing", "checkin", "followups", "weekly_plan", "exam_prep")
@@ -186,5 +189,12 @@ async def _post(
     )
     session.add(message)
     conversation.updated_at = now
+    # A newer message from Yaver: an older open question is not what the user answers next.
+    conversation.pending_action = None
+    proposals = PROPOSAL_NOTE.findall(context or "")
+    if len(proposals) == 1:  # a draft table: the user's "evet" saves it (app.agent.pending)
+        pending = proposal_pending(team.coordinator.id, text, int(proposals[0]))
+        pending.question, pending.created_at = text, now.isoformat()
+        conversation.pending_action = pending.dump()
     await session.flush()
     return message.id

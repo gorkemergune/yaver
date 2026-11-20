@@ -143,12 +143,10 @@ async def test_syllabus_is_proposed_then_saved_and_searchable(
     assert proposal is not None
     assert proposal.kind is ProposalKind.SYLLABUS
 
-    def delegate(request: LLMRequest) -> LLMResponse:
-        return call("delegate", agent_id="academic", instruction="Öneri #1'i uygula")
-
-    fake.add("yaver", delegate, say("Atlas: syllabus'u kaydetti."))
-    fake.add("academic", call("apply_proposal", proposal_id=1), say("Kaydedildi."))
+    # "evet" to the open proposal: applied by the code (app.agent.pending)
+    fake.add("yaver", say("Syllabus'u kaydettim."))
     done = await yaver.handle(session, "evet", conversation_id=first.conversation_id, now=NOW)
+    assert [t["tool"] for t in done.trace] == ["apply_proposal"]
     fake.assert_done()
 
     assert await count(session, SyllabusWeek) == 3

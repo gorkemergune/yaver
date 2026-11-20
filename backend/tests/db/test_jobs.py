@@ -354,3 +354,37 @@ async def test_run_a_job_now_over_http(week: AsyncSession, settings: Settings) -
 
     assert first == {"job": "followups", "message_id": None}  # nothing due
     assert unknown.status_code == 404
+
+
+async def test_yes_to_the_weekly_plan_saves_it_in_code(
+    week: AsyncSession, settings: Settings
+) -> None:
+    from app.db.models import Conversation, Task
+    from tests.agent_fakes import NOW, ScriptedLLM, coordinator, say
+
+    llm = draft_llm({"title": "Rapor", "why": "hafta içinde"})
+    message_id = await run_job(
+        "weekly_plan",
+        now=at(22, 20),
+        settings=settings,
+        sessionmaker=async_sessionmaker(week.bind, expire_on_commit=False),
+        team=example_team(),
+        llm=llm,
+    )
+    message = await week.get(Message, message_id)
+    assert message is not None
+    conversation = await week.get(Conversation, message.conversation_id)
+    assert conversation is not None
+    await week.refresh(conversation)
+    assert conversation.pending_action is not None
+    assert conversation.pending_action["tool"] == "apply_proposal"
+
+    chat = ScriptedLLM()
+    chat.add("yaver", say("Planı görevlere yazdım."))  # one answer, no tool turn
+    reply = await coordinator(chat).handle(week, "Evet", conversation_id=conversation.id, now=NOW)
+    assert [(t["tool"], t["arguments"]) for t in reply.trace] == [
+        ("apply_proposal", {"proposal_id": 1})
+    ]
+    assert reply.change_set_id is not None
+    assert "Rapor" in [t.title for t in (await week.scalars(select(Task))).all()]  # + seeded
+    chat.assert_done()

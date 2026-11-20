@@ -87,7 +87,7 @@ yaver/
 - `memories` — kalıcı bilgiler ("Cuma günleri Medipol'deyim"): category, content, active
 - `course_materials` + `material_chunks` (pgvector) — syllabus, notlar, slaytlar; week_no
 - `study_sheets` — course_id, week_no, content_md, model
-- `conversations`, `messages` — `messages.agent_id` hangi yaverin konuştuğunu tutar
+- `conversations`, `messages` — `messages.agent_id` hangi yaverin konuştuğunu tutar; `conversations.pending_action` ekibin cevap beklediği soru (aşağıda)
 - `change_log` — change_set_id, entity, entity_id, op, before_json, after_json
 - `llm_usage` — provider, model, tier, purpose, in/out/cached tokens, cost_usd
 - `push_subscriptions` — Web Push
@@ -132,6 +132,8 @@ Kurallar:
 - İlk kurulum: `conversations.mode = onboarding` olan konuşma kurulum asistanına (`prompts/onboarding.md.j2`) gider; `finish_onboarding` normal sohbete çevirir. Yapıştırılan ders programı `propose_schedule` ile öneriye (`schedule_proposals`) dönüşür, tablo gösterilir, ancak kullanıcı onaylayınca `apply_schedule` tek change_set ile yazar. Uzun metin `routing.purposes.schedule_parse` (smart) ile ayrıştırılır.
 - Görseller: önce `POST /api/uploads` (yeniden kodlanır: EXIF/konum yok, HEIC→JPEG, uzun kenar `IMAGE_MAX_EDGE`), sonra mesaj `attachment_ids` ile. `agent/vision.py` görseli ekipten önce kodda okur; sadece Claude okur (vision olmayan sağlayıcıyı router atlar, Groq'a görsel gitmez). Ekip sonucu `[Görsel N ... -> öneri #N]` metni olarak görür; `messages.context`'te saklanır, geçmişle tekrar gider. Ders programı/etkinlik önerisi aynı mesajda uygulanamaz (`apply_proposal` ve `add_event`/`add_recurring_block` kodda engellenir), kullanıcı "evet" deyince uygulanır. Duyuru tarihleri modelden "yazıldığı gibi" alınır, kodda çözülür; gün adı tutmayan / tek gün olmayan tarih "belirsiz".
 - PDF'ler: `POST /api/uploads` olduğu gibi saklar (`attachments.filename` atıf için). `agent/documents.py` metni kodda çıkarır (pypdf), `document_classify` (fast) ne olduğunu söyler; syllabus `syllabus_parse` (Sonnet) ile `öneri #N` (kind=syllabus) olur, "evet" ile `syllabus_weeks` + `course_materials` + `material_chunks` yazılır. Embedding yerel (fastembed, çok dilli MiniLM, 384 boyut, `MODEL_CACHE_DIR`); model ~128 token okuduğu için parçalar ~500 karakter. `search_materials` / `get_syllabus` Friday'de; cevapta kaynak "(dosya, s. N)".
+- Bekleyen soru (`agent/pending.py`, `conversations.pending_action`): bir araç sonucu açık soru bırakırsa (`log_attendance` başka gün önerir, `candidates` döner, öneri tablosu gösterilir) her seçenek o işi bitiren araç çağrısı olarak saklanır. Kullanıcının kısa cevabı ("evet", "çarşamba", "2.si", "lab olan") kodda bir seçeneğe eşlenirse araç kodda çalışır, soran yaver sonucu araçsız tek turda bildirir. Eşlenmeyen kısa cevap soran yavere kendi sorusuyla birlikte gider; "hayır", soru ya da uzun mesaj normal akışa (koordinatör) gider. Her mesaj durumu yeniler; zamanlayıcı mesajı eskisini siler, 24 saatte düşer.
+- Dil: son cevap İngilizce görünürse (`looks_english`) bir kez Türkçeye çevrilir (`language_fix`), akışta metin değiştirilir.
 - Prompt boyutu: `PYTHONPATH=. uv run python scripts/measure_prompts.py` (ajan başına token). Prompt/araç eklerken ölç; her çağrıda giden metin Groq kotasını doğrudan yer.
 
 ## LLM router

@@ -2,6 +2,7 @@
 several matches: the tool returns the candidates and the agent asks."""
 
 import datetime as dt
+import re
 from collections.abc import Sequence
 
 from sqlalchemy import select
@@ -108,6 +109,9 @@ async def find_blocks(
     ctx: ToolContext, query: str, *, weekday: int | None = None
 ) -> Sequence[RecurringBlock]:
     blocks = (await ctx.session.scalars(select(RecurringBlock))).all()
+    by_id = re.fullmatch(r"#(\d+)", query.strip())
+    if by_id:  # a candidate the user picked (app.agent.pending)
+        return [b for b in blocks if b.id == int(by_id.group(1))]
     courses = {c.id: c for c in (await ctx.session.scalars(select(Course))).all()}
     found = []
     for block in blocks:
