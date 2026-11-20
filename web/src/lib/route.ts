@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 // Not in the navigation, opened by link: "sheet" (#/sheet?id=3), "design-preview".
-export const ROUTES = ["chat", "today", "tomorrow", "week", "status", "sheet", "design-preview"] as const;
+export const ROUTES = ["office", "chat", "today", "tomorrow", "week", "status", "sheet", "design-preview"] as const;
 export type Route = (typeof ROUTES)[number];
 
 /** `#/week?week=2026-11-16` -> ["week", "week=2026-11-16"] */
@@ -14,7 +14,7 @@ function hashParts(): [string, string] {
 function current(): Route {
   if (window.location.pathname === "/design-preview") return "design-preview";
   const [path] = hashParts();
-  return (ROUTES as readonly string[]).includes(path) ? (path as Route) : "chat";
+  return (ROUTES as readonly string[]).includes(path) ? (path as Route) : "office"; // the office is home
 }
 
 function useHashChange<T>(read: () => T): T {

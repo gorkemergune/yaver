@@ -27,6 +27,13 @@ export const ChatIcon = (p: IconProps) => (
     <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12Z" />
   </Icon>
 );
+/** An isometric desk: the office. */
+export const OfficeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M3 9.5 12 5l9 4.5-9 4.5-9-4.5Z" />
+    <path d="M3 9.5v5L12 19l9-4.5v-5M12 14v5" />
+  </Icon>
+);
 export const SunriseIcon = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="4" />

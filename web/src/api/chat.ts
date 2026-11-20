@@ -22,3 +22,24 @@ export async function streamChat(
   }
   for await (const event of readEvents<ChatEvent>(response.body)) onEvent(event);
 }
+
+/** POST /api/employees/{id}/chat/stream: a direct chat with one employee (same events). */
+export async function streamEmployeeChat(
+  employeeId: string,
+  message: string,
+  conversationId: number | null,
+  onEvent: (event: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(`/api/employees/${encodeURIComponent(employeeId)}/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ message, conversation_id: conversationId }),
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    onEvent({ type: "error", code: "network" });
+    return;
+  }
+  for await (const event of readEvents<ChatEvent>(response.body)) onEvent(event);
+}

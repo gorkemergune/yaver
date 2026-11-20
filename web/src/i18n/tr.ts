@@ -23,7 +23,7 @@ export const tr = {
   },
   office: {
     title: "Ofis",
-    hint: "Bir çalışana ya da sol alttaki listeden ismine tıkla.",
+    hint: "Bir çalışana ya da listeden ismine tıkla.",
     sceneLabel: "Ofis sahnesi",
     listLabel: "Çalışan durumları",
     atDesk: (n: number, total: number) => `${String(n)} / ${String(total)} çalışan masasında`,
@@ -53,6 +53,7 @@ export const tr = {
       meeting: (name: string, task: string | null) => (task ? `${name} ile toplantıda: ${task}` : `${name} ile toplantıda`),
       meetingAlone: "toplantı odasında",
       done: "işini bitirdi",
+      noted: (content: string) => `deftere yazdı: ${content}`,
       waiting: "cevabını bekliyor",
       budget: "günlük bütçesini doldurdu; mesai işleri durdu",
     },

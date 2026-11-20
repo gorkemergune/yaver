@@ -13,6 +13,7 @@ import {
   GaugeIcon,
   MonitorIcon,
   MoonIcon,
+  OfficeIcon,
   SunriseIcon,
 } from "./components/icons";
 import { tr } from "./i18n/tr";
@@ -21,16 +22,25 @@ import { useTheme } from "./lib/theme";
 import { DayView } from "./plan/DayView";
 import { WeekView } from "./plan/WeekView";
 import { budgetTone, money } from "./lib/format";
+import { OfficeView } from "./office/OfficeView";
 import { StatusView } from "./status/StatusView";
 import { SheetView } from "./study/SheetView";
 
-const NAV: { route: Route; label: string; icon: ReactNode }[] = [
+// Takvim holds the Bugün / Yarın / Hafta views (their old links still work).
+const CALENDAR: Route[] = ["today", "tomorrow", "week"];
+const NAV: { route: Route; label: string; icon: ReactNode; also?: Route[] }[] = [
+  { route: "office", label: tr.nav.office, icon: <OfficeIcon /> },
   { route: "chat", label: tr.nav.chat, icon: <ChatIcon /> },
-  { route: "today", label: tr.nav.today, icon: <SunriseIcon /> },
-  { route: "tomorrow", label: tr.nav.tomorrow, icon: <ArrowRightIcon /> },
-  { route: "week", label: tr.nav.week, icon: <CalendarIcon /> },
+  { route: "today", label: tr.nav.calendar, icon: <CalendarIcon />, also: CALENDAR },
   { route: "status", label: tr.nav.status, icon: <GaugeIcon /> },
 ];
+const CALENDAR_TABS: { route: Route; label: string; icon: ReactNode }[] = [
+  { route: "today", label: tr.nav.today, icon: <SunriseIcon width={16} height={16} /> },
+  { route: "tomorrow", label: tr.nav.tomorrow, icon: <ArrowRightIcon width={16} height={16} /> },
+  { route: "week", label: tr.nav.week, icon: <CalendarIcon width={16} height={16} /> },
+];
+
+const isActive = (item: (typeof NAV)[number], route: Route): boolean => item.route === route || !!item.also?.includes(route);
 
 const DesignPreview = lazy(() => import("./design/DesignPreview").then((m) => ({ default: m.DesignPreview })));
 
@@ -51,7 +61,9 @@ export function App() {
       <Backdrop />
       <Header route={route} />
       <main className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
+        {route === "office" && <OfficeView />}
         {route === "chat" && <ChatView />}
+        {CALENDAR.includes(route) && <CalendarTabs route={route} />}
         {route === "today" && <DayView offset={0} />}
         {route === "tomorrow" && <DayView offset={1} />}
         {route === "week" && <WeekView />}
@@ -68,14 +80,14 @@ function Header({ route }: { route: Route }) {
   const themeIcon = { system: <MonitorIcon />, light: <SunriseIcon />, dark: <MoonIcon /> }[theme];
   return (
     <header className="yv-glass border-x-0 border-t-0 pt-[env(safe-area-inset-top)] print:hidden">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-3">
-        <a href={href("chat")} className="flex items-center gap-2">
+      <div className="mx-auto flex h-14 max-w-[1500px] items-center gap-3 px-3 sm:px-6">
+        <a href={href("office")} className="flex items-center gap-2">
           <img src="/favicon.svg" alt="" className="h-7 w-7" />
           <span className="font-grotesk text-xl font-semibold tracking-tight">{tr.appName}</span>
         </a>
         <nav className="ml-4 hidden gap-1 md:flex">
           {NAV.map((item) => (
-            <NavLink key={item.route} item={item} active={route === item.route} inline />
+            <NavLink key={item.route} item={item} active={isActive(item, route)} inline />
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
@@ -122,10 +134,10 @@ function SpendPill() {
 function BottomNav({ route }: { route: Route }) {
   return (
     <nav className="px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1 md:hidden print:hidden">
-      <ul className="yv-glass grid grid-cols-5 rounded-full p-1">
+      <ul className="yv-glass grid grid-cols-4 rounded-full p-1">
         {NAV.map((item) => (
           <li key={item.route}>
-            <NavLink item={item} active={route === item.route} />
+            <NavLink item={item} active={isActive(item, route)} />
           </li>
         ))}
       </ul>
@@ -165,5 +177,31 @@ function NavLink({
       {item.icon}
       {item.label}
     </a>
+  );
+}
+
+/** Bugün / Yarın / Hafta inside the Takvim tab. */
+function CalendarTabs({ route }: { route: Route }) {
+  return (
+    <nav aria-label={tr.nav.calendar} className="mx-auto flex max-w-3xl justify-center px-3 pt-3 print:hidden">
+      <ul className="yv-glass inline-flex gap-1 rounded-full p-1">
+        {CALENDAR_TABS.map((tab) => (
+          <li key={tab.route}>
+            <a
+              href={href(tab.route)}
+              aria-current={route === tab.route ? "page" : undefined}
+              className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors ${
+                route === tab.route
+                  ? "bg-white/70 text-indigo-700 shadow-sm dark:bg-white/12 dark:text-white"
+                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }

@@ -17,6 +17,8 @@ interface Props {
   onRemoveImage: (id: string) => void;
   onVoiceText: (text: string) => void;
   onVoiceError: (code: string) => void;
+  /** Full width of its container (the office), not the chat's centred column. */
+  wide?: boolean;
 }
 
 export function Composer({
@@ -29,6 +31,7 @@ export function Composer({
   onRemoveImage,
   onVoiceText,
   onVoiceError,
+  wide = false,
 }: Props) {
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -68,7 +71,10 @@ export function Composer({
   }
 
   return (
-    <form onSubmit={submit} className="yv-glass mx-2 mb-2 rounded-3xl md:mx-auto md:mb-3 md:w-full md:max-w-2xl">
+    <form
+      onSubmit={submit}
+      className={`yv-glass rounded-3xl ${wide ? "w-full" : "mx-2 mb-2 md:mx-auto md:mb-3 md:w-full md:max-w-2xl"}`}
+    >
       <ImageStrip images={images} onRemove={onRemoveImage} />
       <div className="flex items-end gap-1 p-2">
         {/* Push-to-talk: hold and release to send; a short tap records until the next tap. */}

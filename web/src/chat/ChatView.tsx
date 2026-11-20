@@ -190,7 +190,7 @@ export function ChatView() {
   );
 }
 
-function Answer({
+export function Answer({
   item,
   members,
   undo,
