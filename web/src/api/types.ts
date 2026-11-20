@@ -223,3 +223,64 @@ export type ChatEvent =
   | { type: "status"; agent_id: string; code: "reading_images"; count: number }
   | DoneEvent
   | { type: "error"; code: string };
+
+// --- the office (app/api/office.py, app/api/employees.py) ------------------------------
+
+export type Activity = "working" | "meeting" | "break" | "off";
+
+export interface EmployeeState {
+  employee_id: string;
+  activity: Activity;
+  task: string | null;
+  tool: string | null;
+  meeting_with: string | null;
+  needs_user: boolean;
+  needs_user_reason: "question" | "budget" | null;
+  since: string;
+  ts: string;
+}
+
+export interface OfficeEmployee extends EmployeeState {
+  id: string;
+  name: string;
+  role: string;
+  color: string;
+  desk: { row: "office" | "back" | "front"; col: number };
+  is_coordinator: boolean;
+  domain: string;
+  shift: string;
+  daily_budget_usd: number | null;
+  spent_today_usd: number;
+}
+
+export interface OfficeSnapshot {
+  ready: boolean;
+  employees: OfficeEmployee[];
+  ts: string;
+}
+
+export interface EmployeeNote {
+  id: number;
+  content: string;
+  source?: string;
+  created_at: string | null;
+}
+
+export type OfficeEvent =
+  | ({ type: "snapshot" } & OfficeSnapshot)
+  | ({ type: "state" } & EmployeeState)
+  | { type: "note"; employee_id: string; note: EmployeeNote; ts: string };
+
+export interface EmployeeTask {
+  id: number;
+  source: "user" | "yaver" | "shift";
+  requested_by: string | null;
+  instruction: string;
+  status: "running" | "done" | "failed";
+  result: string | null;
+  conversation_id: number | null;
+  change_set_id: string | null;
+  tools: string[];
+  started_at: string | null;
+  finished_at: string | null;
+}
