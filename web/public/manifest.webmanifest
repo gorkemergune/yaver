@@ -1,0 +1,16 @@
+{
+  "name": "Yaver",
+  "short_name": "Yaver",
+  "description": "Sohbetle yönetilen kişisel asistan",
+  "lang": "tr",
+  "start_url": "/#/chat",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#060914",
+  "theme_color": "#060914",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

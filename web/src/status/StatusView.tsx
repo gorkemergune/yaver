@@ -9,6 +9,8 @@ import type { CourseAttendance } from "../api/types";
 import { tr } from "../i18n/tr";
 import { budgetTone, money } from "../lib/format";
 import { Notice } from "../plan/DayView";
+import { Card } from "./Card";
+import { PushCard } from "./PushCard";
 import { weekRange } from "../plan/week";
 import { href } from "../lib/route";
 
@@ -18,20 +20,13 @@ export function StatusView() {
       <TermCard />
       <TeamCard />
       <AttendanceCard />
+      <PushCard />
       <SpendCard />
       <SessionCard />
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="yv-glass yv-rise rounded-3xl p-4">
-      <h2 className="font-grotesk mb-3 text-lg font-semibold tracking-tight">{title}</h2>
-      {children}
-    </section>
-  );
-}
 
 function Bar({ ratio, tone }: { ratio: number; tone: "ok" | "warn" | "bad" }) {
   const color = { ok: "bg-emerald-500", warn: "bg-amber-500", bad: "bg-rose-500" }[tone];

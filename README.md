@@ -43,7 +43,7 @@ Add your own specialists in `config/agents.yaml`.
 | First-run setup | ✅ | A setup chat: term, holidays, schedule pasted or photographed, limits, sport, fixed facts |
 | Images | ✅ | Send a timetable photo or an exam poster: Claude reads it, you confirm the table, it's written |
 | Voice | ✅ web | Hold the mic and talk (Groq Whisper); iPhone Siri Shortcut later |
-| Proactive | ✅ in chat | Morning briefing, evening check-in with quick replies, follow-up questions, Sunday weekly plan draft (push notifications later) |
+| Proactive | ✅ | Morning briefing, evening check-in with quick replies, follow-up questions, Sunday weekly plan draft; in the chat and as Web Push notifications (status page → Bildirimler; iPhone: add to home screen first) |
 | Backups | ✅ | Daily automatic `pg_dump`, scripts to take and restore backups |
 | Budget guard | ✅ | LLM spend per month, Sonnet -> Haiku at 80%, Claude off at 100% |
 | Study (RAG) | Phase 3 | Syllabus + notes -> weekly summaries and study sheets |

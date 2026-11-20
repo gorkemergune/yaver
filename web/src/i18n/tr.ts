@@ -147,6 +147,22 @@ export const tr = {
     absentCourse: (course: string, hours: number) => `${course}: gelmedin · ${String(hours)} saat`,
     movedAway: "taşındı",
   },
+  push: {
+    title: "Bildirimler",
+    states: {
+      on: "Açık: sabah brifingi, akşam check-in ve takip soruları bu cihaza bildirim olarak da gelir.",
+      off: "Kapalı. Açarsan brifing, check-in ve takipler bildirim olarak da gelir.",
+      denied: "Bu site için bildirimler engellenmiş. Tarayıcı ayarlarından izin verip sayfayı yenile.",
+      "server-off": "Sunucuda VAPID anahtarları yok (.env: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT).",
+      unsupported: "Bu tarayıcı bildirim desteklemiyor (telefonda HTTPS gerekir).",
+      "ios-browser": "iPhone'da önce Safari → Paylaş → Ana Ekrana Ekle; sonra Yaver'i ana ekrandan açıp buradan aç.",
+    } as Record<string, string>,
+    enable: "Bildirimleri aç",
+    disable: "Kapat",
+    test: "Deneme bildirimi gönder",
+    sent: (n: number) => (n ? `${String(n)} cihaza gönderildi.` : "Gönderilecek cihaz yok."),
+    failed: "Olmadı; bağlantıyı kontrol et.",
+  },
   login: {
     subtitle: "Devam etmek için parolanı gir",
     password: "Parola",

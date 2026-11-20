@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { AUTH_KEY } from "./api/auth";
 import { ApiError } from "./api/client";
+import { registerServiceWorker } from "./lib/push";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/space-grotesk";
 import "./design/design.css";
@@ -24,6 +25,14 @@ const queryClient: QueryClient = new QueryClient({
     queries: { staleTime: 30_000, refetchOnWindowFocus: true },
   },
 });
+
+registerServiceWorker();
+// A push arrived while the app is open: the new chat message shows up right away.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event: MessageEvent<{ type?: string }>) => {
+    if (event.data.type === "push") void queryClient.invalidateQueries();
+  });
+}
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root element not found");

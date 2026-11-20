@@ -13,6 +13,11 @@ body,
   height: 100%;
 }
 
+/* native parts (scrollbars, inputs) follow the theme */
+html.dark {
+  color-scheme: dark;
+}
+
 /* Aurora: a deep night (light: a pale morning) with drifting colour fields behind frosted
    glass. The fields live in <Backdrop/>; panels use .yv-glass. */
 body {
