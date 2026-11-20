@@ -69,12 +69,22 @@ def database_url() -> str:
     return url
 
 
+# Empty every table and restart the ids, in one round trip. DELETE (children first) on
+# the near-empty test tables is much faster than TRUNCATE, which takes an exclusive lock and
+# rewrites files for each table; ids restart because tests rely on them ("öneri #1").
+RESET_SQL = (
+    "DO $$ DECLARE s record; BEGIN "
+    + " ".join(f"DELETE FROM {table.name};" for table in reversed(Base.metadata.sorted_tables))
+    + " FOR s IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP"
+    " EXECUTE format('ALTER SEQUENCE %I RESTART', s.sequencename); END LOOP; END $$"
+)
+
+
 @pytest.fixture
 async def session(database_url: str) -> AsyncIterator[AsyncSession]:
     engine = create_async_engine(database_url, poolclass=pool.NullPool, connect_args=CONNECT_ARGS)
-    tables = ", ".join(table.name for table in Base.metadata.sorted_tables)
     async with engine.begin() as conn:
-        await conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+        await conn.exec_driver_sql(RESET_SQL)
     async with async_sessionmaker(engine, expire_on_commit=False)() as db_session:
         yield db_session
     await engine.dispose()

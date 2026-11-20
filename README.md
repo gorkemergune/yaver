@@ -2,7 +2,7 @@
 
 > Self-hosted, chat & voice-first personal AI assistant for students. Tell it what changed — it updates your schedule, attendance, exams, workouts and study notes for you.
 
-**Status:** 🚧 Early development (Phase 0)
+**Status:** Phase 0 done, Phase 1 (proactive assistant) under way. Single user, self-hosted.
 
 ## Why
 
@@ -32,27 +32,32 @@ Yaver isn't one assistant — it's a small team. You always talk to the coordina
 
 Add your own specialists in `config/agents.yaml`.
 
-## Features (planned)
+## Features
 
-| Area | What it does |
-|---|---|
-| Schedule | Weekly classes, labs, workouts; one-off events; cancellations & make-up classes |
-| Attendance | Counts absences per course, warns before you hit the limit |
-| Exams & deadlines | Exam calendar, countdowns, quiz reminders |
-| Follow-ups | "Remind me every day until X happens" (applications, emails, replies) |
-| Study | Upload syllabus + lecture notes → weekly summaries and study sheets (RAG) |
-| Proactive | Morning / evening briefings, Sunday weekly planning session |
-| Voice | Speak instead of type (Whisper), iPhone Siri Shortcut support |
-| Desktop companion | Floating assistant icon on Windows / macOS, screen-time tracking & app limits |
-| Budget guard | Tracks LLM spend per month, auto-downgrades models when near the limit |
+| Area | Status | What it does |
+|---|---|---|
+| Chat-first editing | ✅ | Say what changed; the team writes it, shows a change card, one "Geri al" undoes the whole message |
+| Schedule | ✅ | Weekly classes, labs, workouts; one-off events; cancellations, moves, holidays; Today / Week views with a live "şu an" line |
+| Attendance | ✅ | Absences in class hours, per class block ("19 Kasım 09:00-11:00: 2 saat"), limits in hours, absences from before Yaver as a baseline |
+| Dates in plain Turkish | ✅ | "geçen salı", "haftaya cuma 14'te", "27 Kasım Cuma", "5 12 17 19 kasım" - resolved in code, never guessed by the model |
+| First-run setup | ✅ | A setup chat: term, holidays, schedule pasted or photographed, limits, sport, fixed facts |
+| Images | ✅ | Send a timetable photo or an exam poster: Claude reads it, you confirm the table, it's written |
+| Voice | ✅ web | Hold the mic and talk (Groq Whisper); iPhone Siri Shortcut later |
+| Proactive | ✅ in chat | Morning briefing, evening check-in with quick replies, follow-up questions, Sunday weekly plan draft (push notifications later) |
+| Backups | ✅ | Daily automatic `pg_dump`, scripts to take and restore backups |
+| Budget guard | ✅ | LLM spend per month, Sonnet -> Haiku at 80%, Claude off at 100% |
+| Study (RAG) | Phase 3 | Syllabus + notes -> weekly summaries and study sheets |
+| Desktop companion | Phase 4 | Floating assistant on Windows / macOS, screen time and app limits |
 
 ## Architecture
 
 ```
-iPhone (PWA + Siri Shortcut) ─┐
-Browser (PWA)                 ├─► Core (Docker): FastAPI + Postgres/pgvector + Scheduler + LLM agent
-Desktop companion (Tauri)    ─┘        │
-                                       └─► LLM router: Groq (free) → Claude Haiku → Claude Sonnet / Ollama
+iPhone / browser (PWA) ──► web (React, nginx) ──► api (FastAPI) ──► Postgres 16 + pgvector
+                                                    │  ├─ coordinator + yavers (tool calling, one change set per message)
+                                                    │  ├─ scheduler (APScheduler, jobs in Postgres): briefing, check-in, weekly plan
+                                                    │  └─ daily pg_dump backup
+                                                    └─► LLM router: Groq ⇄ Claude Haiku → Claude Sonnet (smart) / Ollama
+                                                        images: Claude only · voice: Groq Whisper
 ```
 
 - **Local-first:** runs on your own machine with `docker compose up`.
@@ -60,15 +65,24 @@ Desktop companion (Tauri)    ─┘        │
 - **BYOK:** bring your own API keys. A free Groq key is enough to start.
 - **Remote access:** reach it from your phone through [Tailscale](https://tailscale.com) (free, HTTPS included).
 
-## Quick start (once Phase 0 lands)
+## Quick start
 
 ```bash
 git clone https://github.com/gorkemergune/yaver.git
 cd yaver
-cp .env.example .env      # add at least GROQ_API_KEY
-docker compose up -d
-# open http://localhost:8080
+cp .env.example .env      # add at least GROQ_API_KEY (ANTHROPIC_API_KEY for images / smart tier)
+docker compose up -d --build
+docker compose exec api alembic upgrade head
+# open http://localhost:8080 - the first chat walks you through the setup
 ```
+
+Check a running stack: `.\scripts\smoke.ps1` (health, API, a real chat message and its undo;
+`-NoChat` skips the model call). Development: `docker compose exec api pytest` (backend,
+~14 s), `cd web && npm run check` (frontend); live model tests are opt-in: `pytest -m live`.
+
+Try the scheduled messages without waiting: `curl -X POST "localhost:8000/api/jobs/briefing/run?force=true"`
+(also `checkin`, `followups`, `weekly_plan`). Times: `BRIEFING_TIME`, `CHECKIN_TIME`,
+`FOLLOWUP_TIME`, `WEEKLY_PLAN_TIME` in `.env`.
 
 ## Backups
 
