@@ -84,6 +84,19 @@ class CancelledOccurrence:
 
 
 @dataclass(frozen=True, slots=True)
+class MovedAway:
+    """An occurrence of this day that was moved elsewhere (shown as "eski -> yeni")."""
+
+    block_id: int
+    kind: str
+    title: str
+    start: dt.datetime  # where it would have been
+    new_start: dt.datetime
+    new_end: dt.datetime
+    reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class Conflict:
     first: PlanItem
     second: PlanItem
@@ -108,6 +121,7 @@ class DayPlan:
     terms: list[str]
     tasks: list[PlanTask]
     week_tasks: list[PlanTask]
+    moved_away: list[MovedAway] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -273,6 +287,7 @@ def compute_day_plan(day: dt.date, tz: ZoneInfo, sources: PlanSources) -> DayPla
 
     items: list[PlanItem] = []
     cancelled: list[CancelledOccurrence] = []
+    moved_away: list[MovedAway] = []
 
     # Regular occurrences: yesterday's (may run past midnight) and today's.
     for on in (day - ONE_DAY, day):
@@ -291,7 +306,21 @@ def compute_day_plan(day: dt.date, tz: ZoneInfo, sources: PlanSources) -> DayPla
                         block.id, block.kind.value, block.title, start, end, override.reason
                     )
                 )
-            # OverrideAction.MOVE: shown wherever it landed (handled below).
+            elif (
+                on == day and override.new_start_at is not None and override.new_end_at is not None
+            ):
+                # shown wherever it landed (below); here only as "moved away"
+                moved_away.append(
+                    MovedAway(
+                        block.id,
+                        block.kind.value,
+                        block.title,
+                        start,
+                        override.new_start_at.astimezone(tz),
+                        override.new_end_at.astimezone(tz),
+                        override.reason,
+                    )
+                )
 
     # Moved occurrences landing in this window, from any original date.
     for override in sources.overrides:
@@ -335,6 +364,7 @@ def compute_day_plan(day: dt.date, tz: ZoneInfo, sources: PlanSources) -> DayPla
             for t in active_tasks
             if t.scope is TaskScope.WEEK and t.week_start == monday
         ],
+        moved_away=moved_away,
     )
 
 

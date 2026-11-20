@@ -155,6 +155,7 @@ def _load_tool_modules() -> None:
         screen,
         setup,
         undo,
+        weeks,
     )
 
 

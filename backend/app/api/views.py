@@ -14,12 +14,22 @@ from app.api.uploads import attachment_view
 from app.config import get_settings
 from app.core.change_log import describe_changes
 from app.core.time_resolver import week_start
-from app.db.models import Attachment, ChangeLog, Conversation, Message, RecurringBlock, Term
-from app.db.models.enums import ConversationMode, MessageRole
+from app.db.models import (
+    Attachment,
+    Attendance,
+    ChangeLog,
+    Conversation,
+    Course,
+    Message,
+    RecurringBlock,
+    Term,
+)
+from app.db.models.enums import AttendanceStatus, ConversationMode, MessageRole
 from app.db.session import get_session
 from app.services.attendance import all_course_summaries
 from app.services.plan_view import plan_to_dict
 from app.services.schedule import get_day_plan
+from app.services.weeks import current_term, term_mondays, week_facts, weeks_facts
 
 router = APIRouter(tags=["views"])
 
@@ -106,13 +116,67 @@ async def week_plan(
     date: dt.date | None = Query(None, description="any day of the week; default today"),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
+    """Any week, past or future: past days carry their absences (red, in hours)."""
     today = _today()
+    tz = get_settings().tz
     monday = week_start(date or today)
+    sunday = monday + dt.timedelta(days=6)
+    missed: dict[dt.date, list[dict[str, Any]]] = defaultdict(list)
+    rows = await session.execute(
+        select(Attendance, Course.code)
+        .join(Course, Course.id == Attendance.course_id)
+        .where(
+            Attendance.date.between(monday, sunday),
+            Attendance.status != AttendanceStatus.PRESENT,
+        )
+        .order_by(Attendance.date, Attendance.id)
+    )
+    for record, code in rows.all():
+        missed[record.date].append(
+            {
+                "course": code,
+                "hours": record.hours,
+                "status": record.status.value,
+                "block_id": record.recurring_block_id,
+            }
+        )
     days = []
     for offset in range(7):
-        plan = await get_day_plan(session, monday + dt.timedelta(days=offset), get_settings().tz)
-        days.append(plan_to_dict(plan))
-    return {"today": today.isoformat(), "week_start": monday.isoformat(), "days": days}
+        day = monday + dt.timedelta(days=offset)
+        data = plan_to_dict(await get_day_plan(session, day, tz))
+        if missed.get(day):
+            data["attendance"] = missed[day]
+        days.append(data)
+    facts = await week_facts(session, monday, tz)
+    return {
+        "today": today.isoformat(),
+        "week_start": monday.isoformat(),
+        "week": facts.as_dict(),
+        "days": days,
+    }
+
+
+@router.get("/terms/weeks")
+async def term_weeks(
+    term_id: int | None = Query(None, description="default: the current term"),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Every week of a term with its label, exams and absences (the status page list)."""
+    today = _today()
+    term = await session.get(Term, term_id) if term_id else await current_term(session, today)
+    if term is None:
+        return {"term": None, "weeks": [], "current_week_start": week_start(today).isoformat()}
+    facts = await weeks_facts(session, term_mondays(term), get_settings().tz)
+    return {
+        "term": {
+            "id": term.id,
+            "name": term.name,
+            "start_date": term.start_date.isoformat(),
+            "end_date": term.end_date.isoformat(),
+        },
+        "current_week_start": week_start(today).isoformat(),
+        "weeks": [f.as_dict() for f in facts],
+    }
 
 
 @router.get("/attendance")

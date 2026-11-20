@@ -38,6 +38,7 @@ agents:
       - delete_attendance
       - set_attendance_baseline  # absence hours from before Yaver
       - set_absence_limit
+      - set_week_label           # "bu haftanın adı Hackathon Haftası olsun"
       - search_materials         # Faz 3
       - generate_study_sheet     # Faz 3, tier=smart
     briefing_section: Dersler
@@ -61,6 +62,7 @@ agents:
       - update_followup
       - add_task
       - complete_task
+      - set_week_label
     briefing_section: Ajanda
 
   - id: discipline
@@ -76,7 +78,7 @@ agents:
       - log_workout              # Faz 1
       - add_task
       - complete_task
-      - get_screen_time          # Faz 4
+      - get_screen_time          # sent by the desktop app
       - set_app_limit            # Faz 4
       - grant_limit_extension    # Faz 4
     briefing_section: Disiplin

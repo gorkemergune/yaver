@@ -149,6 +149,7 @@ _CARD_FIELDS = (
     "name",
     "absence_limit",
     "week_start",
+    "label",
     "reason",
 )
 

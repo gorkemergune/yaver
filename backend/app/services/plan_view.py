@@ -48,6 +48,18 @@ def plan_to_dict(plan: DayPlan) -> dict[str, Any]:
             {"block_id": c.block_id, "title": c.title, "start": hhmm(c.start), "reason": c.reason}
             for c in plan.cancelled
         ]
+    if plan.moved_away:
+        data["moved_away"] = [
+            {
+                "block_id": m.block_id,
+                "title": m.title,
+                "start": hhmm(m.start),
+                "moved_to": m.new_start.strftime("%Y-%m-%d %H:%M"),
+                "moved_to_end": hhmm(m.new_end),
+                "reason": m.reason,
+            }
+            for m in plan.moved_away
+        ]
     if plan.conflicts:
         data["conflicts"] = [[c.first.title, c.second.title] for c in plan.conflicts]
     if plan.holidays:

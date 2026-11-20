@@ -14,6 +14,7 @@ from app.db.models.schedule import (
     RecurringBlock,
 )
 from app.db.models.screen import ScreenTimeDay
+from app.db.models.weeks import WeekLabel
 
 __all__ = [
     "Attachment",
@@ -35,4 +36,5 @@ __all__ = [
     "ScreenTimeDay",
     "Task",
     "Term",
+    "WeekLabel",
 ]
