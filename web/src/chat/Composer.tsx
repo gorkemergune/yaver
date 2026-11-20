@@ -51,7 +51,7 @@ export function Composer({ value, onChange, onSend, busy, images, onAddFiles, on
   }
 
   return (
-    <form onSubmit={submit} className="border-t border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+    <form onSubmit={submit} className="yv-glass mx-2 mb-2 rounded-3xl md:mx-auto md:mb-3 md:w-full md:max-w-2xl">
       <ImageStrip images={images} onRemove={onRemoveImage} />
       <div className="flex items-end gap-1 p-2">
         {/* Faz 2: voice input (Whisper). Reserved now so the layout doesn't move later. */}
@@ -97,13 +97,13 @@ export function Composer({ value, onChange, onSend, busy, images, onAddFiles, on
           placeholder={busy ? tr.chat.sending : tr.chat.inputPlaceholder}
           rows={1}
           enterKeyHint="send"
-          className="max-h-40 min-h-11 flex-1 resize-none rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-base outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900"
+          className="max-h-40 min-h-11 flex-1 resize-none rounded-2xl border border-transparent bg-white/70 px-4 py-2.5 text-base outline-none placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:bg-white/5 dark:placeholder:text-slate-500"
         />
         <button
           type="submit"
           disabled={!canSend}
           aria-label={tr.chat.send}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-[0_8px_20px_-8px_rgba(99,102,241,0.9)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <SendIcon width={18} height={18} />
         </button>

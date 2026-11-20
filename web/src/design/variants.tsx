@@ -9,6 +9,7 @@ export interface VariantProps {
   userName: string;
   members: Record<Role, PreviewMember>;
   tab?: Tab;
+  plainAnswers?: boolean; // the applied design: A, with B's answers (no bubbles)
 }
 
 export type Tab = "chat" | "today";
@@ -18,7 +19,7 @@ export type Tab = "chat" | "today";
    type (Space Grotesk), glowing orb avatars, a floating glass tab bar.
    ====================================================================================== */
 
-export function Aurora({ dark, userName, members, tab: initialTab = "chat" }: VariantProps) {
+export function Aurora({ dark, userName, members, tab: initialTab = "chat", plainAnswers = false }: VariantProps) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const minutes = useNowMinutes();
   const t = dark
@@ -85,7 +86,11 @@ export function Aurora({ dark, userName, members, tab: initialTab = "chat" }: Va
                 {line.kind === "user" ? (
                   <p className={`ml-auto w-fit max-w-[82%] rounded-3xl rounded-br-lg px-4 py-2.5 text-[0.95rem] ${t.user}`}>{line.text}</p>
                 ) : (
-                  <AuroraLine line={line} members={members} t={t} />
+                  plainAnswers ? (
+                    <PlainLine line={line} members={members} t={t} />
+                  ) : (
+                    <AuroraLine line={line} members={members} t={t} />
+                  )
                 )}
               </Rise>
             ))}
@@ -155,6 +160,44 @@ function AuroraLine({
             <p className="text-[0.95rem] leading-snug">
               {sentence(line.text)}
             </p>
+            {line.change && (
+              <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${t.chip}`}>
+                <span aria-hidden>↺</span> {line.change}
+                <span className="whitespace-nowrap font-semibold">· Geri al</span>
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The applied design: A's orb, B's plain text (no bubble). */
+function PlainLine({
+  line,
+  members,
+  t,
+}: {
+  line: Exclude<(typeof CHAT)[number], { kind: "user" }>;
+  members: Record<Role, PreviewMember>;
+  t: { muted: string; chip: string };
+}) {
+  const member = members[line.member];
+  return (
+    <div className="flex gap-3">
+      <Avatar member={member} shape="orb" size={32} />
+      <div className="min-w-0 flex-1">
+        <p className="font-grotesk text-[0.8rem] font-semibold tracking-wide" style={{ color: member.color }}>
+          {member.name}
+        </p>
+        {line.kind === "typing" ? (
+          <div className="py-2">
+            <TypingDots color={member.color} />
+          </div>
+        ) : (
+          <>
+            <p className="mt-0.5 text-[0.97rem] leading-relaxed">{sentence(line.text)}</p>
             {line.change && (
               <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${t.chip}`}>
                 <span aria-hidden>↺</span> {line.change}

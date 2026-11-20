@@ -67,6 +67,9 @@ export const tr = {
   },
   design: {
     title: "Tasarım önizleme",
+    newTitle: "Uygulanan · A + B yazısı",
+    newNote: "Uygulamaya giren hali: Aurora'nın arka planı, camı ve küreleri; yaver cevapları B gibi balonsuz.",
+    newShort: "Yeni",
     aTitle: "A · Aurora",
     aNote: "Serin gece: süzülen renk alanları, buzlu cam kartlar, geometrik yazı (Space Grotesk), parlayan yaver küreleri.",
     bTitle: "B · Kor",
@@ -75,7 +78,7 @@ export const tr = {
     dark: "Koyu",
     light: "Açık",
     replay: "Animasyonları oynat",
-    pick: "Hangisini uygulayayım? A, B ya da ikisinden parçalar (ör. A'nın arka planı + B'nin yazısı) söylemen yeterli.",
+    pick: "Uygulanan tasarım uygulamanın kendisinde de açık; A ve B karşılaştırma için duruyor.",
   },
   onboarding: {
     title: "Yaver'i birlikte kuralım",
@@ -116,6 +119,7 @@ export const tr = {
     loading: "Yükleniyor…",
     error: "Plan alınamadı.",
     today: "bugün",
+    now: "şu an",
     showDetails: "Ayrıntıları göster",
     hideDetails: "Ayrıntıları gizle",
     detail: { time: "Saat", kind: "Tür", place: "Yer", note: "Not", moved: "Değişiklik" },

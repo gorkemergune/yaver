@@ -1,5 +1,6 @@
 import { useAttendance, useMonthUsage, useTeam, useTeamActivity } from "../api/queries";
 import { AgentTag } from "../components/AgentTag";
+import { YaverAvatar } from "../components/Yaver";
 import { describeChange } from "../lib/changes";
 import type { CourseAttendance } from "../api/types";
 import { tr } from "../i18n/tr";
@@ -18,8 +19,8 @@ export function StatusView() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <h2 className="mb-3 font-semibold">{title}</h2>
+    <section className="yv-glass yv-rise rounded-3xl p-4">
+      <h2 className="font-grotesk mb-3 text-lg font-semibold tracking-tight">{title}</h2>
       {children}
     </section>
   );
@@ -28,7 +29,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function Bar({ ratio, tone }: { ratio: number; tone: "ok" | "warn" | "bad" }) {
   const color = { ok: "bg-emerald-500", warn: "bg-amber-500", bad: "bg-rose-500" }[tone];
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+    <div className="h-2 overflow-hidden rounded-full bg-slate-900/10 dark:bg-white/10">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${String(Math.min(ratio, 1) * 100)}%` }} />
     </div>
   );
@@ -47,7 +48,10 @@ function TeamCard() {
           const recent = activity.data?.activity[member.id] ?? [];
           return (
             <li key={member.id}>
-              <AgentTag member={member} fallback={member.name} />
+              <span className="flex items-center gap-2">
+                <YaverAvatar member={member} size={28} />
+                <AgentTag member={member} fallback={member.name} />
+              </span>
               {member.domain && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{member.domain}</p>}
               {recent.length > 0 ? (
                 <ul className="mt-1 space-y-0.5 text-xs text-slate-500 dark:text-slate-400">

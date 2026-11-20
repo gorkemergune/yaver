@@ -4,6 +4,7 @@ import { useDayPlan } from "../api/queries";
 import type { DayPlan, PlanItem } from "../api/types";
 import { tr } from "../i18n/tr";
 import { shortDate } from "../lib/changes";
+import { toMinutes, useNowMinutes } from "../design/time";
 import { detailLines } from "./details";
 import { kindColor } from "./kinds";
 
@@ -28,14 +29,20 @@ export function DayCard({ day, today, expanded = false }: { day: DayPlan; today:
   const allDay = day.items.filter((item) => item.all_day);
   const timed = day.items.filter((item) => !item.all_day);
   const empty = day.items.length === 0 && !day.cancelled?.length && !day.tasks?.length;
+  const nowMinutes = useNowMinutes();
+  // the line goes before the first item that has not started yet
+  const nowIndex = (() => {
+    const found = timed.findIndex((item) => toMinutes(item.start ?? "00:00") > nowMinutes);
+    return found === -1 ? timed.length : found;
+  })();
   return (
     <section
-      className={`@container min-w-0 rounded-2xl bg-white shadow-sm ring-1 dark:bg-slate-900 ${expanded ? "p-4" : "p-3"} ${
-        isToday ? "ring-indigo-300 dark:ring-indigo-700" : "ring-slate-200 dark:ring-slate-800"
+      className={`yv-glass yv-rise @container min-w-0 rounded-3xl ${expanded ? "p-4" : "p-3"} ${
+        isToday ? "ring-2 ring-indigo-400/50 dark:ring-indigo-400/40" : ""
       }`}
     >
       <header className="mb-3 flex items-baseline justify-between gap-2">
-        <h2 className={expanded ? "text-xl font-semibold" : "font-semibold"}>
+        <h2 className={`font-grotesk tracking-tight ${expanded ? "text-2xl font-semibold" : "font-semibold"}`}>
           {day.weekday}{" "}
           <span className="font-normal text-slate-500 dark:text-slate-400">{shortDate(day.date).replace(/\s\S+$/, "")}</span>
         </h2>
@@ -60,9 +67,13 @@ export function DayCard({ day, today, expanded = false }: { day: DayPlan; today:
         <p className="text-sm text-slate-500 dark:text-slate-400">{tr.plan.empty}</p>
       ) : (
         <ol className="space-y-1.5">
-          {timed.map((item) => (
-            <Row key={`${item.type}-${String(item.id)}`} item={item} compact={!expanded} />
+          {timed.map((item, index) => (
+            <Fragment key={`${item.type}-${String(item.id)}`}>
+              {isToday && expanded && nowIndex === index && <NowLine minutes={nowMinutes} />}
+              <Row item={item} compact={!expanded} />
+            </Fragment>
           ))}
+          {isToday && expanded && timed.length > 0 && nowIndex === timed.length && <NowLine minutes={nowMinutes} />}
           {day.cancelled?.map((cancelled) => (
             <li
               key={`c-${String(cancelled.block_id)}`}
@@ -116,8 +127,8 @@ function Row({ item, compact }: { item: PlanItem; compact: boolean }) {
         }}
         aria-expanded={open}
         title={open ? tr.plan.hideDetails : tr.plan.showDetails}
-        className="min-w-0 flex-1 rounded-lg border-l-4 bg-slate-50 px-3 py-1.5 text-left hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:bg-slate-800/60 dark:hover:bg-slate-800"
-        style={{ borderColor: color }}
+        className="min-w-0 flex-1 rounded-xl border-l-4 bg-white/55 px-3 py-1.5 text-left hover:bg-white/80 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:bg-white/[0.045] dark:hover:bg-white/[0.08]"
+        style={{ borderLeftColor: color }}
       >
         <span className={`block break-words font-medium leading-snug ${open ? "" : "line-clamp-2"}`}>{item.title}</span>
         {!compact && !open && (
@@ -149,6 +160,22 @@ function AllDay({ item }: { item: PlanItem }) {
       <span className={`break-words ${open ? "" : "line-clamp-2"}`}>{item.title}</span>
       {open && <Details item={item} />}
     </button>
+  );
+}
+
+/** Where "now" falls between today's items, with a pulsing dot. */
+function NowLine({ minutes }: { minutes: number }) {
+  const label = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  return (
+    <li className="flex items-center gap-2 py-0.5" aria-label={`${tr.plan.now} ${label}`}>
+      <span className="w-12 shrink-0 text-right text-xs font-semibold tabular-nums text-pink-500">{label}</span>
+      <span
+        className="yv-pulse h-2.5 w-2.5 shrink-0 rounded-full bg-pink-500"
+        style={{ ["--yv-pulse" as string]: "rgb(236 72 153 / 0.55)" }}
+      />
+      <span className="h-px flex-1 bg-gradient-to-r from-pink-500 to-pink-500/0" />
+      <span className="rounded-full bg-pink-500 px-1.5 text-[0.65rem] font-semibold text-white">{tr.plan.now}</span>
+    </li>
   );
 }
 

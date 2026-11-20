@@ -7,9 +7,10 @@ const ORDER: Theme[] = ["system", "light", "dark"];
 export function storedTheme(): Theme {
   try {
     const value = localStorage.getItem(KEY);
-    return value === "light" || value === "dark" ? value : "system";
+    // dark first: nothing stored (or anything unknown) -> dark
+    return value === "light" || value === "system" ? value : "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 }
 
@@ -22,7 +23,7 @@ export function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle("dark", dark);
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", dark ? "#020617" : "#f8fafc");
+    ?.setAttribute("content", dark ? "#060914" : "#eef2ff");
 }
 
 export function useTheme(): { theme: Theme; cycle: () => void } {

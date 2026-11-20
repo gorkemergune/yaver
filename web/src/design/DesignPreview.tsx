@@ -9,9 +9,10 @@ import { tr } from "../i18n/tr";
 import { DEFAULT_MEMBERS, type PreviewMember, type Role } from "./mock";
 import { Aurora, Ember, type VariantProps } from "./variants";
 
-type Show = "a" | "b" | "both";
+type Show = "new" | "a" | "b" | "both";
 
-const VARIANTS: { id: "a" | "b"; title: string; note: string; render: (p: VariantProps) => ReactNode }[] = [
+const VARIANTS: { id: "new" | "a" | "b"; title: string; note: string; render: (p: VariantProps) => ReactNode }[] = [
+  { id: "new", title: tr.design.newTitle, note: tr.design.newNote, render: (p) => <Aurora {...p} plainAnswers /> },
   { id: "a", title: tr.design.aTitle, note: tr.design.aNote, render: (p) => <Aurora {...p} /> },
   { id: "b", title: tr.design.bTitle, note: tr.design.bNote, render: (p) => <Ember {...p} /> },
 ];
@@ -22,8 +23,8 @@ export function DesignPreview() {
   const params = new URLSearchParams(window.location.search);
   const [show, setShow] = useState<Show>(() => {
     const asked = params.get("show");
-    if (asked === "a" || asked === "b" || asked === "both") return asked;
-    return window.matchMedia("(min-width: 900px)").matches ? "both" : "a";
+    if (asked === "new" || asked === "a" || asked === "b" || asked === "both") return asked;
+    return window.matchMedia("(min-width: 900px)").matches ? "both" : "new";
   });
   const [dark, setDark] = useState(params.get("theme") !== "light"); // ?theme=light&show=a
   const [replay, setReplay] = useState(0);
@@ -57,6 +58,7 @@ export function DesignPreview() {
               value={show}
               onChange={setShow}
               options={[
+                ["new", tr.design.newShort],
                 ["a", "A"],
                 ["b", "B"],
                 ["both", tr.design.both],
@@ -85,7 +87,7 @@ export function DesignPreview() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-6xl flex-wrap justify-center gap-8 px-0 py-6 sm:px-4">
+      <main className="mx-auto flex max-w-[1400px] flex-wrap justify-center gap-8 px-0 py-6 sm:px-4">
         {visible.map((variant) => (
           <section key={`${variant.id}-${String(replay)}-${String(dark)}`} className="w-full min-w-0 max-w-[400px]">
             <div className="mb-3 px-4 sm:px-0">

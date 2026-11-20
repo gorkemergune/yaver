@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useOnboardingStatus } from "../api/queries";
-import type { Member } from "../api/types";
-import { AgentTag } from "../components/AgentTag";
+import type { Member, Team } from "../api/types";
+import { YaverAvatar } from "../components/Yaver";
 import { PlusIcon } from "../components/icons";
 import { Markdown } from "../components/Markdown";
 import { tr } from "../i18n/tr";
+import { TypingDots } from "../design/parts";
 import { ChangeCard } from "./ChangeCard";
+import { Greeting } from "./Greeting";
 import { MAX_IMAGES, imageFiles } from "../api/uploads";
 import { Composer } from "./Composer";
 import { Thumb, type PendingImage } from "./ImageStrip";
@@ -100,12 +102,15 @@ export function ChatView() {
             }}
           />
         ) : chat.items.length === 0 ? (
-          <Empty onPick={setDraft} />
+          <Empty onPick={setDraft} team={chat.team} />
         ) : (
-          <ul className="mx-auto flex max-w-2xl flex-col gap-4">
+          <ul className="mx-auto flex max-w-2xl flex-col gap-5">
+            <li className="pb-1 pt-2">
+              <Greeting team={chat.team} />
+            </li>
             {chat.items.map((item) =>
               item.kind === "user" ? (
-                <li key={item.id} className="flex flex-col items-end gap-1">
+                <li key={item.id} className="yv-rise flex flex-col items-end gap-1">
                   {item.images.length > 0 && (
                     <div className="flex max-w-[85%] flex-wrap justify-end gap-1">
                       {item.images.map((image) => (
@@ -116,7 +121,7 @@ export function ChatView() {
                     </div>
                   )}
                   {item.text && (
-                    <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2 text-white">
+                    <p className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-gradient-to-br from-indigo-500 to-violet-600 px-4 py-2.5 text-white shadow-[0_10px_30px_-14px_rgba(99,102,241,0.8)]">
                       {item.text}
                     </p>
                   )}
@@ -178,19 +183,29 @@ function Answer({
   onUndo: (changeSetId: string) => void;
 }) {
   const speaker = item.speaker ? members[item.speaker] : undefined;
+  const color = speaker?.color ?? "#6366f1";
+  // A yaver's answer is plain text next to its orb (no bubble): the name in its colour,
+  // then the words, then what it did.
   return (
-    <li className="flex flex-col items-start">
-      <div className="w-full max-w-[92%] rounded-2xl rounded-bl-md bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-        <div className="mb-1.5">
-          <AgentTag member={speaker} fallback={tr.appName} />
+    <li className="yv-rise flex gap-3">
+      <span className="pt-0.5">
+        <YaverAvatar member={speaker} id={item.speaker ?? undefined} size={32} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-grotesk text-[0.8rem] font-semibold tracking-wide" style={{ color }}>
+          {speaker?.name ?? tr.appName}
+        </p>
+        <div className="mt-0.5 text-[0.97rem] leading-relaxed">
+          {item.text ? (
+            <Markdown text={item.text} />
+          ) : item.streaming ? (
+            <div className="py-2">
+              <TypingDots color={color} />
+            </div>
+          ) : null}
         </div>
-        {item.text ? (
-          <Markdown text={item.text} />
-        ) : item.streaming ? (
-          <Typing />
-        ) : null}
         {item.status && item.streaming && (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status">
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300" role="status">
             {item.status.code === "reading_images"
               ? tr.chat.readingImages(item.status.count)
               : tr.chat.waiting(item.status.provider)}
@@ -215,20 +230,6 @@ function Answer({
         )}
       </div>
     </li>
-  );
-}
-
-function Typing() {
-  return (
-    <span className="inline-flex items-center gap-1 py-1 text-slate-400" aria-label={tr.chat.thinking}>
-      {[0, 150, 300].map((delay) => (
-        <span
-          key={delay}
-          className="h-1.5 w-1.5 animate-bounce rounded-full bg-current"
-          style={{ animationDelay: `${String(delay)}ms` }}
-        />
-      ))}
-    </span>
   );
 }
 
@@ -257,7 +258,7 @@ function OnboardingCard({ busy, onStart, onSkip }: { busy: boolean; onStart: () 
       <img src="/favicon.svg" alt="" className="h-12 w-12 self-center" />
       <h2 className="text-center text-2xl font-semibold">{tr.onboarding.title}</h2>
       <p className="text-center text-sm text-slate-500 dark:text-slate-400">{tr.onboarding.intro}</p>
-      <ul className="space-y-1.5 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <ul className="yv-glass space-y-1.5 rounded-3xl p-4 text-sm">
         {tr.onboarding.steps.map((step) => (
           <li key={step} className="flex gap-2">
             <span className="text-indigo-500" aria-hidden>
@@ -289,21 +290,23 @@ function OnboardingCard({ busy, onStart, onSkip }: { busy: boolean; onStart: () 
   );
 }
 
-function Empty({ onPick }: { onPick: (text: string) => void }) {
+function Empty({ onPick, team }: { onPick: (text: string) => void; team: Team | undefined }) {
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-4 text-center">
-      <img src="/favicon.svg" alt="" className="h-12 w-12" />
-      <h2 className="text-2xl font-semibold">{tr.chat.emptyTitle}</h2>
-      <p className="text-sm text-slate-500 dark:text-slate-400">{tr.chat.emptyHint}</p>
+    <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-5 text-center">
+      <Greeting team={team} large />
+      <p className="yv-rise text-sm text-slate-600 dark:text-slate-300" style={{ animationDelay: "120ms" }}>
+        {tr.chat.emptyHint}
+      </p>
       <div className="flex flex-wrap justify-center gap-2">
-        {tr.chat.examples.map((example) => (
+        {tr.chat.examples.map((example, index) => (
           <button
             key={example}
             type="button"
             onClick={() => {
               onPick(example);
             }}
-            className="rounded-full border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="yv-glass yv-rise rounded-full px-3.5 py-2 text-sm text-slate-700 hover:bg-white/80 dark:text-slate-200 dark:hover:bg-white/10"
+            style={{ animationDelay: `${String(200 + index * 70)}ms` }}
           >
             {example}
           </button>

@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 
 import { useMonthUsage } from "./api/queries";
 import { ChatView } from "./chat/ChatView";
+import { Backdrop } from "./components/Backdrop";
 import { ConnectionStatus } from "./components/ConnectionStatus";
 import {
   ArrowRightIcon,
@@ -41,6 +42,7 @@ export function App() {
   }
   return (
     <div className="flex h-dvh flex-col">
+      <Backdrop />
       <Header route={route} />
       <main className="min-h-0 flex-1 overflow-y-auto">
         {route === "chat" && <ChatView />}
@@ -58,11 +60,11 @@ function Header({ route }: { route: Route }) {
   const { theme, cycle } = useTheme();
   const themeIcon = { system: <MonitorIcon />, light: <SunriseIcon />, dark: <MoonIcon /> }[theme];
   return (
-    <header className="border-b border-slate-200 bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+    <header className="yv-glass border-x-0 border-t-0 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-3">
         <a href={href("chat")} className="flex items-center gap-2">
           <img src="/favicon.svg" alt="" className="h-7 w-7" />
-          <span className="text-lg font-semibold">{tr.appName}</span>
+          <span className="font-grotesk text-xl font-semibold tracking-tight">{tr.appName}</span>
         </a>
         <nav className="ml-4 hidden gap-1 md:flex">
           {NAV.map((item) => (
@@ -79,7 +81,7 @@ function Header({ route }: { route: Route }) {
             onClick={cycle}
             title={tr.theme[theme]}
             aria-label={tr.theme[theme]}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-600 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10"
           >
             {themeIcon}
           </button>
@@ -95,7 +97,7 @@ function SpendPill() {
   if (!usage.data) return null;
   const { budget } = usage.data;
   const tone = {
-    ok: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    ok: "yv-glass text-slate-700 dark:text-slate-300",
     warn: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
     bad: "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300",
   }[budgetTone(budget.level)];
@@ -112,8 +114,8 @@ function SpendPill() {
 
 function BottomNav({ route }: { route: Route }) {
   return (
-    <nav className="border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-slate-800 dark:bg-slate-950/95">
-      <ul className="grid grid-cols-5">
+    <nav className="px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1 md:hidden">
+      <ul className="yv-glass grid grid-cols-5 rounded-full p-1">
         {NAV.map((item) => (
           <li key={item.route}>
             <NavLink item={item} active={route === item.route} />
@@ -134,14 +136,14 @@ function NavLink({
   inline?: boolean;
 }) {
   const color = active
-    ? "text-indigo-600 dark:text-indigo-400"
+    ? "text-indigo-700 dark:text-white"
     : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200";
   if (inline) {
     return (
       <a
         href={href(item.route)}
         aria-current={active ? "page" : undefined}
-        className={`rounded-lg px-3 py-1.5 text-sm font-medium ${color} ${active ? "bg-indigo-50 dark:bg-indigo-950/50" : ""}`}
+        className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${color} ${active ? "bg-white/70 shadow-sm dark:bg-white/12" : ""}`}
       >
         {item.label}
       </a>
@@ -151,7 +153,7 @@ function NavLink({
     <a
       href={href(item.route)}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${color}`}
+      className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-full text-[11px] font-medium transition-colors ${color} ${active ? "bg-white/70 dark:bg-white/12" : ""}`}
     >
       {item.icon}
       {item.label}

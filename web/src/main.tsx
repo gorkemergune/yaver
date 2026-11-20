@@ -4,6 +4,8 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/space-grotesk";
+import "./design/design.css";
 import "./index.css";
 
 const queryClient = new QueryClient({

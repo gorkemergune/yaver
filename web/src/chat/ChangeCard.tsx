@@ -19,8 +19,8 @@ export function ChangeCard({ changes, undone, pending, failed, onUndo }: Props) 
     <div
       className={`mt-2 rounded-xl border p-3 text-sm ${
         undone
-          ? "border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40"
-          : "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/30"
+          ? "yv-inset text-slate-400"
+          : "border-emerald-300/60 bg-emerald-50/70 dark:border-emerald-400/25 dark:bg-emerald-400/10"
       }`}
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">

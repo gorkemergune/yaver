@@ -18,7 +18,7 @@ export function Steps({ steps, members }: { steps: AgentSteps[]; members: Record
               ? tr.steps.asked(step.name)
               : tr.steps.looked(step.name);
         return (
-          <details key={step.agentId} className="group rounded-lg bg-slate-100/80 dark:bg-slate-800/60">
+          <details key={step.agentId} className="yv-inset group rounded-xl">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-300 [&::-webkit-details-marker]:hidden">
               <ChevronIcon width={14} height={14} className="shrink-0 transition-transform group-open:rotate-90" />
               <span className="truncate">{label}</span>
