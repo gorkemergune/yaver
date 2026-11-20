@@ -154,12 +154,21 @@ async def test_live_scenarios(
         ]
         all_problems.extend(f"2: {agent} did {tool} (not its part)" for agent, tool in out_of_area)
 
-        # 3) attendance in the past
+        # 3) attendance on a day without that class: nothing written, the nearest past
+        #    class day is suggested (EE211 lab is on Wednesdays)
         third = await send("3", "Geçen salı EE211'e gitmedim")
+        assert await _count(session, Attendance) == 0
+        assert third.change_set_id is None
+        assert "18 kasim" in normalize(third.reply), third.reply
+
+        # 3b) the user confirms the suggested day: recorded in class hours, not asked again
+        confirmed = await send("3b", "Evet, çarşamba")
         attendance = (await session.scalars(select(Attendance))).all()
-        print(f"  DB attendance: {[(a.date, a.status.value) for a in attendance]}")
-        assert [(a.date, a.status.value) for a in attendance] == [(dt.date(2026, 11, 17), "absent")]
-        assert third.change_set_id is not None
+        print(f"  DB attendance: {[(a.date, a.status.value, a.hours) for a in attendance]}")
+        assert [(a.date, a.status.value, a.hours) for a in attendance] == [
+            (dt.date(2026, 11, 18), "absent", 2)
+        ]
+        assert confirmed.change_set_id is not None
 
         # 4) read-only question
         fourth = await send("4", "Yarın ne var?")
@@ -194,7 +203,12 @@ def _reply_problems(reply: ChatReply) -> list[str]:
     names = {member.name for member in [team.coordinator, *team.agents]}
     checked = {entry["agent_id"] for entry in reply.trace if entry["tool"] in PLAN_TOOLS}
     for agent in reply.agents:
-        says_none = re.search(r"\b(yok|bulunmuyor|gorunmuyor)\b", normalize(agent["reply"]))
+        # "spor yok", "ders görünmüyor" - not idioms like "kaçmak yok"
+        says_none = re.search(
+            r"\b(ders|spor|blok|etkinlik|toplanti|plan|program)\w*\b[^.!?]{0,40}"
+            r"\b(yok|bulunmuyor|gorunmuyor)\b",
+            normalize(agent["reply"]),
+        )
         if says_none and agent["agent_id"] not in checked:
             problems.append(f"{agent['name']} said 'yok' without checking the plan")
     final = normalize(reply.reply)

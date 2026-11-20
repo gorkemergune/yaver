@@ -195,3 +195,25 @@ async def test_a_change_claimed_without_a_tool_gets_one_more_turn(ctx: ToolConte
     hours = await ctx.session.scalar(select(func.sum(Attendance.hours)))
     assert hours == 2
     llm.assert_done()
+
+
+async def test_the_same_weekly_block_added_twice_is_one_block(ctx: ToolContext) -> None:
+    from app.db.models import RecurringBlock
+
+    args = {
+        "kind": "sport",
+        "weekdays": ["tuesday", "thursday"],
+        "start_time": "19:00",
+        "end_time": "20:00",
+    }
+    first = await run_tool("add_recurring_block", {**args, "title": "Spor"}, ctx)
+    second = await run_tool("add_recurring_block", {**args, "title": "spor"}, ctx)
+    third = await run_tool("add_recurring_block", {**args, "title": "Antrenman"}, ctx)
+
+    assert len(first["created"]) == 2
+    assert second.get("created", []) == []
+    assert third.get("created", []) == []  # same sport slot, no course: the same block
+    sports = await ctx.session.scalar(
+        select(func.count()).select_from(RecurringBlock).where(RecurringBlock.kind == "sport")
+    )
+    assert sports == 2

@@ -13,7 +13,7 @@ from app.agent.tools.matching import (
     find_or_create_course,
     single_block,
 )
-from app.core.time_resolver import WEEKDAY_NAMES_TR, week_start
+from app.core.time_resolver import WEEKDAY_NAMES_TR, normalize, week_start
 from app.db.models import BlockOverride, RecurringBlock
 from app.db.models.enums import ACADEMIC_BLOCK_KINDS, BlockKind, OverrideAction
 from app.services.plan_view import hhmm as _hhmm
@@ -90,12 +90,25 @@ async def create_weekly_blocks(ctx: ToolContext, args: AddBlockArgs) -> ToolResu
     created, existing = [], []
     for weekday_name in dict.fromkeys(args.weekdays):
         weekday = WEEKDAYS_EN.index(weekday_name)
-        duplicate = await ctx.session.scalar(
-            select(RecurringBlock).where(
-                RecurringBlock.weekday == weekday,
-                RecurringBlock.start_time == args.start_time,
-                RecurringBlock.title == args.title,
+        # Same slot and kind, and the same title (any case / spelling) or no course on either
+        # side: two yavers adding "Spor" and "spor" for one message is one block.
+        same_slot = (
+            await ctx.session.scalars(
+                select(RecurringBlock).where(
+                    RecurringBlock.weekday == weekday,
+                    RecurringBlock.start_time == args.start_time,
+                    RecurringBlock.kind == kind,
+                )
             )
+        ).all()
+        duplicate = next(
+            (
+                b
+                for b in same_slot
+                if normalize(b.title) == normalize(args.title)
+                or (b.course_id is None and course_id is None and b.end_time == args.end_time)
+            ),
+            None,
         )
         if duplicate is not None:
             existing.append(describe_block(duplicate))
