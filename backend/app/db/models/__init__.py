@@ -7,6 +7,7 @@ from app.db.models.conversation import Attachment, Conversation, Message
 from app.db.models.jobs import JobRun
 from app.db.models.planning import Followup, Memory, Task
 from app.db.models.proposals import Proposal
+from app.db.models.push import PushSubscription
 from app.db.models.schedule import (
     Attendance,
     AttendanceBaseline,
@@ -34,6 +35,7 @@ __all__ = [
     "Memory",
     "Message",
     "Proposal",
+    "PushSubscription",
     "RecurringBlock",
     "ScreenTimeDay",
     "Task",

@@ -16,6 +16,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "pydantic-settings>=2.6",
     "python-multipart>=0.0.20",
+    "pywebpush>=2.0",
     "pyyaml>=6.0",
     "sqlalchemy[asyncio]>=2.0.36",
     "tzdata>=2024.1",
@@ -84,9 +85,9 @@ files = ["app", "tests", "alembic/env.py"]
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
 
-# APScheduler 3.x ships no type information.
+# APScheduler 3.x and pywebpush ship no type information.
 [[tool.mypy.overrides]]
-module = ["apscheduler.*"]
+module = ["apscheduler.*", "pywebpush.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

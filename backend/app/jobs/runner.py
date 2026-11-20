@@ -21,11 +21,19 @@ from app.db.session import get_sessionmaker
 from app.jobs.content import Voice, build_briefing, build_checkin, build_followups
 from app.jobs.weekly_plan import draft_week
 from app.llm.router import get_router
+from app.services.push import Notification, preview, send_push
 
 logger = logging.getLogger(__name__)
 
 JobId = Literal["briefing", "checkin", "followups", "weekly_plan"]
 JOB_IDS: tuple[JobId, ...] = ("briefing", "checkin", "followups", "weekly_plan")
+# Notification titles; the body is the start of the chat message.
+PUSH_TITLES: dict[str, str] = {
+    "briefing": "Günaydın ☀️",
+    "checkin": "Akşam check-in 🌙",
+    "followups": "Takip: haber var mı?",
+    "weekly_plan": "Haftalık plan taslağı",
+}
 
 
 def parse_hhmm(value: str) -> dt.time:
@@ -71,8 +79,24 @@ async def run_job(
         except IntegrityError:  # another process wrote today's run first
             await session.rollback()
             return None
+        if text and message_id:
+            await _notify(session, settings, job_id, text, now)
     logger.info("Job %s for %s: %s", job_id, today, "sent" if message_id else "nothing to say")
     return message_id
+
+
+async def _notify(
+    session: AsyncSession, settings: Settings, job_id: JobId, text: str, now: dt.datetime
+) -> None:
+    """The message is in the chat already; a failed push must not fail the job."""
+    notification = Notification(
+        title=PUSH_TITLES[job_id], body=preview(text), url="/#/chat", tag=job_id
+    )
+    try:
+        await send_push(session, settings, notification, now)
+    except Exception:
+        logger.exception("Web Push for %s failed", job_id)
+        await session.rollback()
 
 
 async def _build(
