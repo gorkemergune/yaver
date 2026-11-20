@@ -1,5 +1,6 @@
 """Application settings, loaded from environment variables / `.env` (pydantic-settings)."""
 
+import datetime as dt
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -66,6 +67,12 @@ class Settings(BaseSettings):
     # Check on startup that the configured models exist (logs only, never blocks startup).
     llm_check_models_on_startup: bool = True
 
+    # --- Scheduler: briefing, evening check-in, follow-ups (local times, APP_TIMEZONE) ---
+    scheduler_enabled: bool = True
+    briefing_time: str = "08:00"
+    checkin_time: str = "21:00"
+    followup_time: str = "12:00"
+
     # --- Web Push (Phase 1) ---
     vapid_public_key: str | None = None
     vapid_private_key: SecretStr | None = None
@@ -90,6 +97,15 @@ class Settings(BaseSettings):
             morning=_hour_range(self.clock_morning_hours),
             afternoon=_hour_range(self.clock_afternoon_hours),
         )
+
+    @field_validator("briefing_time", "checkin_time", "followup_time")
+    @classmethod
+    def _hhmm(cls, value: str) -> str:
+        try:
+            dt.time.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError(f"expected HH:MM, got {value!r}") from exc
+        return value
 
     @field_validator("clock_morning_hours", "clock_afternoon_hours")
     @classmethod

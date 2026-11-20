@@ -28,6 +28,16 @@ def _database_url() -> str:
     return str(url) if url else get_settings().database_url
 
 
+# APScheduler keeps its jobs in its own table (created by the scheduler, not by us).
+EXTERNAL_TABLES = frozenset({"apscheduler_jobs"})
+
+
+def _include_object(
+    obj: object, name: str | None, type_: str, reflected: bool, compare_to: object
+) -> bool:
+    return not (type_ == "table" and name in EXTERNAL_TABLES)
+
+
 def _render_item(type_: str, obj: Any, autogen_context: AutogenContext) -> str | Literal[False]:
     # Migrations shouldn't import app code: render UTCDateTime as a plain timestamptz.
     if type_ == "type" and isinstance(obj, UTCDateTime):
@@ -40,6 +50,7 @@ def _configure(**kwargs: Any) -> None:
         target_metadata=target_metadata,
         compare_type=True,
         render_item=_render_item,
+        include_object=_include_object,
         **kwargs,
     )
 

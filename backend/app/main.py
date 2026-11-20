@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -9,9 +10,12 @@ from app import __version__
 from app.api import chat, health, uploads, usage, views
 from app.config import get_settings
 from app.db.session import dispose_engine
+from app.jobs.scheduler import catch_up, start_scheduler
 from app.llm.check_models import log_startup_check
 from app.llm.router import get_router
 from app.services.backup import backup_if_due
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -23,7 +27,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         background.append(asyncio.create_task(log_startup_check()))
     if settings.backup_on_startup:
         background.append(asyncio.create_task(backup_if_due(settings)))
+    scheduler = None
+    if settings.scheduler_enabled:
+        try:
+            scheduler = start_scheduler(settings)
+            background.append(asyncio.create_task(catch_up(settings)))
+        except Exception:  # the chat must work even if the scheduler can't start
+            logger.exception("Scheduler could not start")
     yield
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
     for task in background:
         if not task.done():
             task.cancel()

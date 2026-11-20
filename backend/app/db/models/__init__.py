@@ -3,6 +3,7 @@
 from app.db.models.academic import Course, Holiday, Term
 from app.db.models.audit import ChangeLog, LlmUsage
 from app.db.models.conversation import Attachment, Conversation, Message
+from app.db.models.jobs import JobRun
 from app.db.models.planning import Followup, Memory, Task
 from app.db.models.proposals import Proposal
 from app.db.models.schedule import (
@@ -24,6 +25,7 @@ __all__ = [
     "Event",
     "Followup",
     "Holiday",
+    "JobRun",
     "LlmUsage",
     "Memory",
     "Message",

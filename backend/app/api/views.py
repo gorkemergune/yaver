@@ -188,6 +188,7 @@ async def conversation_messages(
                 "created_at": row.created_at,
                 "change_set_id": str(row.change_set_id) if row.change_set_id else None,
                 "attachments": images.get(row.id, []),
+                "kind": row.kind,  # briefing / checkin / followup: written by the scheduler
             }
             for row in rows
             if row.role in (MessageRole.USER, MessageRole.ASSISTANT)

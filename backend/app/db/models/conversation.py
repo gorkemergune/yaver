@@ -48,6 +48,8 @@ class Message(CreatedAtMixin, Base):
     # What the code read from the message's images ("[Görsel 1: ders programı -> öneri #7]
     # + table"): replayed to the model with the history, not shown in the chat.
     context: Mapped[str | None] = mapped_column(Text)
+    # Messages Yaver writes on its own: "briefing", "checkin", "followup" (NULL = an answer).
+    kind: Mapped[str | None] = mapped_column(String(20))
 
 
 class Attachment(CreatedAtMixin, Base):
