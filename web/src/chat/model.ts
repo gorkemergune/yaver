@@ -36,7 +36,7 @@ export interface AssistantItem {
   undone: boolean;
   error: string | null;
   status: StatusLine | null; // waiting on Groq, reading images
-  origin: "briefing" | "checkin" | "followup" | "weekly_plan" | null; // a message Yaver wrote on its own
+  origin: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | null; // a message Yaver wrote on its own
 }
 
 export type ChatItem = UserItem | AssistantItem;

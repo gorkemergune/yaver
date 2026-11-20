@@ -211,7 +211,7 @@ async def test_scheduler_keeps_its_jobs_in_postgres(settings: Settings) -> None:
     scheduler = start_scheduler(settings)
     try:
         jobs = {job.id: job for job in scheduler.get_jobs()}
-        assert set(jobs) == {"briefing", "checkin", "followups", "weekly_plan"}
+        assert set(jobs) == {"briefing", "checkin", "followups", "weekly_plan", "exam_prep"}
         assert jobs["weekly_plan"].next_run_time.astimezone(IST).weekday() == 6  # Sunday
         assert jobs["checkin"].next_run_time.astimezone(IST).time() == dt.time(21, 0)
         assert jobs["briefing"].misfire_grace_time == 8 * 3600

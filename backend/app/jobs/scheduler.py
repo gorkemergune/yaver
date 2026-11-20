@@ -42,6 +42,7 @@ def plans(settings: Settings) -> list[Plan]:
         Plan("briefing", parse_hhmm(settings.briefing_time), dt.timedelta(hours=8)),
         Plan("checkin", checkin, min(dt.timedelta(hours=3), until_midnight)),
         Plan("followups", parse_hhmm(settings.followup_time), dt.timedelta(hours=8)),
+        Plan("exam_prep", parse_hhmm(settings.exam_prep_time), dt.timedelta(hours=4)),
     ]
 
 

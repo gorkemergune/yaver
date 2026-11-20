@@ -19,20 +19,22 @@ from app.db.models import Conversation, JobRun, Message
 from app.db.models.enums import ConversationMode, MessageRole
 from app.db.session import get_sessionmaker
 from app.jobs.content import Voice, build_briefing, build_checkin, build_followups
+from app.jobs.exam_prep import draft_exam_prep
 from app.jobs.weekly_plan import draft_week
 from app.llm.router import get_router
 from app.services.push import Notification, preview, send_push
 
 logger = logging.getLogger(__name__)
 
-JobId = Literal["briefing", "checkin", "followups", "weekly_plan"]
-JOB_IDS: tuple[JobId, ...] = ("briefing", "checkin", "followups", "weekly_plan")
+JobId = Literal["briefing", "checkin", "followups", "weekly_plan", "exam_prep"]
+JOB_IDS: tuple[JobId, ...] = ("briefing", "checkin", "followups", "weekly_plan", "exam_prep")
 # Notification titles; the body is the start of the chat message.
 PUSH_TITLES: dict[str, str] = {
     "briefing": "Günaydın ☀️",
     "checkin": "Akşam check-in 🌙",
     "followups": "Takip: haber var mı?",
     "weekly_plan": "Haftalık plan taslağı",
+    "exam_prep": "Sınav hazırlığı 📚",
 }
 
 
@@ -113,6 +115,9 @@ async def _build(
     if job_id == "weekly_plan":
         drafted = await draft_week(session, llm or get_router(), today, settings.tz)
         return drafted if drafted else (None, None)
+    if job_id == "exam_prep":
+        prepared = await draft_exam_prep(session, today, settings.tz, voice)
+        return prepared if prepared else (None, None)
     if job_id == "briefing":
         text: str | None = await build_briefing(
             session,
