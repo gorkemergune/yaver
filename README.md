@@ -50,6 +50,8 @@ Add your own specialists in `config/agents.yaml`.
 | Study sheets | Phase 3 | Notes -> study sheets with sources |
 | Desktop companion | Phase 4 | Floating assistant on Windows / macOS, screen time and app limits |
 
+Daily use, example sentences and common problems (Turkish): [docs/tr/KULLANIM.md](docs/tr/KULLANIM.md).
+
 ## Architecture
 
 ```
