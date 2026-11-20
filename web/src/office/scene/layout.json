@@ -1,0 +1,57 @@
+{
+  "width": 960,
+  "height": 600,
+  "origin": [
+    480,
+    150
+  ],
+  "tile": [
+    32,
+    16
+  ],
+  "deskX": [
+    4.3,
+    5.73,
+    7.16,
+    8.59,
+    10.02
+  ],
+  "rowY": {
+    "back": 3.9,
+    "front": 4.6
+  },
+  "desk": [
+    1.4,
+    0.7
+  ],
+  "layers": [
+    {
+      "name": "layer0",
+      "z": 1
+    },
+    {
+      "name": "yaverDesk",
+      "z": 420
+    },
+    {
+      "name": "glassY",
+      "z": 450
+    },
+    {
+      "name": "desks",
+      "z": 500
+    },
+    {
+      "name": "desksFront",
+      "z": 550
+    },
+    {
+      "name": "glassM",
+      "z": 560
+    },
+    {
+      "name": "chairBacks",
+      "z": 640
+    }
+  ]
+}

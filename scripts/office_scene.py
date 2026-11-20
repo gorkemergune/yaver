@@ -1,4 +1,13 @@
-# Generates static SVG layers for the Yaver HQ office scene (isometric).
+"""Static SVG layers of the Yaver HQ office scene (isometric, 960x600).
+
+    python scripts/office_scene.py [OUT_DIR]     default: web/src/office/scene
+
+Writes one SVG per layer (layer0, yaverDesk, glassY, desks, desksFront, glassM, chairBacks)
+plus layout.json (desk columns, rows and layer z-indexes, read by the web app and its tests).
+The window sky is `var(--office-sky)`: the web app sets it for day / night. The drawing
+order and coordinates are the approved prototype's (design/office-prototype/Main.dc.html);
+the obstacle list of the walking grid (web/src/office/geometry.ts) must match them.
+"""
 OX, OY, TW, TH = 480, 150, 32, 16
 def P(x, y, h=0):
     return (OX + (x - y) * TW, OY + (x + y) * TH - h)
@@ -360,14 +369,6 @@ glass_m.append(poly([P(3.6, 8.4), P(3.6, 9.8), P(3.6, 9.8, 70), P(3.6, 8.4, 70)]
 def svg(content, h=600):
     return f'<svg width="960" height="{h}" viewBox="0 0 960 {h}" aria-hidden="true" style="position: absolute; left: 0; top: 0">{"".join(content)}</svg>'
 
-import json
-out = {
-    "layer0": svg(layer0), "desks": svg(desks), "desksFront": svg(desks_front),
-    "glassY": svg(glass_y), "yaverDesk": svg(yaver_desk), "glassM": svg(glass_m + meet_backs), "chairBacks": svg(chair_backs), "spare": spare,
-}
-json.dump(out, open("scene.json", "w"))
-print({k: len(v) if isinstance(v, str) else v for k, v in out.items()})
-
 # ---------- wall signs ----------
 PADT = 0.25
 def tl(span_tiles):
@@ -407,7 +408,54 @@ signs0.append(sign_right(7.45, 10.45, 97, 111, "MUTFAK · KAHVE", "#e0b07a"))
 signs0.append(sign_stand(7.0, 8.75, 7.95, 30, 42, "DİNLENME", "#7fd0e0"))
 spare_sign = sign_stand(10.45, 11.35, 5.33, 22, 31, "BOŞ MASA", "#8a91b8", legs=False)
 
-out["layer0"] = svg(layer0 + signs0)
-out["desks"] = svg(desks)
-json.dump(out, open("scene.json", "w"))
-print("signs ok")
+# ---------- output ----------
+import json
+import sys
+from pathlib import Path
+
+NL = chr(10)
+SKY = 'fill="{{sky}}"'
+SKY_CSS = 'fill="#8fbaf0" style="fill: var(--office-sky, #8fbaf0)"'
+# z-index of each static layer; figures sit between them (400 back row, 520 meeting room,
+# 600 middle, 700 front; see web/src/office/geometry.ts)
+LAYERS = [
+    ("layer0", 1, layer0 + signs0),
+    ("yaverDesk", 420, yaver_desk),
+    ("glassY", 450, glass_y),
+    ("desks", 500, desks),
+    ("desksFront", 550, desks_front),
+    ("glassM", 560, glass_m + meet_backs),
+    ("chairBacks", 640, chair_backs),
+]
+
+
+def standalone(content):
+    body = svg(content).replace(SKY, SKY_CSS)
+    return body.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ', 1) + NL
+
+
+def write(path, text):
+    path.write_bytes(text.encode("utf-8"))  # LF on every OS
+
+
+def main(out_dir):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, _, content in LAYERS:
+        write(out_dir / f"{name}.svg", standalone(content))
+    layout = {
+        "width": 960,
+        "height": 600,
+        "origin": [OX, OY],
+        "tile": [TW, TH],
+        "deskX": DESK_X,
+        "rowY": {"back": YA, "front": YB},
+        "desk": [DW, DD],
+        "layers": [{"name": name, "z": z} for name, z, _ in LAYERS],
+    }
+    write(out_dir / "layout.json", json.dumps(layout, indent=2) + NL)
+    print(f"{len(LAYERS)} layers -> {out_dir}")
+
+
+if __name__ == "__main__":
+    root = Path(__file__).resolve().parents[1]
+    main(Path(sys.argv[1]) if len(sys.argv) > 1 else root / "web" / "src" / "office" / "scene")
