@@ -7,6 +7,7 @@ from decimal import Decimal
 import httpx2
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.api.auth import require_auth
 from app.db.models import LlmUsage
 from app.db.session import get_session
 from app.llm.types import TokenUsage
@@ -106,6 +107,7 @@ async def test_usage_endpoint(session: AsyncSession) -> None:
         )
     )
     app = create_app()
+    app.dependency_overrides[require_auth] = lambda: None  # login: tests/db/test_auth.py
 
     async def _session() -> AsyncIterator[AsyncSession]:
         yield session

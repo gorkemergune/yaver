@@ -28,8 +28,9 @@ class Settings(BaseSettings):
     app_user_name: str = ""
     app_timezone: str = "Europe/Istanbul"
     app_language: str = "tr"
-    app_password: SecretStr = SecretStr("change-me")
-    secret_key: SecretStr = SecretStr("change-me-long-random-string")
+    # Login for the web and desktop apps; empty = no login (fine on localhost only).
+    app_password: SecretStr | None = None
+    session_days: int = 30  # a login lasts this long after its last use
 
     # --- Paths ---
     config_dir: Path = REPO_DIR / "config"

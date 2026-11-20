@@ -337,10 +337,12 @@ async def test_run_a_job_now_over_http(week: AsyncSession, settings: Settings) -
     import httpx2
 
     from app.agent.team import get_team
+    from app.api.auth import require_auth
     from app.api.chat import get_session_factory
     from app.main import create_app
 
     app = create_app()
+    app.dependency_overrides[require_auth] = lambda: None  # login: tests/db/test_auth.py
     app.dependency_overrides[get_session_factory] = lambda: async_sessionmaker(
         week.bind, expire_on_commit=False
     )

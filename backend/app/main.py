@@ -4,16 +4,18 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from app import __version__
-from app.api import chat, health, jobs, screen_time, uploads, usage, views, voice
+from app.api import auth, chat, health, jobs, screen_time, uploads, usage, views, voice
+from app.api.auth import require_auth
 from app.config import get_settings
 from app.db.session import dispose_engine
 from app.jobs.scheduler import catch_up, start_scheduler
 from app.llm.check_models import log_startup_check
 from app.llm.router import get_router
 from app.llm.stt import get_stt
+from app.services.auth import auth_enabled, configured_password
 from app.services.backup import backup_if_due
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,13 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    if not auth_enabled(settings):
+        reason = (
+            "placeholder"
+            if settings.app_password and configured_password(settings) is None
+            else "empty"
+        )
+        logger.warning("APP_PASSWORD is %s: login is off, keep the app off the internet", reason)
     background: list[asyncio.Task[object]] = []
     # Background tasks: a slow provider or a long pg_dump never delays startup.
     if settings.llm_check_models_on_startup:
@@ -57,13 +66,11 @@ def create_app() -> FastAPI:
     # `/health` for container healthchecks, `/api/health` for the web app (proxied under /api).
     app.include_router(health.router)
     app.include_router(health.router, prefix="/api", include_in_schema=False)
-    app.include_router(usage.router, prefix="/api")
-    app.include_router(chat.router, prefix="/api")
-    app.include_router(views.router, prefix="/api")
-    app.include_router(uploads.router, prefix="/api")
-    app.include_router(jobs.router, prefix="/api")
-    app.include_router(voice.router, prefix="/api")
-    app.include_router(screen_time.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
+    # Everything else needs a login when APP_PASSWORD is set.
+    guarded = [Depends(require_auth)]
+    for module in (usage, chat, views, uploads, jobs, voice, screen_time):
+        app.include_router(module.router, prefix="/api", dependencies=guarded)
     return app
 
 

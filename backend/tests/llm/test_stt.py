@@ -7,6 +7,7 @@ from typing import Any
 import httpx2
 import pytest
 
+from app.api.auth import require_auth
 from app.config import Settings
 from app.llm.stt import SpeechToText, get_stt
 from app.llm.usage import InMemoryUsageStore
@@ -61,6 +62,7 @@ async def test_not_configured_without_a_key() -> None:
 )
 async def test_voice_endpoint(whisper: Any, audio: bytes, status: int, code: str | None) -> None:
     app = create_app()
+    app.dependency_overrides[require_auth] = lambda: None  # login: tests/db/test_auth.py
     app.dependency_overrides[get_stt] = lambda: stt(whisper)[0]
     transport = httpx2.ASGITransport(app=app)
     async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:

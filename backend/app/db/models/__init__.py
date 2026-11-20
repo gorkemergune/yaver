@@ -2,6 +2,7 @@
 
 from app.db.models.academic import Course, Holiday, Term
 from app.db.models.audit import ChangeLog, LlmUsage
+from app.db.models.auth import AuthSession
 from app.db.models.conversation import Attachment, Conversation, Message
 from app.db.models.jobs import JobRun
 from app.db.models.planning import Followup, Memory, Task
@@ -20,6 +21,7 @@ __all__ = [
     "Attachment",
     "Attendance",
     "AttendanceBaseline",
+    "AuthSession",
     "BlockOverride",
     "ChangeLog",
     "Conversation",

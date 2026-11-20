@@ -33,7 +33,10 @@ async def client(
     session: AsyncSession, llm: ScriptedLLM, tmp_path: Path
 ) -> AsyncIterator[httpx2.AsyncClient]:
     app = create_app()
-    app.dependency_overrides[get_settings] = lambda: Settings(upload_dir=tmp_path)
+    # no login here, whatever APP_PASSWORD the environment has (tests/db/test_auth.py has it)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        upload_dir=tmp_path, app_password=None
+    )
 
     async def _session() -> AsyncIterator[AsyncSession]:
         yield session
