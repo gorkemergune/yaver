@@ -4,6 +4,50 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 
 ---
 
+## Yön değişikliği (2026-11-20): Ofis — O1–O5
+Ana ekran artık izometrik ofis (`docs/OFFICE.md`, onaylı prototip `design/office-prototype/`). Her ajan bir **çalışan**: masası, defteri (notlar), gelen kutusu (görevler) ve mesai planı var. Ofiste hiçbir şey sahte değil: working / meeting / needs_user yalnızca backend'den gelir.
+
+Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kalıyor. 3 yaver → 10 çalışan: academic → Atlas, agenda → Deniz, discipline → Kaan (örnek isimler; yerel `agents.yaml` kendi isimlerini korur), koordinatör = Yaver (Genel Müdür). Aşağıdaki Faz 1–5 maddeleri geçerli; ofis fazları onlarla paralel ilerler.
+
+### O1 — Ofis motoru
+- `employees` (agents.yaml'dan senkron: ad, rol, renk, masa, kişilik, araçlar, `daily_budget_usd`), `employee_state`, `employee_notes` (defter), `employee_tasks` (gelen kutusu)
+- `office/state.py` → `set_state(...)`: tek yazma noktası, her değişiklikte olay yayınlar
+- `GET /api/office/stream` (SSE) + `GET /api/office/snapshot`
+- Koordinatör ve araç çağrıları durum yayınlar; delegasyonda iki taraf `meeting`
+- Doğrudan sohbet `POST /api/employees/{id}/chat` (aynı change_set/undo), `add_note` aracı
+- Çalışan başına günlük bütçe: aşılınca mesai işleri durur, `needs_user` ile bildirir
+
+**Bitti sayılır:**
+- [ ] Sohbette bir istek verince SSE'de ilgili çalışanın `working` → `break` geçişi görülüyor
+- [ ] Defter API'den okunuyor
+
+### O2 — Ofis sahnesi
+- Prototipin React'e taşınması: statik SVG katmanları (`scripts/office_scene.py` → `web/src/office/scene/`), A* hareket, oturma/yaklaşma noktaları, z-sırası
+- Sol altta çalışan listesi, sağda detay paneli (Şu an, Defter, Mesai planı, Sohbet), altta "Yaver'e yaz" + mikrofon
+- Canlı SSE bağlantısı; Bugün/Hafta görünümleri Takvim sekmesine taşınır; gece/gündüz gerçek saate göre; mobilde yatay kaydırma
+
+**Bitti sayılır:**
+- [ ] Ekranda gerçek isteklerle çalışanlar masaya dönüp çalışıyor, delegasyonda toplantı odasına gidiyor
+- [ ] Yürüyen figürler hiçbir engel karesine girmiyor (tüm nokta çiftleri için test)
+
+### O3 — Yeni çalışanlar
+- Orion (startup), Lyra (reklam), Mira (içerik), Ece (sosyal çevre), Nova (kariyer), Arda (araştırma) + `office/shifts.py` mesai işleri
+- Web arama ve diğer entegrasyonlar; anahtar yoksa çalışan "entegrasyon bekliyor" durumunda
+
+**Bitti sayılır:**
+- [ ] Her çalışan en az bir gerçek mesai işini yapıp defterine yazıyor
+
+### O4 — Ritüeller
+- 09:00 standup (herkes toplantı odasında, brifing), 21:00 gün sonu raporu, Pazar haftalık toplantı, görev panosu (kanban)
+
+**Bitti sayılır:**
+- [ ] Standup sahnede görünüyor ve brifing sohbete düşüyor
+
+### O5 — Cila
+- Mesai dışı (`off`) durumu, ses efektleri (kapatılabilir), masaya tıklayınca yakınlaştırma, performans
+
+---
+
 ## Faz 0 — Çekirdek: konuşarak program yönetimi
 **Hedef:** Tarayıcıdan sohbetle ders programı, devamsızlık, sınav, spor ve görevleri yönetebilmek.
 
@@ -103,7 +147,7 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 - v0.1.0 release
 
 ## Backlog (sonra)
-- Yeni yaverler: ör. kariyer/staj başvuruları, startup işleri, finans (`agents.yaml`'a ekleyerek)
+- Yeni çalışanlar O3'te (kariyer, startup, reklam, içerik, sosyal çevre, araştırma); finans gibi diğerleri `agents.yaml`'a ekleyerek
 - Yaver başına farklı ses (TTS) ve masaüstünde farklı logo/renk
 - Gmail read-only entegrasyonu: followup'lar için "dönüş maili geldi mi?" otomatik kontrol
 - Yeditepe ders programı / akademik takvim içe aktarma (PDF/ICS)

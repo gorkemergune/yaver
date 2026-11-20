@@ -5,6 +5,8 @@ Claude Code bu dosyayı her oturumda okur. Proje kuralları ve mimari kararlar b
 ## Proje özeti
 Yaver: chat + ses ile yönetilen, self-hosted kişisel AI asistan. Kullanıcı buton kullanmaz, doğal dille söyler; ajan tool-calling ile veritabanını günceller, değişikliği diff olarak gösterir, geri alınabilir.
 
+Ana ekran izometrik bir **ofis** (`docs/OFFICE.md`, prototip `design/office-prototype/`): her ajan masası, defteri ve gelen kutusu olan bir çalışan. Ofis fazları O1–O5 `ROADMAP.md`'de.
+
 Sahibi: Görkem (Yeditepe Bilgisayar Müh.). Geliştirme Windows 11 + Docker Desktop (WSL2) üzerinde. Kullanım: Windows, Mac, iPhone (PWA).
 
 ## Temel ilkeler
@@ -15,6 +17,7 @@ Sahibi: Görkem (Yeditepe Bilgisayar Müh.). Geliştirme Windows 11 + Docker Des
 5. **BYOK + provider-agnostic.** Tüm LLM çağrıları `llm/router.py` üzerinden. Doğrudan SDK çağrısı yasak.
 6. **Kişisel veri repoda olmaz.** Seed dosyaları `data/` altında ve `.gitignore`'da. Örnekler `examples/` altında, uydurma verilerle.
 7. **Zaman dilimi:** Anlar (instant) DB'de UTC `timestamptz` (`UTCDateTime` naive datetime'ı reddeder), hesap ve gösterim `APP_TIMEZONE` (varsayılan Europe/Istanbul). Haftalık tekrar eden saatler istisna: yerel duvar saati (`time`) olarak saklanır ki DST'de kaymasın.
+8. **Ofiste hiçbir şey sahte değil.** Bir çalışanın `working` / `meeting` / `needs_user` durumu yalnızca backend'den (`office/state.py`) gelir ve gerçek bir LLM/araç çağrısına, delegasyona ya da bekleyen soruya karşılık gelir. Boşta görünüm (`break` → kahve, kanepe, koridor) frontend'in görsel çeşitlemesidir.
 
 ## Stack
 | Katman | Seçim |
@@ -38,7 +41,7 @@ yaver/
       main.py
       config.py              # pydantic-settings, .env
       db/                    # session, base, models/
-      api/                   # routers: chat, schedule, briefing, materials, usage, push
+      api/                   # routers: chat, office, employees, schedule, briefing, materials, usage, push
       agent/
         coordinator.py       # isteği böler, delegate eder, birleştirir
         team.py              # agents.yaml yükleme, yaver tanımları
@@ -56,6 +59,13 @@ yaver/
         time_resolver.py
         change_log.py        # undo altyapısı
         briefing.py
+      office/                # ofis motoru: çalışanlar, durum, olay akışı
+        state.py             # Office.set_state: tek yazma noktası + SSE yayını, snapshot
+        activity.py          # bir mesaj boyunca kim çalışıyor / toplantıda (koordinatör kullanır)
+        sync.py              # agents.yaml -> employees
+        budget.py            # çalışan başına günlük harcama
+        shifts.py            # mesai işi sarmalayıcı: working -> break, bütçe aşılınca durur
+        labels.py            # araç adı -> "Takvime bakıyor" gibi görev metni
       jobs/                  # scheduler işleri
       rag/                   # ingest, chunk, embed, retrieve
     alembic/
@@ -63,12 +73,13 @@ yaver/
   web/                       # React PWA (mobile-first)
     src/api/                 # tipler, istemci, TanStack Query kancaları, SSE chat
     src/chat/                # sohbet: model.ts (akış olayları → görünüm, saf + testli), useChat, bileşenler
-    src/plan/, src/status/   # Bugün/Yarın/Hafta (salt okunur), devamsızlık + harcama
+    src/plan/, src/status/   # Bugün/Yarın/Hafta (salt okunur), devamsızlık + harcama (O2'de Takvim sekmesine)
+    src/office/              # (O2) ofis sahnesi: scene/*.svg statik katmanlar, figürler, A*, panel
     src/i18n/tr.ts           # kullanıcıya görünen tüm metinler
   desktop/                   # Tauri (Faz 4)
   config/
     providers.example.yaml   # repoda; local kopya providers.yaml (gitignore)
-    agents.example.yaml      # repoda; local kopya agents.yaml (gitignore) — yaver ekibi: isimler, alanlar, araçlar
+    agents.example.yaml      # repoda; local kopya agents.yaml (gitignore) — çalışanlar: isim, rol, masa, alan, araçlar, bütçe
   examples/                  # uydurma örnek ders programı vb.
   docker-compose.yml
   .env.example
@@ -87,31 +98,44 @@ yaver/
 - `memories` — kalıcı bilgiler ("Cuma günleri Medipol'deyim"): category, content, active
 - `course_materials` + `material_chunks` (pgvector) — syllabus, notlar, slaytlar; week_no
 - `study_sheets` — course_id, week_no, content_md, model
-- `conversations`, `messages` — `messages.agent_id` hangi yaverin konuştuğunu tutar; `conversations.pending_action` ekibin cevap beklediği soru (aşağıda)
+- `conversations`, `messages` — `messages.agent_id` hangi çalışanın konuştuğunu tutar; `conversations.pending_action` ekibin cevap beklediği soru (aşağıda); `conversations.employee_id` doğrudan bir çalışanla açılan sohbet (NULL = Yaver'le genel sohbet)
+- `employees` — agents.yaml'dan senkron (id = agent id: `yaver`, `academic`…): ad, rol, renk, masa (`desk_row` office|back|front + `desk_col`), kişilik, araçlar, `daily_budget_usd`, `active` (yaml'dan çıkan çalışan silinmez, pasifleşir)
+- `employee_state` — çalışan başına tek satır: activity (working|meeting|break|off), current_task, tool, meeting_with, needs_user + needs_user_reason (question|budget), since
+- `employee_notes` — defter: kısa tarihli notlar (`add_note`, mesai işleri); change_log'a girer, geri alınır
+- `employee_tasks` — gelen kutusu: source (user|yaver|shift), requested_by, instruction, status (running|done|failed), result, conversation_id, change_set_id
 - `change_log` — change_set_id, entity, entity_id, op, before_json, after_json
 - `llm_usage` — provider, model, tier, purpose, in/out/cached tokens, cost_usd
 - `push_subscriptions` — Web Push
 - `screen_sessions`, `app_limits` (Faz 4)
 
-## Yaver ekibi (çoklu ajan)
-Sistem adı Yaver; içinde isimleri kullanıcı tarafından verilen uzman yaverler çalışır. Tanımlar `config/agents.yaml`'da, koda gömülmez.
+## Ofis çalışanları (çoklu ajan)
+Sistem adı Yaver; ofiste isimleri kullanıcı tarafından verilen uzman **çalışanlar** (kodda hâlâ "agent"/"yaver") çalışır. Tanımlar `config/agents.yaml`'da, koda gömülmez; `employees` tablosu açılışta oradan senkronlanır. Örnek dosyadaki isimler `docs/OFFICE.md`'deki nötr kadro (Atlas, Deniz, Kaan…); yerel dosya kendi isimlerini korur (id'ler aynı kalır).
 
 ```
-Kullanıcı ──► Koordinatör (Yaver)
-                 ├─ delegate("academic",   "...")  → Friday  (dersler, devamsızlık, sınav, materyal)
-                 ├─ delegate("agenda",     "...")  → Jarvis  (toplantı, iş, etkinlik, followup)
-                 └─ delegate("discipline", "...")  → Karen   (spor, alışkanlık, ekran süresi)
+Kullanıcı ──► Yaver (Genel Müdür, koordinatör, kendi odası)
+                 ├─ delegate("academic",   "...")  → Atlas  (dersler, devamsızlık, sınav, materyal)
+                 ├─ delegate("agenda",     "...")  → Deniz  (toplantı, iş, etkinlik, followup, görevler)
+                 └─ delegate("discipline", "...")  → Kaan   (spor, alışkanlık, ekran süresi)
+   O3: Nova (kariyer), Orion (startup), Lyra (reklam), Mira (içerik), Ece (sosyal), Arda (araştırma)
 ```
+
+Ofis durumu (O1):
+- `office/state.py` `Office.set_state(...)` tek yazma noktası: `employee_state`'i yazar, değişiklik varsa olayı SSE'ye yayınlar (aynı durum tekrar yayınlanmaz). Durum hataları sohbeti asla bozmaz (loglanır).
+- Kod tarafı kimin ne yaptığını `office/activity.py` ile söyler: mesaj başında konuşan çalışan `working`; her araç çağrısından önce `working` + görev metni (`labels.py`); `delegate` başlarken koordinatör ve çalışan `meeting` (`meeting_with` birbirini gösterir), çalışan ilk aracını çağırınca toplantı biter (çalışan masasında `working`, koordinatör `working`); işi biten `break`. Aynı anda iki mesaj aynı çalışanı kullanıyorsa sonuncusu bitene kadar `break`'e düşmez.
+- Açık soru bırakan çalışan (`pending_action.agent_id`) `needs_user` (reason `question`); cevaplanınca/soru düşünce kalkar. Günlük bütçesini (`daily_budget_usd`, yoksa `office.daily_budget_usd`; bugünkü `llm_usage` toplamı) aşan çalışan `needs_user` (reason `budget`) olur ve mesai işleri (`office/shifts.py`) çalışmaz; kullanıcının sohbeti çalışmaya devam eder.
+- Her mesaj, konuşan ve delege edilen her çalışan için `employee_tasks`'a satır yazar (sohbetle aynı transaction: mesaj iptal olursa o da yok).
+- `break` dışındaki boşta görünümler (`idle_walk`) frontend'de seçilir; backend `idle_walk` yazmaz. `off` O5'te.
 
 Kurallar:
-- Kullanıcı her zaman koordinatörle konuşur. Koordinatör karışık mesajı parçalara böler, `delegate` ile ilgili yavere gönderir, sonuçları tek cevapta birleştirir.
+- Kullanıcı genel sohbette koordinatörle konuşur; ofiste bir çalışana tıklayıp doğrudan da yazabilir (`POST /api/employees/{id}/chat`, o çalışanın prompt'u ve araçları, aynı change_set/undo). Koordinatör karışık mesajı parçalara böler, `delegate` ile ilgili yavere gönderir, sonuçları tek cevapta birleştirir.
 - Her yaverin sadece kendi araçları ve kısa kendi prompt'u vardır (`agents.yaml` → `tools`). Bu hem doğruluk hem token tasarrufu içindir.
 - Bir kullanıcı mesajındaki tüm delegasyonlar **aynı `change_set_id`'yi** paylaşır; tek "Geri al" hepsini geri alır.
 - Yaverler birbirini doğrudan çağırmaz; sadece koordinatör delege eder (döngü riski yok). Delegasyon derinliği = 1.
-- Kullanıcı bir yaveri adıyla çağırırsa ("Friday, yarın ne var?") koordinatör doğrudan ona yönlendirir.
+- Kullanıcı bir yaveri adıyla çağırırsa ("Atlas, yarın ne var?") koordinatör doğrudan ona yönlendirir.
 - Cevaplarda hangi yaverin ne yaptığı gösterilir (UI'de isim + renk etiketi).
 - Brifing: her yaver kendi bölümünü üretir; `briefing_style` = `sections` ise kendi adıyla, `single_voice` ise koordinatör ağzından.
-- Yeni yaver eklemek = `agents.yaml`'a kayıt + gerekirse yeni araç. Koordinatör prompt'u yaver listesini config'den otomatik alır.
+- Yeni çalışan eklemek = `agents.yaml`'a kayıt (rol, masa, renk) + gerekirse yeni araç + ofiste boş masa (5 masa çifti: `back` 0-4, `front` 0-4). Koordinatör prompt'u çalışan listesini config'den otomatik alır.
+- Defter: her çalışan `add_note` (kendi defterine kısa not, yalnızca kullanıcı isteyince ya da kalıcı bir gözlem için) ve `get_notes` (kendi ya da başkasının defteri) araçlarını otomatik alır; koordinatör `get_notes`'u alır ("Atlas'ın defterinde ne var?").
 - Maliyet: delegasyon ekstra bir LLM çağrısıdır. Tek alanlı basit mesajlarda (ör. sadece "EE211'e gitmedim") koordinatör ilgili aracı doğrudan çağırabilsin diye `fast_path` opsiyonu düşünülür (Faz 0 sonu değerlendirme).
 
 ## Ajan araçları (ilk set)
@@ -127,11 +151,11 @@ Kurallar:
 - Belirsiz eşleşmede araç `candidates` döner; değiştirilecek bir şey yoksa ajan başka tarih/blok seçmez, sorar.
 - Koordinatör `delegate` talimatına kullanıcının kelimelerini aynen yazar; tarih/saat eklemez.
 - Her cevap `trace` (tüm araç çağrıları + argümanlar) taşır; prompt ayarı yaparken canlı senaryo çıktısına bakılır.
-- HTTP: `POST /api/chat/stream` (SSE: turn/text/reset/tool/delegate/agent_reply, sonra done/error; bağlantı koparsa mesaj iptal ve rollback), `POST /api/chat` (akışsız), `POST /api/changes/{change_set_id}/undo` ("Geri al" butonu). Arayüz verisi: `/api/team`, `/api/plan/day`, `/api/plan/week`, `/api/attendance`, `/api/conversations/...`, `/api/usage/month`.
+- HTTP: `POST /api/chat/stream` (SSE: turn/text/reset/tool/delegate/agent_reply, sonra done/error; bağlantı koparsa mesaj iptal ve rollback), `POST /api/chat` (akışsız), `POST /api/changes/{change_set_id}/undo` ("Geri al" butonu). Ofis: `GET /api/office/snapshot` (çalışanlar + durum + bugünkü harcama), `GET /api/office/stream` (SSE: önce `snapshot`, sonra `state` / `note` olayları, 15 sn'de bir `: ping`), `GET /api/employees/{id}/notes`, `/tasks`, `POST /api/employees/{id}/chat` ve `/chat/stream` (sohbetle aynı olaylar). Arayüz verisi: `/api/team`, `/api/plan/day`, `/api/plan/week`, `/api/attendance`, `/api/conversations/...`, `/api/usage/month`.
 - Yaver etiket rengi `agents.yaml`'da (`color`); yoksa varsayılan palet.
 - İlk kurulum: `conversations.mode = onboarding` olan konuşma kurulum asistanına (`prompts/onboarding.md.j2`) gider; `finish_onboarding` normal sohbete çevirir. Yapıştırılan ders programı `propose_schedule` ile öneriye (`schedule_proposals`) dönüşür, tablo gösterilir, ancak kullanıcı onaylayınca `apply_schedule` tek change_set ile yazar. Uzun metin `routing.purposes.schedule_parse` (smart) ile ayrıştırılır.
 - Görseller: önce `POST /api/uploads` (yeniden kodlanır: EXIF/konum yok, HEIC→JPEG, uzun kenar `IMAGE_MAX_EDGE`), sonra mesaj `attachment_ids` ile. `agent/vision.py` görseli ekipten önce kodda okur; sadece Claude okur (vision olmayan sağlayıcıyı router atlar, Groq'a görsel gitmez). Ekip sonucu `[Görsel N ... -> öneri #N]` metni olarak görür; `messages.context`'te saklanır, geçmişle tekrar gider. Ders programı/etkinlik önerisi aynı mesajda uygulanamaz (`apply_proposal` ve `add_event`/`add_recurring_block` kodda engellenir), kullanıcı "evet" deyince uygulanır. Duyuru tarihleri modelden "yazıldığı gibi" alınır, kodda çözülür; gün adı tutmayan / tek gün olmayan tarih "belirsiz".
-- PDF'ler: `POST /api/uploads` olduğu gibi saklar (`attachments.filename` atıf için). `agent/documents.py` metni kodda çıkarır (pypdf), `document_classify` (fast) ne olduğunu söyler; syllabus `syllabus_parse` (Sonnet) ile `öneri #N` (kind=syllabus) olur, "evet" ile `syllabus_weeks` + `course_materials` + `material_chunks` yazılır. Embedding yerel (fastembed, çok dilli MiniLM, 384 boyut, `MODEL_CACHE_DIR`); model ~128 token okuduğu için parçalar ~500 karakter. `search_materials` / `get_syllabus` Friday'de; cevapta kaynak "(dosya, s. N)".
+- PDF'ler: `POST /api/uploads` olduğu gibi saklar (`attachments.filename` atıf için). `agent/documents.py` metni kodda çıkarır (pypdf), `document_classify` (fast) ne olduğunu söyler; syllabus `syllabus_parse` (Sonnet) ile `öneri #N` (kind=syllabus) olur, "evet" ile `syllabus_weeks` + `course_materials` + `material_chunks` yazılır. Embedding yerel (fastembed, çok dilli MiniLM, 384 boyut, `MODEL_CACHE_DIR`); model ~128 token okuduğu için parçalar ~500 karakter. `search_materials` / `get_syllabus` akademik çalışanda (academic); cevapta kaynak "(dosya, s. N)".
 - Bekleyen soru (`agent/pending.py`, `conversations.pending_action`): bir araç sonucu açık soru bırakırsa (`log_attendance` başka gün önerir, `candidates` döner, öneri tablosu gösterilir) her seçenek o işi bitiren araç çağrısı olarak saklanır. Kullanıcının kısa cevabı ("evet", "çarşamba", "2.si", "lab olan") kodda bir seçeneğe eşlenirse araç kodda çalışır, soran yaver sonucu araçsız tek turda bildirir. Eşlenmeyen kısa cevap soran yavere kendi sorusuyla birlikte gider; "hayır", soru ya da uzun mesaj normal akışa (koordinatör) gider. Her mesaj durumu yeniler; zamanlayıcı mesajı eskisini siler, 24 saatte düşer.
 - Dil: son cevap İngilizce görünürse (`looks_english`) bir kez Türkçeye çevrilir (`language_fix`), akışta metin değiştirilir.
 - Prompt boyutu: `PYTHONPATH=. uv run python scripts/measure_prompts.py` (ajan başına token). Prompt/araç eklerken ölç; her çağrıda giden metin Groq kotasını doğrudan yer.
