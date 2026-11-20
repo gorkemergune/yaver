@@ -24,6 +24,8 @@ from app.jobs.content import Voice, build_briefing, build_checkin, build_followu
 from app.jobs.exam_prep import draft_exam_prep
 from app.jobs.weekly_plan import draft_week
 from app.llm.router import get_router
+from app.office.shifts import OverBudgetError, run_shift
+from app.office.state import Office
 from app.services.push import Notification, preview, send_push
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,19 @@ PUSH_TITLES: dict[str, str] = {
     "followups": "Takip: haber var mı?",
     "weekly_plan": "Haftalık plan taslağı",
     "exam_prep": "Sınav hazırlığı 📚",
+}
+# Whose shift each job is in the office (unknown ids: the coordinator's) and what it shows.
+JOB_EMPLOYEES: dict[str, str] = {
+    "checkin": "discipline",
+    "followups": "agenda",
+    "exam_prep": "academic",
+}
+SHIFT_TASKS: dict[str, str] = {
+    "briefing": "Sabah brifingini hazırlıyor",
+    "checkin": "Akşam check-in'ini hazırlıyor",
+    "followups": "Bekleyen takipleri soruyor",
+    "weekly_plan": "Haftalık plan taslağını yazıyor",
+    "exam_prep": "Sınav tekrar planını çıkarıyor",
 }
 
 
@@ -54,9 +69,11 @@ async def run_job(
     team: Team | None = None,
     llm: Any = None,
     force: bool = False,
+    office: Office | None = None,
 ) -> int | None:
-    """The id of the message written, or None (already ran today / nothing to say).
-    `force` runs it again today (the manual "run now" endpoint)."""
+    """The id of the message written, or None (already ran today / nothing to say /
+    the employee's daily budget is used up: not recorded, so it can run after all).
+    `force` runs it again today (the manual "run now" endpoint), whatever the budget."""
     settings = settings or get_settings()
     now = now or dt.datetime.now(dt.UTC)
     today = now.astimezone(settings.tz).date()
@@ -68,7 +85,19 @@ async def run_job(
         )
         if done is not None and not force:
             return None
-        text, context = await _build(job_id, session, now, today, settings, team, llm)
+        employee = JOB_EMPLOYEES.get(job_id, team.coordinator.id)
+        if team.get(employee) is None:
+            employee = team.coordinator.id
+        try:
+            text, context = await run_shift(
+                office,
+                employee,
+                SHIFT_TASKS[job_id],
+                lambda: _build(job_id, session, now, today, settings, team, llm),
+                check_budget=not force,
+            )
+        except OverBudgetError:
+            return None
         message_id = await _post(session, text, job_id, team, now, context) if text else None
         if done is None:
             session.add(

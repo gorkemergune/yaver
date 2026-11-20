@@ -149,6 +149,7 @@ def _load_tool_modules() -> None:
         events,
         materials,
         memory,
+        notes,
         planning,
         schedule,
         screen,

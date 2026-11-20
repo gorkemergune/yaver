@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.agent.team import Team, get_team
 from app.api.chat import get_session_factory
 from app.jobs.runner import JOB_IDS, JobId, run_job
+from app.office.state import Office, get_office
 
 router = APIRouter(tags=["jobs"])
 
@@ -18,10 +19,13 @@ async def run_now(
     force: bool = False,
     session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
     team: Team = Depends(get_team),
+    office: Office | None = Depends(get_office),
 ) -> dict[str, Any]:
     """`force=true` runs it even if it already ran today (a second message)."""
     if job_id not in JOB_IDS:
         raise HTTPException(404, detail={"code": "unknown_job", "jobs": list(JOB_IDS)})
     known: JobId = job_id
-    message_id = await run_job(known, sessionmaker=session_factory, team=team, force=force)
+    message_id = await run_job(
+        known, sessionmaker=session_factory, team=team, force=force, office=office
+    )
     return {"job": job_id, "message_id": message_id}

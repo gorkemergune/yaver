@@ -340,6 +340,7 @@ async def test_run_a_job_now_over_http(week: AsyncSession, settings: Settings) -
     from app.api.auth import require_auth
     from app.api.chat import get_session_factory
     from app.main import create_app
+    from app.office.state import get_office
 
     app = create_app()
     app.dependency_overrides[require_auth] = lambda: None  # login: tests/db/test_auth.py
@@ -347,6 +348,7 @@ async def test_run_a_job_now_over_http(week: AsyncSession, settings: Settings) -
         week.bind, expire_on_commit=False
     )
     app.dependency_overrides[get_team] = example_team
+    app.dependency_overrides[get_office] = lambda: None  # never the real database's office
     transport = httpx2.ASGITransport(app=app)
     async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:
         first = (await http.post("/api/jobs/followups/run")).json()

@@ -34,6 +34,12 @@ describe("describeChange", () => {
     ).toMatch(/^EE211 .*17.*: devamsızlık kaydedildi$/);
   });
 
+  it("notebook note", () => {
+    expect(describeChange(change("employee_notes", { content: "EE211 quiz salı" }))).toBe(
+      "Deftere not: EE211 quiz salı",
+    );
+  });
+
   it("unknown entity falls back to the table name", () => {
     expect(describeChange(change("llm_usage", {}, "delete"))).toBe("llm_usage silindi");
   });

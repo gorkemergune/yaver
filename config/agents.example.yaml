@@ -1,11 +1,27 @@
-# Yaver ekibi — ÖRNEK dosya. Kendi kurulumun için config/agents.yaml olarak kopyala
+# Yaver ofisi — ÖRNEK dosya. Kendi kurulumun için config/agents.yaml olarak kopyala
 # (o dosya .gitignore'da) ve isimleri, kişiliği, alanları istediğin gibi değiştir.
+# Her ajan ofiste bir çalışan (docs/OFFICE.md): id'ler sabit kalsın (kayıtlar onlara bağlı),
+# isim / rol / renk / masa serbest.
 # Tool listeleri kod tarafındaki tool registry adlarıyla eşleşmeli (bilinmeyen ad -> açılışta hata).
-# Her yaver ayrıca resolve_date ve get_day_plan'i otomatik alır; ileriki fazların araçları atlanır.
+# Her çalışan ayrıca resolve_date, get_day_plan, add_note ve get_notes'u (defter) otomatik alır;
+# koordinatör resolve_date ve get_notes'u. İleriki fazların araçları atlanır.
+#
+# Ofis alanları (hepsi opsiyonel):
+#   role:  ofisteki unvan ("Akademik")
+#   desk:  {row: back|front, col: 0-4}; yoksa varsayılan düzen (academic arka 0, agenda ön 2,
+#          discipline ön 3), sonra ilk boş masa. Koordinatör kendi odasında oturur.
+#   shift: mesai planı (panelde görünür; mesai işleri O3)
+#   daily_budget_usd: çalışanın günlük LLM harcama sınırı; yoksa office.daily_budget_usd.
+#          Aşılınca mesai işleri durur, ofiste kırmızı nokta çıkar. Sohbet çalışmaya devam eder.
+
+office:
+  daily_budget_usd: 0.50
 
 coordinator:
   id: yaver
   name: Yaver
+  role: Genel Müdür
+  shift: Gün boyu kendi odasında. Gelen her isteği doğru masaya yönlendirir; sabah brifingini ve haftalık plan taslağını hazırlar.
   persona: >
     Ekibin başı. Kullanıcıyla ilk muhatap olan, isteği parçalara ayırıp doğru yavere
     devreden, sonuçları tek cevapta toplayan asistan. Kısa, net, samimi.
@@ -18,7 +34,10 @@ coordinator:
 agents:
   - id: academic
     name: Atlas
-    color: "#0ea5e9"           # label colour in the web UI
+    role: Akademik
+    desk: {row: back, col: 0}
+    color: "#4cbcff"           # label colour in the web UI and the office
+    shift: Sınava 7 gün kala tekrar planı önerir.
     domain: Dersler, devamsızlık, sınavlar, ödevler, ders materyalleri ve çalışma kağıtları
     persona: Düzenli, hatırlatmayı seven bir ders asistanı. Devamsızlık limitine yaklaşınca net uyarır.
     tier: fast
@@ -46,8 +65,11 @@ agents:
     briefing_section: Dersler
 
   - id: agenda
-    name: Nova
-    color: "#f59e0b"           # label colour in the web UI
+    name: Deniz
+    role: Ajanda · Toplantılar
+    desk: {row: front, col: 2}
+    color: "#ffa070"           # label colour in the web UI and the office
+    shift: Bekleyen takipleri her gün sorar.
     domain: Toplantılar, iş/staj, etkinlikler, hackathonlar, başvurular, takip edilecek dönüşler ve görevler (yapılacaklar)
     persona: Sakin, profesyonel bir kişisel asistan. Bekleyen dönüşleri unutmaz, her gün kibarca sorar.
     tier: fast
@@ -68,8 +90,11 @@ agents:
     briefing_section: Ajanda
 
   - id: discipline
-    name: Coach
-    color: "#10b981"           # label colour in the web UI
+    name: Kaan
+    role: Koç · Disiplin
+    desk: {row: front, col: 3}
+    color: "#ece35e"           # label colour in the web UI and the office
+    shift: Spor günlerini ve ekran süresini izler; 21:00 akşam check-in'ini yapar.
     domain: Spor programı, alışkanlıklar, günlük disiplin hedefleri, ekran süresi ve uygulama limitleri
     persona: Dostça ama taviz vermeyen bir koç. Bahane dinler ama kaydeder.
     tier: fast

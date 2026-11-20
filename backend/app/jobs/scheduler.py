@@ -18,6 +18,7 @@ from sqlalchemy import make_url
 
 from app.config import Settings, get_settings
 from app.jobs.runner import JobId, parse_hhmm, run_job
+from app.office.state import get_office
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def plans(settings: Settings) -> list[Plan]:
 async def run_scheduled(job_id: JobId) -> None:
     """Entry point stored in the job store (importable, arguments are plain strings)."""
     try:
-        await run_job(job_id)
+        await run_job(job_id, office=get_office())
     except Exception:  # a failing job must not stop the scheduler
         logger.exception("Scheduled job %s failed", job_id)
 

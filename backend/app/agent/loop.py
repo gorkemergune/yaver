@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 Delegate = Callable[[dict[str, Any]], Awaitable[ToolResult]]
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
+# Called with (agent_id, tool name) right before a tool runs (the office shows it).
+OnTool = Callable[[str, str], Awaitable[None]]
 
 
 class LLMClient(Protocol):
@@ -71,6 +73,7 @@ async def run_agent(
     emit: Emit | None = None,
     stream_text: bool = False,
     use_tools: bool = True,
+    on_tool: OnTool | None = None,
 ) -> AgentRun:
     """`use_tools=False`: one answer without tool calls (the code already ran the tool)."""
     run = AgentRun(member.id, member.name, "")
@@ -145,6 +148,8 @@ async def run_agent(
             if call.name == "delegate" and delegate is not None:
                 result = await delegate(call.arguments or {})
             else:
+                if on_tool is not None:
+                    await on_tool(member.id, call.name)
                 # A delegate call earlier in this turn may have switched the active yaver.
                 ctx.agent_id = ctx.recorder.agent_id = member.id
                 result = await run_tool(call.name, call.arguments, ctx)

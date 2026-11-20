@@ -11,8 +11,10 @@ from app.api import (
     auth,
     calendar,
     chat,
+    employees,
     health,
     jobs,
+    office,
     push,
     screen_time,
     study,
@@ -28,6 +30,7 @@ from app.jobs.scheduler import catch_up, start_scheduler
 from app.llm.check_models import log_startup_check
 from app.llm.router import get_router
 from app.llm.stt import get_stt
+from app.office.state import get_office
 from app.services.auth import auth_enabled, configured_password
 from app.services.backup import backup_if_due
 
@@ -50,6 +53,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         background.append(asyncio.create_task(log_startup_check()))
     if settings.backup_on_startup:
         background.append(asyncio.create_task(backup_if_due(settings)))
+    # employees from agents.yaml; working / meeting left by a stopped process -> break
+    background.append(asyncio.create_task(get_office().start()))
     scheduler = None
     if settings.scheduler_enabled:
         try:
@@ -84,7 +89,20 @@ def create_app() -> FastAPI:
     app.include_router(calendar.feed_router, prefix="/api")
     # Everything else needs a login when APP_PASSWORD is set.
     guarded = [Depends(require_auth)]
-    for module in (usage, chat, views, uploads, jobs, voice, screen_time, push, study, calendar):
+    for module in (
+        usage,
+        chat,
+        views,
+        uploads,
+        jobs,
+        voice,
+        screen_time,
+        push,
+        study,
+        calendar,
+        office,
+        employees,
+    ):
         app.include_router(module.router, prefix="/api", dependencies=guarded)
     return app
 

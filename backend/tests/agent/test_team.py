@@ -30,7 +30,7 @@ def test_example_team_loads() -> None:
 
     assert team.coordinator.can_delegate
     assert [a.id for a in team.agents] == ["academic", "agenda", "discipline"]
-    assert [a.name for a in team.agents] == ["Atlas", "Nova", "Coach"]
+    assert [a.name for a in team.agents] == ["Atlas", "Deniz", "Kaan"]
 
 
 def test_every_yaver_gets_the_common_tools_and_planned_ones_are_skipped() -> None:
@@ -103,7 +103,7 @@ def test_delegate_spec_lists_agent_ids() -> None:
         ("Atlas, yarın ne var?", ("academic", "yarın ne var?")),
         ("atlas: yarın ne var?", ("academic", "yarın ne var?")),
         ("ATLAS,yarın ne var?", ("academic", "yarın ne var?")),
-        ("Coach! bugün spora gidemem", ("discipline", "bugün spora gidemem")),
+        ("Kaan! bugün spora gidemem", ("discipline", "bugün spora gidemem")),
         ("Yaver, yarın ne var?", None),  # the coordinator itself: normal flow
         ("Yarın ne var?", None),
         ("Bugün, linear iptal", None),  # "Bugün" is not a yaver
@@ -243,3 +243,68 @@ def test_prompts_allow_only_today_and_tomorrow_from_the_calendar() -> None:
         assert '"bugün"' in prompt
         assert '"yarın"' in prompt
         assert "resolve_date" in prompt
+
+
+# --- the office: desks, roles, notebook tools ---------------------------------------------
+
+
+def test_example_team_has_office_desks_and_notebook_tools() -> None:
+    config = TeamConfig.model_validate(_example())
+    team = build_team(config, "Görkem")
+
+    assert config.desks() == {
+        "yaver": ("office", 0),
+        "academic": ("back", 0),
+        "agenda": ("front", 2),
+        "discipline": ("front", 3),
+    }
+    assert [a.role for a in config.agents] == ["Akademik", "Ajanda · Toplantılar", "Koç · Disiplin"]
+    for agent in team.agents:
+        assert {"add_note", "get_notes"} <= {t.name for t in agent.tools}
+    coordinator_tools = {t.name for t in team.coordinator.tools}
+    assert "get_notes" in coordinator_tools
+    assert "add_note" not in coordinator_tools
+
+
+def test_desks_default_layout_then_free_desks() -> None:
+    data = _example()
+    for agent in data["agents"]:
+        agent.pop("desk", None)
+    data["agents"].append({**data["agents"][2], "id": "research", "name": "Arda"})
+    data["agents"][0]["desk"] = {"row": "front", "col": 2}  # takes agenda's default desk
+
+    desks = TeamConfig.model_validate(data).desks()
+
+    assert desks["academic"] == ("front", 2)
+    assert desks["discipline"] == ("front", 3)  # default layout
+    assert desks["agenda"] == ("back", 0)  # its default was taken: first free desk
+    assert desks["research"] == ("back", 1)
+
+
+@pytest.mark.parametrize(
+    ("desk", "message"),
+    [
+        ({"row": "office"}, "coordinator's room"),
+        ({"row": "back", "col": 5}, "less than 5"),
+        ({"row": "front", "col": 2}, "two employees at one desk"),
+    ],
+)
+def test_bad_desks_fail_at_load_time(desk: dict[str, Any], message: str) -> None:
+    data = _example()
+    data["agents"][0]["desk"] = desk
+
+    with pytest.raises(ValidationError, match=message):
+        TeamConfig.model_validate(data)
+
+
+def test_local_style_config_without_office_fields_still_loads() -> None:
+    data = _example()
+    data.pop("office")
+    for member in [data["coordinator"], *data["agents"]]:
+        for key in ("role", "desk", "shift"):
+            member.pop(key, None)
+
+    config = TeamConfig.model_validate(data)
+
+    assert config.office.daily_budget_usd > 0
+    assert config.desks()["academic"] == ("back", 0)

@@ -3,7 +3,7 @@ import datetime as dt
 import json
 import logging
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from decimal import Decimal
 from functools import lru_cache
 from typing import Any
@@ -14,12 +14,14 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.coordinator import ChatReply, Coordinator, unsent_attachments
+from app.agent.loop import Emit
 from app.agent.team import get_team
 from app.config import get_settings
 from app.core.change_log import NothingToUndoError, undo_change_set
 from app.db.models.enums import ConversationMode
 from app.db.session import get_session, get_sessionmaker
 from app.llm.router import LLMUnavailableError, get_router
+from app.office.state import get_office
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
@@ -27,7 +29,7 @@ router = APIRouter(tags=["chat"])
 
 @lru_cache
 def get_coordinator() -> Coordinator:
-    return Coordinator(get_router(), get_team(), get_settings())
+    return Coordinator(get_router(), get_team(), get_settings(), get_office())
 
 
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -68,7 +70,7 @@ class ChatResponse(BaseModel):
     cost_usd: Decimal
 
 
-def _response(reply: ChatReply) -> ChatResponse:
+def response_of(reply: ChatReply) -> ChatResponse:
     return ChatResponse(
         conversation_id=reply.conversation_id,
         reply=reply.reply,
@@ -95,24 +97,19 @@ async def chat(
         mode=body.mode,
         attachment_ids=body.attachment_ids,
     )
-    return _response(reply)
+    return response_of(reply)
 
 
-def _sse(event: dict[str, Any]) -> str:
+def sse(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
 
 
-@router.post("/chat/stream")
-async def chat_stream(
-    body: ChatRequest,
-    coordinator: Coordinator = Depends(get_coordinator),
-    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
-) -> StreamingResponse:
-    """Server-sent events: progress (turn/text/reset/tool/delegate/agent_reply), then
-    `done` with the full reply, or `error`. Closing the connection cancels the message
-    (nothing is saved)."""
-    async with session_factory() as check:
-        await _check_attachments(check, body)
+SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
+def stream_reply(answer: Callable[[Emit], Awaitable[ChatReply]]) -> StreamingResponse:
+    """Runs `answer` with an emitter and streams its events, then `done` or `error`.
+    Closing the connection cancels it (the coordinator rolls back: nothing is saved)."""
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
 
     async def emit(event: dict[str, Any]) -> None:
@@ -120,16 +117,8 @@ async def chat_stream(
 
     async def run() -> None:
         try:
-            async with session_factory() as session:
-                reply = await coordinator.handle(
-                    session,
-                    body.message,
-                    conversation_id=body.conversation_id,
-                    emit=emit,
-                    mode=body.mode,
-                    attachment_ids=body.attachment_ids,
-                )
-            await emit({"type": "done", **_response(reply).model_dump(mode="json")})
+            reply = await answer(emit)
+            await emit({"type": "done", **response_of(reply).model_dump(mode="json")})
         except LLMUnavailableError:
             logger.warning("No LLM tier could answer", exc_info=True)
             await emit({"type": "error", "code": "llm_unavailable"})
@@ -144,16 +133,38 @@ async def chat_stream(
     async def events() -> AsyncIterator[str]:
         try:
             while (event := await queue.get()) is not None:
-                yield _sse(event)
+                yield sse(event)
         finally:
             if not task.done():  # client went away mid-answer
                 task.cancel()
 
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return StreamingResponse(events(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    body: ChatRequest,
+    coordinator: Coordinator = Depends(get_coordinator),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
+) -> StreamingResponse:
+    """Server-sent events: progress (turn/text/reset/tool/delegate/agent_reply), then
+    `done` with the full reply, or `error`. Closing the connection cancels the message
+    (nothing is saved)."""
+    async with session_factory() as check:
+        await _check_attachments(check, body)
+
+    async def answer(emit: Emit) -> ChatReply:
+        async with session_factory() as session:
+            return await coordinator.handle(
+                session,
+                body.message,
+                conversation_id=body.conversation_id,
+                emit=emit,
+                mode=body.mode,
+                attachment_ids=body.attachment_ids,
+            )
+
+    return stream_reply(answer)
 
 
 class UndoResponse(BaseModel):

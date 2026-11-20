@@ -70,7 +70,7 @@ def week_setup_script() -> ScriptedLLM:
                 {"agent_id": "discipline", "instruction": "Salı ve perşembe 19-20 spor ekle"},
             ),
         ),
-        say("Atlas derslerini, Coach sporu ekledi."),
+        say("Atlas derslerini, Kaan sporu ekledi."),
     )
     llm.add(
         "academic",
@@ -135,7 +135,7 @@ async def test_full_week_story(session: AsyncSession) -> None:
     assert sets == [first.change_set_id]
     agents = set((await session.scalars(select(ChangeLog.agent_id))).all())
     assert agents == {"academic", "discipline"}
-    assert [a["name"] for a in first.agents] == ["Atlas", "Coach"]
+    assert [a["name"] for a in first.agents] == ["Atlas", "Kaan"]
 
     # 2) "Bugün linear iptal, yarın 14'te Iceberg toplantısı var, akşam spora gidemem"
     llm = ScriptedLLM()
@@ -149,7 +149,7 @@ async def test_full_week_story(session: AsyncSession) -> None:
             ),
             ("delegate", {"agent_id": "discipline", "instruction": "Bugün akşam spora gidemem"}),
         ),
-        say("Atlas linear'ı iptal etti, Nova toplantıyı ekledi; Coach: bugün spor yok."),
+        say("Atlas linear'ı iptal etti, Deniz toplantıyı ekledi; Kaan: bugün spor yok."),
     )
     llm.add(
         "academic",
@@ -370,7 +370,7 @@ async def test_history_is_sent_with_the_next_message(session: AsyncSession) -> N
 
     sent = llm.requests[0][1].messages
     assert [m.role for m in sent] == ["user", "assistant", "user"]
-    assert sent[1].content == "Atlas derslerini, Coach sporu ekledi."
+    assert sent[1].content == "Atlas derslerini, Kaan sporu ekledi."
     assert "Şu an: 2026-11-23 10:00 Pazartesi" in (llm.requests[0][1].system_suffix or "")
 
 

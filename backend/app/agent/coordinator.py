@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.context import ToolContext
 from app.agent.documents import DocumentInput, read_documents
-from app.agent.loop import AgentRun, Emit, LLMClient, run_agent
+from app.agent.loop import AgentRun, Emit, LLMClient, OnTool, run_agent
 from app.agent.pending import (
     Binding,
     PendingAction,
@@ -40,8 +40,10 @@ from app.core.time_resolver import (
     normalize,
 )
 from app.db.models import Attachment, Conversation, Followup, Memory, Message
-from app.db.models.enums import ConversationMode, FollowupStatus, MessageRole
+from app.db.models.enums import ConversationMode, FollowupStatus, MessageRole, TaskOrigin
 from app.llm.types import ChatMessage, ImagePart, LLMRequest
+from app.office.activity import MessageActivity
+from app.office.state import Office
 from app.services.images import resolve_stored
 
 HISTORY_MESSAGES = 10
@@ -179,10 +181,13 @@ async def unsent_attachments(session: AsyncSession, ids: Sequence[int]) -> list[
 
 
 class Coordinator:
-    def __init__(self, llm: LLMClient, team: Team, settings: Settings) -> None:
+    def __init__(
+        self, llm: LLMClient, team: Team, settings: Settings, office: Office | None = None
+    ) -> None:
         self.llm = llm
         self.team = team
         self.settings = settings
+        self.office = office  # None: nothing is shown in the office (tests, scripts)
         self.max_steps = 6
 
     def addressed_member(self, text: str) -> tuple[Member, str] | None:
@@ -205,17 +210,37 @@ class Coordinator:
         emit: Emit | None = None,
         mode: ConversationMode = ConversationMode.CHAT,
         attachment_ids: Sequence[int] = (),
+        employee_id: str | None = None,
     ) -> ChatReply:
         """`emit` receives progress events (see app.agent.loop) for streaming clients.
-        `attachment_ids`: uploaded images (POST /api/uploads) sent with this message."""
+        `attachment_ids`: uploaded images (POST /api/uploads) sent with this message.
+        `employee_id`: a direct chat with that employee (its prompt and tools); the
+        coordinator's id is the main chat."""
+        now = now or dt.datetime.now(dt.UTC)
+        office = self.office
+        if office is not None and not await office.ensure_ready():
+            office = None
+        activity = MessageActivity(office, session, now)
         try:
             reply = await self._handle(
-                session, text, conversation_id, now, emit, mode, attachment_ids
+                session,
+                text,
+                conversation_id,
+                now,
+                emit,
+                mode,
+                attachment_ids,
+                activity,
+                employee_id,
             )
         except BaseException:
             await session.rollback()
+            await activity.close()
             raise
         await session.commit()
+        await activity.close()
+        if office is not None:
+            office.publish_notes(activity.notes)
         return reply
 
     async def _handle(
@@ -227,9 +252,25 @@ class Coordinator:
         emit: Emit | None,
         mode: ConversationMode = ConversationMode.CHAT,
         attachment_ids: Sequence[int] = (),
+        activity: MessageActivity | None = None,
+        employee_id: str | None = None,
     ) -> ChatReply:
-        conversation = await self._conversation(session, conversation_id, text or "Görsel", mode)
+        forced = self._member(employee_id) if employee_id else None
+        if employee_id and forced is None:
+            raise ValueError(f"unknown employee {employee_id!r}")
+        if forced is self.team.coordinator:
+            forced = None  # the coordinator's own chat is the main chat
+        conversation = await self._conversation(
+            session,
+            conversation_id,
+            text or "Görsel",
+            mode,
+            employee_id=forced.id if forced is not None else None,
+        )
         history = await self._history(session, conversation.id)
+        activity = activity or MessageActivity(None, session, now or dt.datetime.now(dt.UTC))
+        activity.conversation_id = conversation.id
+        on_tool: OnTool = activity.tool
         change_set_id = uuid.uuid4()
         ctx = ToolContext(
             session=session,
@@ -241,6 +282,7 @@ class Coordinator:
             conversation_id=conversation.id,
             llm=self.llm,
         )
+        activity.notes = ctx.notes
         memories = list((await session.scalars(select(Memory.content).where(Memory.active))).all())
         open_followups = list(
             (
@@ -256,7 +298,8 @@ class Coordinator:
         attachments, image_context = await self._read_images(session, ctx, attachment_ids, emit)
         model_text = with_image_context(text, image_context)
 
-        addressed = self.addressed_member(text)
+        # A direct chat goes to its employee; in the main chat a name addresses one.
+        addressed = (forced, text) if forced is not None else self.addressed_member(text)
         final_member: Member = self.team.coordinator
         final_messages = [*history, ChatMessage("user", model_text)]
         final_delegate: Any = None
@@ -270,7 +313,7 @@ class Coordinator:
             waiting is not None
             and not waiting.expired(ctx.now)
             and conversation.mode is ConversationMode.CHAT
-            and addressed is None
+            and (addressed is None or forced is not None)
             and not attachments
         ):
             binding = bind(waiting, text)
@@ -296,9 +339,10 @@ class Coordinator:
             ]
             note = reply_note(waiting)
             done = False
+            await activity.begin(answering.id, text, source=TaskOrigin.USER)
             if binding.option is not None:
                 tool_name, arguments = waiting.call(binding.option)
-                result = await self._run_bound(ctx, answering, tool_name, arguments, emit)
+                result = await self._run_bound(ctx, answering, tool_name, arguments, emit, on_tool)
                 left = observe(answering.id, waiting.request, tool_name, arguments, result)
                 done = "error" not in result and left is None
                 if done:
@@ -315,9 +359,11 @@ class Coordinator:
                 emit=emit,
                 stream_text=True,
                 use_tools=not done,
+                on_tool=on_tool,
             )
         elif conversation.mode is ConversationMode.ONBOARDING and self.team.onboarding is not None:
             final_member = self.team.onboarding
+            await activity.begin(final_member.id, text, source=TaskOrigin.USER)
             final = await run_agent(
                 self.llm,
                 self.team.onboarding,
@@ -327,6 +373,7 @@ class Coordinator:
                 max_steps=self.max_steps,
                 emit=emit,
                 stream_text=True,
+                on_tool=on_tool,
             )
         elif addressed is not None:
             member, rest = addressed
@@ -335,6 +382,7 @@ class Coordinator:
                 *history,
                 ChatMessage("user", with_image_context(rest, image_context)),
             ]
+            await activity.begin(member.id, rest, source=TaskOrigin.USER)
             final = await run_agent(
                 self.llm,
                 member,
@@ -344,6 +392,7 @@ class Coordinator:
                 max_steps=self.max_steps,
                 emit=emit,
                 stream_text=True,
+                on_tool=on_tool,
             )
         else:
             delegated: dict[str, dict[str, Any]] = {}
@@ -356,6 +405,7 @@ class Coordinator:
                 if agent.id in delegated:  # one delegation per yaver per message
                     return {"already_done": True, **delegated[agent.id]}
                 instructions[agent.id] = instruction
+                await activity.delegate(self.team.coordinator.id, agent.id, instruction)
                 if emit is not None:
                     await emit(
                         {
@@ -373,8 +423,10 @@ class Coordinator:
                     system_suffix=suffix,
                     max_steps=self.max_steps,
                     emit=emit,
+                    on_tool=on_tool,
                 )
                 runs.append(sub)
+                await activity.delegated(agent.id, sub.reply, sub.tool_calls)
                 delegated[agent.id] = {"agent": agent.name, "reply": sub.reply}
                 if emit is not None:
                     await emit(
@@ -388,6 +440,7 @@ class Coordinator:
                 return {**delegated[agent.id], "tools_used": sub.tool_calls}
 
             final_delegate = delegate
+            await activity.begin(self.team.coordinator.id, text, source=TaskOrigin.USER)
             final = await run_agent(
                 self.llm,
                 self.team.coordinator,
@@ -399,6 +452,7 @@ class Coordinator:
                 delegate_spec=self.team.delegate_spec(),
                 emit=emit,
                 stream_text=True,
+                on_tool=on_tool,
             )
 
         if (
@@ -428,6 +482,7 @@ class Coordinator:
                 delegate_spec=self.team.delegate_spec() if final_delegate else None,
                 emit=emit,
                 stream_text=True,
+                on_tool=on_tool,
             )
 
         if not final.reply.strip() and ctx.actions:
@@ -443,6 +498,11 @@ class Coordinator:
         conversation.pending_action = still_open.dump() if still_open else None
         changed = bool(ctx.recorder.entries)
         stored_set = change_set_id if changed else None
+        # the office: who left a question (red dot), whose question this message replaced
+        activity.asking = still_open.agent_id if still_open else None
+        activity.answered = waiting.agent_id if waiting is not None else None
+        await activity.finish(final.agent_id, reply_text, final.tool_calls)
+        activity.set_change_set(stored_set)
         user_message = Message(
             conversation_id=conversation.id,
             role=MessageRole.USER,
@@ -512,8 +572,11 @@ class Coordinator:
         tool_name: str,
         arguments: dict[str, Any],
         emit: Emit | None,
+        on_tool: OnTool | None = None,
     ) -> dict[str, Any]:
         """The tool call the user's short answer picked, run by the code for `member`."""
+        if on_tool is not None:
+            await on_tool(member.id, tool_name)
         ctx.agent_id = ctx.recorder.agent_id = member.id
         result = await run_tool(tool_name, arguments, ctx)
         step: dict[str, Any] = {
@@ -598,12 +661,14 @@ class Coordinator:
         conversation_id: int | None,
         text: str,
         mode: ConversationMode = ConversationMode.CHAT,
+        *,
+        employee_id: str | None = None,
     ) -> Conversation:
         if conversation_id is not None:
             existing = await session.get(Conversation, conversation_id)
             if existing is not None:
                 return existing
-        conversation = Conversation(title=text[:80], mode=mode)
+        conversation = Conversation(title=text[:80], mode=mode, employee_id=employee_id)
         session.add(conversation)
         await session.flush()
         return conversation

@@ -2,9 +2,10 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -29,8 +30,17 @@ ONBOARDING_TOOLS = (
     "get_week_plan",
     "finish_onboarding",
 )
-# Every specialist can read dates and the plan, whatever agents.yaml lists.
-COMMON_TOOLS = ("resolve_date", "get_day_plan")
+# Every specialist can read dates and the plan and keep its notebook, whatever agents.yaml
+# lists; the coordinator can read any notebook ("Atlas'ın defterinde ne var?").
+COMMON_TOOLS = ("resolve_date", "get_day_plan", "add_note", "get_notes")
+COORDINATOR_COMMON_TOOLS = ("resolve_date", "get_notes")
+DESK_COLUMNS = 5  # the office has 5 desk pairs: back 0-4, front 0-4
+# Where the default team sits when agents.yaml names no desk (the approved prototype).
+DEFAULT_DESKS: dict[str, tuple[str, int]] = {
+    "academic": ("back", 0),
+    "agenda": ("front", 2),
+    "discipline": ("front", 3),
+}
 PROMPTS_DIR = Path(__file__).with_name("prompts")
 COORDINATOR_COLOR = "#6366f1"
 AGENT_COLORS = ("#0ea5e9", "#f59e0b", "#10b981", "#ec4899", "#8b5cf6", "#ef4444")
@@ -40,10 +50,19 @@ class _Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class DeskConfig(_Strict):
+    row: Literal["office", "back", "front"]
+    col: int = Field(0, ge=0, lt=DESK_COLUMNS)
+
+
 class MemberConfig(_Strict):
     id: str
     name: str
     persona: str
+    role: str = ""  # office title, e.g. "Akademik"
+    desk: DeskConfig | None = None  # default: DEFAULT_DESKS, then the first free desk
+    shift: str = ""  # the shift plan shown in the office panel
+    daily_budget_usd: Decimal | None = Field(None, ge=0)  # default: office.daily_budget_usd
     tier: str = "fast"
     # Optional, per provider: {groq: openai/gpt-oss-20b} = whenever this yaver's call runs on
     # Groq (fast or fallback tier), use that model. Other providers keep the tier's model.
@@ -74,6 +93,11 @@ class CoordinatorConfig(MemberConfig):
     fast_path_tools: list[str] = Field(default_factory=list)
 
 
+class OfficeConfig(_Strict):
+    # Per employee per local day (llm_usage of its agent_id). Over it, its shift jobs stop.
+    daily_budget_usd: Decimal = Field(Decimal("0.50"), ge=0)
+
+
 class WeeklyPlanConfig(_Strict):
     tier: str = "smart"
     order: list[str] = Field(default_factory=list)
@@ -84,6 +108,7 @@ class TeamConfig(_Strict):
     agents: list[AgentConfig]
     weekly_plan: WeeklyPlanConfig = Field(default_factory=WeeklyPlanConfig)
     briefing_style: str = "sections"
+    office: OfficeConfig = Field(default_factory=OfficeConfig)
 
     @model_validator(mode="after")
     def _check(self) -> "TeamConfig":
@@ -109,7 +134,38 @@ class TeamConfig(_Strict):
         unknown_order = [a for a in self.weekly_plan.order if a not in ids]
         if unknown_order:
             raise ValueError(f"weekly_plan.order: unknown yaver(s) {unknown_order}")
+        if any(a.desk is not None and a.desk.row == "office" for a in self.agents):
+            raise ValueError("desk row 'office' is the coordinator's room")
+        desks = [(a.desk.row, a.desk.col) for a in self.agents if a.desk is not None]
+        if len(set(desks)) != len(desks):
+            raise ValueError(f"two employees at one desk: {desks}")
         return self
+
+    def desks(self) -> dict[str, tuple[str, int]]:
+        """Employee id -> (row, col): agents.yaml, the default layout, then free desks
+        (back row first)."""
+        placed: dict[str, tuple[str, int]] = {self.coordinator.id: ("office", 0)}
+        for agent in self.agents:
+            if agent.desk is not None:
+                placed[agent.id] = (agent.desk.row, agent.desk.col)
+        taken = set(placed.values())
+        for agent in self.agents:
+            default = DEFAULT_DESKS.get(agent.id)
+            if agent.id not in placed and default is not None and default not in taken:
+                placed[agent.id] = default
+                taken.add(default)
+        free = [
+            desk
+            for row in ("back", "front")
+            for col in range(DESK_COLUMNS)
+            if (desk := (row, col)) not in taken
+        ]
+        for agent in self.agents:
+            if agent.id not in placed:
+                if not free:
+                    raise ValueError("more employees than desks")
+                placed[agent.id] = free.pop(0)
+        return placed
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,7 +260,8 @@ def build_team(
         tier=config.coordinator.tier,
         system_prompt=env.get_template("coordinator.md.j2").render(**context).strip(),
         tools=_tools(
-            [*config.coordinator.tools, *config.coordinator.fast_path_tools], ("resolve_date",)
+            [*config.coordinator.tools, *config.coordinator.fast_path_tools],
+            COORDINATOR_COMMON_TOOLS,
         ),
         can_delegate=DELEGATE in config.coordinator.tools,
         model=config.coordinator.model,

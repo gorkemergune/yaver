@@ -32,6 +32,8 @@ class ToolContext:
     trace: list[dict[str, object]] = field(default_factory=list)
     # Open questions tool results left this turn (app.agent.pending.PendingAction).
     asks: list[Any] = field(default_factory=list)
+    # Notebook notes written this turn: announced to the office once committed.
+    notes: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def today(self) -> dt.date:

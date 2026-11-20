@@ -69,6 +69,8 @@ export function describeChange(change: Change): string {
       return op === "delete"
         ? `${shortDate(data.week_start)} haftasının adı kaldırıldı`
         : `${shortDate(data.week_start)} haftasının adı: ${text(data.label)}`;
+    case "employee_notes":
+      return op === "delete" ? `Defterden silindi: ${text(data.content)}` : `Deftere not: ${text(data.content)}`;
     case "memories":
       return op === "update" ? `Unutuldu: ${text(data.content)}` : `Hatırlanacak: ${text(data.content)}`;
     default:
