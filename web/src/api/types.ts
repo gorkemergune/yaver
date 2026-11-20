@@ -49,11 +49,31 @@ export interface PlanTask {
   status: "todo" | "done" | "cancelled";
 }
 
+/** A missed class session (week view, past days). */
+export interface DayAttendance {
+  course: string;
+  hours: number;
+  status: "absent" | "excused";
+  block_id: number | null;
+}
+
+/** An occurrence of this day moved to another time ("eski → yeni"). */
+export interface MovedAway {
+  block_id: number;
+  title: string;
+  start: string;
+  moved_to: string; // "YYYY-MM-DD HH:MM"
+  moved_to_end: string;
+  reason: string | null;
+}
+
 export interface DayPlan {
   date: string;
   weekday: string;
   items: PlanItem[];
   cancelled?: CancelledItem[];
+  moved_away?: MovedAway[];
+  attendance?: DayAttendance[];
   conflicts?: [string, string][];
   holidays?: string[];
   tasks?: PlanTask[];
@@ -64,10 +84,32 @@ export interface DayPlanResponse extends DayPlan {
   today: string;
 }
 
+/** Term week facts (app/services/weeks.py). */
+export interface WeekFacts {
+  week_start: string;
+  title: string | null; // "2026-27 Güz · 8. Hafta"; null outside a term
+  term: string | null;
+  week_no: number | null;
+  label: string | null; // the user's name for the week, else the automatic one
+  label_source: "user" | "auto" | null;
+  auto_label: string | null;
+  holidays: string[];
+  exams: number;
+  quizzes: number;
+  absence_hours: number;
+}
+
 export interface WeekPlanResponse {
   today: string;
   week_start: string;
+  week: WeekFacts;
   days: DayPlan[];
+}
+
+export interface TermWeeks {
+  term: { id: number; name: string; start_date: string; end_date: string } | null;
+  current_week_start: string;
+  weeks: WeekFacts[];
 }
 
 /** Absences in class hours (app/services/attendance.py). */

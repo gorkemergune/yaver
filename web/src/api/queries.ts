@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { apiGet } from "./client";
 import type {
@@ -8,6 +8,7 @@ import type {
   MonthUsage,
   OnboardingStatus,
   Team,
+  TermWeeks,
   WeekPlanResponse,
 } from "./types";
 
@@ -50,10 +51,20 @@ export function useDayPlan(offset: 0 | 1) {
   });
 }
 
-export function useWeekPlan() {
+/** `weekStart` null = this week. The previous week stays on screen while the next loads. */
+export function useWeekPlan(weekStart: string | null = null) {
   return useQuery({
-    queryKey: ["plan", "week"],
-    queryFn: ({ signal }) => apiGet<WeekPlanResponse>("/plan/week", { signal }),
+    queryKey: ["plan", "week", weekStart ?? "current"],
+    queryFn: ({ signal }) =>
+      apiGet<WeekPlanResponse>(weekStart ? `/plan/week?date=${weekStart}` : "/plan/week", { signal }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useTermWeeks() {
+  return useQuery({
+    queryKey: ["plan", "term-weeks"], // under "plan": a renamed week or a new exam shows up
+    queryFn: ({ signal }) => apiGet<TermWeeks>("/terms/weeks", { signal }),
   });
 }
 

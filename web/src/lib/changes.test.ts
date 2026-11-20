@@ -50,3 +50,14 @@ describe("visibleChanges", () => {
     expect(visibleChanges([limit])).toEqual([limit]);
   });
 });
+
+describe("week labels", () => {
+  it("names and clears a week", () => {
+    expect(describeChange(change("week_labels", { week_start: "2026-11-23", label: "Hackathon Haftası" }))).toBe(
+      "23 Kas Pzt haftasının adı: Hackathon Haftası",
+    );
+    expect(describeChange(change("week_labels", { week_start: "2026-11-23" }, "delete"))).toBe(
+      "23 Kas Pzt haftasının adı kaldırıldı",
+    );
+  });
+});

@@ -65,6 +65,10 @@ export function describeChange(change: Change): string {
       return data.status === "done" ? `Görev tamamlandı: ${text(data.title)}` : `Görev: ${text(data.title)} ${verb}`;
     case "followups":
       return `Takip: ${text(data.title)} ${verb}`;
+    case "week_labels":
+      return op === "delete"
+        ? `${shortDate(data.week_start)} haftasının adı kaldırıldı`
+        : `${shortDate(data.week_start)} haftasının adı: ${text(data.label)}`;
     case "memories":
       return op === "update" ? `Unutuldu: ${text(data.content)}` : `Hatırlanacak: ${text(data.content)}`;
     default:

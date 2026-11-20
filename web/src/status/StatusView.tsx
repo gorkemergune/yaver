@@ -1,4 +1,4 @@
-import { useAttendance, useMonthUsage, useTeam, useTeamActivity } from "../api/queries";
+import { useAttendance, useMonthUsage, useTeam, useTeamActivity, useTermWeeks } from "../api/queries";
 import { AgentTag } from "../components/AgentTag";
 import { YaverAvatar } from "../components/Yaver";
 import { describeChange } from "../lib/changes";
@@ -6,10 +6,13 @@ import type { CourseAttendance } from "../api/types";
 import { tr } from "../i18n/tr";
 import { budgetTone, money } from "../lib/format";
 import { Notice } from "../plan/DayView";
+import { weekRange } from "../plan/week";
+import { href } from "../lib/route";
 
 export function StatusView() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 px-3 py-4">
+      <TermCard />
       <TeamCard />
       <AttendanceCard />
       <SpendCard />
@@ -32,6 +35,68 @@ function Bar({ ratio, tone }: { ratio: number; tone: "ok" | "warn" | "bad" }) {
     <div className="h-2 overflow-hidden rounded-full bg-slate-900/10 dark:bg-white/10">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${String(Math.min(ratio, 1) * 100)}%` }} />
     </div>
+  );
+}
+
+/** Every week of the term: number, label, exams, absences; a tap opens that week. */
+function TermCard() {
+  const term = useTermWeeks();
+  if (term.isPending) return <Notice text={tr.plan.loading} />;
+  if (term.isError) return <Notice text={tr.plan.error} />;
+  if (!term.data.term) {
+    return (
+      <Card title={tr.term.title}>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{tr.term.none}</p>
+      </Card>
+    );
+  }
+  const current = term.data.current_week_start;
+  return (
+    <Card title={`${tr.term.title} · ${term.data.term.name}`}>
+      <ol className="-mx-2 max-h-[26rem] space-y-0.5 overflow-y-auto">
+        {term.data.weeks.map((week) => {
+          const isCurrent = week.week_start === current;
+          const past = week.week_start < current;
+          const counts = [
+            week.exams ? tr.week.exams(week.exams) : null,
+            week.absence_hours ? tr.week.absences(week.absence_hours) : null,
+          ].filter(Boolean);
+          return (
+            <li key={week.week_start}>
+              <a
+                href={href("week", { week: week.week_start })}
+                aria-current={isCurrent ? "date" : undefined}
+                className={`flex items-baseline gap-3 rounded-xl px-2 py-1.5 text-sm hover:bg-white/60 dark:hover:bg-white/[0.06] ${
+                  isCurrent ? "bg-indigo-500/10 ring-1 ring-indigo-400/40" : ""
+                } ${past ? "text-slate-500 dark:text-slate-400" : ""}`}
+              >
+                <span className="w-7 shrink-0 text-right font-grotesk font-semibold tabular-nums">{tr.term.week(week.week_no)}</span>
+                <span className="w-32 shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">{weekRange(week.week_start)}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {week.label && (
+                    <span
+                      className={`mr-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        week.label_source === "user"
+                          ? "bg-violet-500/15 text-violet-700 dark:text-violet-300"
+                          : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                      }`}
+                    >
+                      {week.label}
+                    </span>
+                  )}
+                  {isCurrent && <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">{tr.term.current}</span>}
+                </span>
+                <span
+                  className={`shrink-0 text-xs tabular-nums ${week.absence_hours ? "text-rose-600 dark:text-rose-400" : "text-slate-500 dark:text-slate-400"}`}
+                >
+                  {counts.join(" · ")}
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </ol>
+    </Card>
   );
 }
 

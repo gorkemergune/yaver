@@ -1,12 +1,13 @@
 import { Fragment, useState } from "react";
 
 import { useDayPlan } from "../api/queries";
-import type { DayPlan, PlanItem } from "../api/types";
+import type { DayAttendance, DayPlan, PlanItem } from "../api/types";
 import { tr } from "../i18n/tr";
 import { shortDate } from "../lib/changes";
 import { toMinutes, useNowMinutes } from "../design/time";
 import { detailLines } from "./details";
 import { kindColor } from "./kinds";
+import { movedTo } from "./week";
 
 export function DayView({ offset }: { offset: 0 | 1 }) {
   const plan = useDayPlan(offset);
@@ -28,7 +29,12 @@ export function DayCard({ day, today, expanded = false }: { day: DayPlan; today:
   const isToday = day.date === today;
   const allDay = day.items.filter((item) => item.all_day);
   const timed = day.items.filter((item) => !item.all_day);
-  const empty = day.items.length === 0 && !day.cancelled?.length && !day.tasks?.length;
+  const empty =
+    day.items.length === 0 && !day.cancelled?.length && !day.moved_away?.length && !day.attendance?.length && !day.tasks?.length;
+  // absences on a class shown on that class; the rest (block gone) as their own lines
+  const absenceOf = (item: PlanItem): DayAttendance | undefined =>
+    item.type === "block" ? day.attendance?.find((a) => a.block_id === item.id) : undefined;
+  const loose = day.attendance?.filter((a) => !timed.some((item) => absenceOf(item) === a)) ?? [];
   const nowMinutes = useNowMinutes();
   // the line goes before the first item that has not started yet
   const nowIndex = (() => {
@@ -70,10 +76,28 @@ export function DayCard({ day, today, expanded = false }: { day: DayPlan; today:
           {timed.map((item, index) => (
             <Fragment key={`${item.type}-${String(item.id)}`}>
               {isToday && expanded && nowIndex === index && <NowLine minutes={nowMinutes} />}
-              <Row item={item} compact={!expanded} />
+              <Row item={item} compact={!expanded} absence={absenceOf(item)} />
             </Fragment>
           ))}
           {isToday && expanded && timed.length > 0 && nowIndex === timed.length && <NowLine minutes={nowMinutes} />}
+          {day.moved_away?.map((moved) => (
+            <li
+              key={`m-${String(moved.block_id)}`}
+              className="flex flex-col text-sm text-slate-400 @[17rem]:flex-row @[17rem]:gap-3 dark:text-slate-500"
+            >
+              <span className="shrink-0 tabular-nums line-through @[17rem]:w-12">{moved.start}</span>
+              <span className="min-w-0 break-words">
+                <span className="line-through">{moved.title}</span> → {movedTo(moved.moved_to, day.date)} ·{" "}
+                {tr.plan.movedAway}
+              </span>
+            </li>
+          ))}
+          {loose.map((absence) => (
+            <li key={`a-${absence.course}-${String(absence.block_id)}`} className="text-sm font-medium text-rose-600 dark:text-rose-400">
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-rose-500" aria-hidden />
+              {tr.plan.absentCourse(absence.course, absence.hours)}
+            </li>
+          ))}
           {day.cancelled?.map((cancelled) => (
             <li
               key={`c-${String(cancelled.block_id)}`}
@@ -95,7 +119,7 @@ export function DayCard({ day, today, expanded = false }: { day: DayPlan; today:
         </p>
       ))}
 
-      {expanded && <Tasks title={tr.plan.tasks} tasks={day.tasks} />}
+      <Tasks title={tr.plan.tasks} tasks={day.tasks} compact={!expanded} />
       {expanded && <Tasks title={tr.plan.weekTasks} tasks={day.week_tasks} />}
     </section>
   );
@@ -106,9 +130,14 @@ export function DayCard({ day, today, expanded = false }: { day: DayPlan; today:
  * nothing is cut; a tap opens everything (full title, time range, place, note).
  * In a narrow card (7-column week) the times go above the title.
  */
-function Row({ item, compact }: { item: PlanItem; compact: boolean }) {
+function Row({ item, compact, absence }: { item: PlanItem; compact: boolean; absence?: DayAttendance }) {
   const [open, setOpen] = useState(false);
   const color = kindColor(item.kind);
+  const missed = absence
+    ? absence.status === "excused"
+      ? tr.plan.excused(absence.hours)
+      : tr.plan.absent(absence.hours)
+    : null;
   return (
     <li className="flex flex-col gap-0.5 @[17rem]:flex-row @[17rem]:gap-3">
       <span className="flex shrink-0 gap-1 text-xs tabular-nums text-slate-500 @[17rem]:w-12 @[17rem]:flex-col @[17rem]:gap-0 @[17rem]:pt-1.5 @[17rem]:text-sm dark:text-slate-400">
@@ -131,6 +160,18 @@ function Row({ item, compact }: { item: PlanItem; compact: boolean }) {
         style={{ borderLeftColor: color }}
       >
         <span className={`block break-words font-medium leading-snug ${open ? "" : "line-clamp-2"}`}>{item.title}</span>
+        {missed && (
+          <span
+            className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-1.5 text-[0.7rem] font-semibold ${
+              absence?.status === "excused"
+                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                : "bg-rose-500/15 text-rose-700 dark:text-rose-300"
+            }`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+            {missed}
+          </span>
+        )}
         {!compact && !open && (
           <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
             {tr.kinds[item.kind] ?? item.kind}
@@ -192,12 +233,13 @@ function Details({ item }: { item: PlanItem }) {
   );
 }
 
-function Tasks({ title, tasks }: { title: string; tasks?: DayPlan["tasks"] }) {
+/** Done ones struck through; `compact` (week cards): no heading, smaller. */
+export function Tasks({ title, tasks, compact = false }: { title: string; tasks?: DayPlan["tasks"]; compact?: boolean }) {
   if (!tasks?.length) return null;
   return (
-    <div className="mt-4">
-      <h3 className="mb-1 text-sm font-medium text-slate-500 dark:text-slate-400">{title}</h3>
-      <ul className="space-y-1 text-sm">
+    <div className={compact ? "mt-2" : "mt-4"}>
+      <h3 className={compact ? "sr-only" : "mb-1 text-sm font-medium text-slate-500 dark:text-slate-400"}>{title}</h3>
+      <ul className={compact ? "space-y-0.5 text-xs text-slate-600 dark:text-slate-300" : "space-y-1 text-sm"}>
         {tasks.map((task) => (
           <li key={task.id} className={task.status === "done" ? "text-slate-400 line-through" : ""}>
             {task.status === "done" ? "☑" : "☐"} {task.title}
