@@ -21,7 +21,12 @@ from app.agent.team import Member, Team
 from app.agent.vision import ImageInput, read_images
 from app.config import Settings
 from app.core.change_log import ChangeRecorder, describe_changes
-from app.core.time_resolver import WEEKDAY_NAMES_TR, build_calendar_context, format_calendar_context
+from app.core.time_resolver import (
+    WEEKDAY_NAMES_TR,
+    build_calendar_context,
+    format_calendar_context,
+    normalize,
+)
 from app.db.models import Attachment, Conversation, Memory, Message
 from app.db.models.enums import ConversationMode, MessageRole
 from app.llm.types import ChatMessage, ImagePart
@@ -75,6 +80,35 @@ def system_suffix(ctx: ToolContext, memories: list[str]) -> str:
     # then sometimes answers in English.
     lines.append("Cevabını Türkçe yaz.")
     return "\n".join(lines)
+
+
+# Past-tense change verbs ("kaydettim", "eklendi", "iptal etti"...); negations such as
+# "eklemedim" do not match.
+_CLAIM = re.compile(
+    r"\b(kaydett|kaydedil|ekledi|eklendi|ekledim|iptal ett|iptal edil|tasidi|tasindi|"
+    r"guncelledi|guncellendi|sildi|silindi|isaretledi|isaretlendi|tamamlandi olarak)"
+)
+NO_TOOL_RAN = (
+    "Önceki denemende bu mesaj için hiçbir araç çalıştırmadın. Geçmişteki cevaplar bu mesaj "
+    "için bir şey yapmaz: kullanıcının son mesajındaki isteği şimdi araçla yerine getir "
+    "(ilgili yavere delegate et ya da aracı çağır; zaten kayıtlıysa araç bunu söyler) ve "
+    "araç sonucuna göre cevap ver."
+)
+
+
+# Requests to change something ("gitmedim", "iptal", "ekle", "sil", "taşı"...).
+_REQUEST = re.compile(
+    r"\b(gitmedim|gidemedim|gitmeyecegim|gidemeyecegim|katilmadim|katilamadim|iptal|ekle|"
+    r"kaydet|sil|tasi|ertele|degistir|isaretle|tamamladim|bitirdim)"
+)
+
+
+def claims_a_change(reply: str) -> bool:
+    return _CLAIM.search(normalize(reply)) is not None
+
+
+def requests_a_change(text: str) -> bool:
+    return _REQUEST.search(normalize(text)) is not None
 
 
 def with_image_context(text: str, context: str | None) -> str:
@@ -167,11 +201,15 @@ class Coordinator:
         model_text = with_image_context(text, image_context)
 
         addressed = self.addressed_member(text)
+        final_member: Member = self.team.coordinator
+        final_messages = [*history, ChatMessage("user", model_text)]
+        final_delegate: Any = None
         if conversation.mode is ConversationMode.ONBOARDING and self.team.onboarding is not None:
+            final_member = self.team.onboarding
             final = await run_agent(
                 self.llm,
                 self.team.onboarding,
-                [*history, ChatMessage("user", model_text)],
+                final_messages,
                 ctx,
                 system_suffix=suffix,
                 max_steps=self.max_steps,
@@ -180,10 +218,15 @@ class Coordinator:
             )
         elif addressed is not None:
             member, rest = addressed
+            final_member = member
+            final_messages = [
+                *history,
+                ChatMessage("user", with_image_context(rest, image_context)),
+            ]
             final = await run_agent(
                 self.llm,
                 member,
-                [*history, ChatMessage("user", with_image_context(rest, image_context))],
+                final_messages,
                 ctx,
                 system_suffix=suffix,
                 max_steps=self.max_steps,
@@ -231,15 +274,45 @@ class Coordinator:
                     )
                 return {**delegated[agent.id], "tools_used": sub.tool_calls}
 
+            final_delegate = delegate
             final = await run_agent(
                 self.llm,
                 self.team.coordinator,
-                [*history, ChatMessage("user", model_text)],
+                final_messages,
                 ctx,
                 system_suffix=suffix,
                 max_steps=self.max_steps,
                 delegate=delegate,
                 delegate_spec=self.team.delegate_spec(),
+                emit=emit,
+                stream_text=True,
+            )
+
+        if (
+            not ctx.actions
+            and not ctx.new_proposals  # an image's table shown for confirmation: no tool yet
+            and (claims_a_change(final.reply) or (not ctx.trace and requests_a_change(text)))
+        ):
+            # Live runs: after a few "gitmedim" messages Haiku answered the next one with
+            # "kaydettim" - or with an apology - and no tool call at all. One more turn: do it
+            # with a tool now (an already recorded thing is reported by the tool).
+            logger.warning("No tool ran for %r; reply was %r", text, final.reply)
+            if emit is not None:
+                await emit({"type": "reset", "agent_id": final.agent_id})
+            # Same user message again (it must stay the last one: a note sent as a message
+            # was read as the user's new request); the note goes into the system context.
+            # A self-contained request is retried without the history: the earlier
+            # "kaydettim" answers are what it copied. "evet" & co keep it (they need it).
+            retry_messages = final_messages[-1:] if requests_a_change(text) else final_messages
+            final = await run_agent(
+                self.llm,
+                final_member,
+                retry_messages,
+                ctx,
+                system_suffix=f"{suffix}\n{NO_TOOL_RAN}",
+                max_steps=self.max_steps,
+                delegate=final_delegate,
+                delegate_spec=self.team.delegate_spec() if final_delegate else None,
                 emit=emit,
                 stream_text=True,
             )

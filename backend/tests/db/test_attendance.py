@@ -167,3 +167,31 @@ async def test_resolve_date_takes_a_list_of_days(
 
     assert result["status"] == "resolved", result
     assert {k: result[k] for k in expected} == expected
+
+
+async def test_a_change_claimed_without_a_tool_gets_one_more_turn(ctx: ToolContext) -> None:
+    from app.agent.coordinator import NO_TOOL_RAN
+    from tests.agent_fakes import NOW, ScriptedLLM, call, coordinator, say
+
+    await ctx.session.commit()
+    llm = ScriptedLLM()
+    seen: list[str] = []
+
+    def do_it(request: Any) -> Any:
+        seen.append(request.messages[-1].content)  # still the user's own message
+        assert NO_TOOL_RAN in (request.system_suffix or "")
+        return call("log_attendance", course="ee211", dates=nov(12, 19))
+
+    llm.add(
+        "yaver",
+        say("Friday: 12 ve 19 Kasım EE 211 devamsızlığını kaydetti."),  # no tool ran
+        do_it,
+        say("Friday: 12 ve 19 Kasım EE 211 13:00-14:00 için 2 saat devamsızlık kaydetti."),
+    )
+    reply = await coordinator(llm).handle(ctx.session, "12 19 kasımda ee211'e gitmedim", now=NOW)
+
+    assert seen == ["12 19 kasımda ee211'e gitmedim"]
+    assert reply.change_set_id is not None
+    hours = await ctx.session.scalar(select(func.sum(Attendance.hours)))
+    assert hours == 2
+    llm.assert_done()
