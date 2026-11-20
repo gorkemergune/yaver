@@ -27,12 +27,18 @@ class Plan:
     job_id: JobId
     at: dt.time
     window: dt.timedelta  # how late it may still run (misfire / catch-up)
+    weekday: int | None = None  # only on this day (0 = Monday); None = every day
 
 
 def plans(settings: Settings) -> list[Plan]:
     checkin = parse_hhmm(settings.checkin_time)
     until_midnight = dt.timedelta(hours=23 - checkin.hour, minutes=59 - checkin.minute)
+    weekly = parse_hhmm(settings.weekly_plan_time)
+    weekly_window = min(
+        dt.timedelta(hours=3), dt.timedelta(hours=23 - weekly.hour, minutes=59 - weekly.minute)
+    )
     return [
+        Plan("weekly_plan", weekly, weekly_window, weekday=6),
         Plan("briefing", parse_hhmm(settings.briefing_time), dt.timedelta(hours=8)),
         Plan("checkin", checkin, min(dt.timedelta(hours=3), until_midnight)),
         Plan("followups", parse_hhmm(settings.followup_time), dt.timedelta(hours=8)),
@@ -63,7 +69,12 @@ def start_scheduler(settings: Settings | None = None) -> AsyncIOScheduler:
     for plan in plans(settings):
         scheduler.add_job(
             run_scheduled,
-            CronTrigger(hour=plan.at.hour, minute=plan.at.minute, timezone=settings.tz),
+            CronTrigger(
+                day_of_week="*" if plan.weekday is None else str(plan.weekday),
+                hour=plan.at.hour,
+                minute=plan.at.minute,
+                timezone=settings.tz,
+            ),
             args=[plan.job_id],
             id=plan.job_id,
             name=plan.job_id,
@@ -82,6 +93,8 @@ def due_now(settings: Settings, now: dt.datetime) -> list[JobId]:
     local = now.astimezone(settings.tz)
     due = []
     for plan in plans(settings):
+        if plan.weekday is not None and local.weekday() != plan.weekday:
+            continue
         start = dt.datetime.combine(local.date(), plan.at, tzinfo=settings.tz)
         if start <= local <= start + plan.window:
             due.append(plan.job_id)

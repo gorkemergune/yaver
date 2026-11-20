@@ -437,14 +437,23 @@ class Coordinator:
             )
         ).all()
         history: list[ChatMessage] = []
+        previous_kind: str | None = None
         for row in reversed(rows):
             if row.role is MessageRole.USER:
                 history.append(ChatMessage("user", with_image_context(row.content, row.context)))
+                previous_kind = None
             elif row.role is MessageRole.ASSISTANT:
-                if history and history[-1].role == "assistant":
-                    history[-1] = ChatMessage("assistant", row.content)  # keep the final answer
+                content = f"{row.content}\n\n{row.context}" if row.context else row.content
+                previous = history[-1] if history and history[-1].role == "assistant" else None
+                if previous is None:
+                    history.append(ChatMessage("assistant", content))
+                elif row.kind or previous_kind:
+                    # a scheduler message (briefing, weekly plan) is kept next to the answer
+                    # before it: a Monday briefing must not hide Sunday's plan draft
+                    history[-1] = ChatMessage("assistant", f"{previous.content}\n\n{content}")
                 else:
-                    history.append(ChatMessage("assistant", row.content))
+                    history[-1] = ChatMessage("assistant", content)  # keep the final answer
+                previous_kind = row.kind
         history = history[-HISTORY_MESSAGES:]
         while history and history[0].role != "user":  # providers want a user turn first
             history.pop(0)

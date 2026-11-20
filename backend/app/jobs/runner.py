@@ -7,7 +7,7 @@ the message is written once.
 
 import datetime as dt
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,11 +19,13 @@ from app.db.models import Conversation, JobRun, Message
 from app.db.models.enums import ConversationMode, MessageRole
 from app.db.session import get_sessionmaker
 from app.jobs.content import Voice, build_briefing, build_checkin, build_followups
+from app.jobs.weekly_plan import draft_week
+from app.llm.router import get_router
 
 logger = logging.getLogger(__name__)
 
-JobId = Literal["briefing", "checkin", "followups"]
-JOB_IDS: tuple[JobId, ...] = ("briefing", "checkin", "followups")
+JobId = Literal["briefing", "checkin", "followups", "weekly_plan"]
+JOB_IDS: tuple[JobId, ...] = ("briefing", "checkin", "followups", "weekly_plan")
 
 
 def parse_hhmm(value: str) -> dt.time:
@@ -37,8 +39,11 @@ async def run_job(
     settings: Settings | None = None,
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
     team: Team | None = None,
+    llm: Any = None,
+    force: bool = False,
 ) -> int | None:
-    """The id of the message written, or None (already ran today / nothing to say)."""
+    """The id of the message written, or None (already ran today / nothing to say).
+    `force` runs it again today (the manual "run now" endpoint)."""
     settings = settings or get_settings()
     now = now or dt.datetime.now(dt.UTC)
     today = now.astimezone(settings.tz).date()
@@ -48,18 +53,19 @@ async def run_job(
         done = await session.scalar(
             select(JobRun.id).where(JobRun.job_id == job_id, JobRun.run_on == today)
         )
-        if done is not None:
+        if done is not None and not force:
             return None
-        text = await _build(job_id, session, now, today, settings, team)
-        message_id = await _post(session, text, job_id, team, now) if text else None
-        session.add(
-            JobRun(
-                job_id=job_id,
-                run_on=today,
-                status="sent" if text else "skipped",
-                message_id=message_id,
+        text, context = await _build(job_id, session, now, today, settings, team, llm)
+        message_id = await _post(session, text, job_id, team, now, context) if text else None
+        if done is None:
+            session.add(
+                JobRun(
+                    job_id=job_id,
+                    run_on=today,
+                    status="sent" if text else "skipped",
+                    message_id=message_id,
+                )
             )
-        )
         try:
             await session.commit()
         except IntegrityError:  # another process wrote today's run first
@@ -76,10 +82,15 @@ async def _build(
     today: dt.date,
     settings: Settings,
     team: Team,
-) -> str | None:
+    llm: Any = None,
+) -> tuple[str | None, str | None]:
+    """(message, hidden context replayed to the model) for the job."""
     voice = Voice(team, load_team_config().briefing_style != "single_voice")
+    if job_id == "weekly_plan":
+        drafted = await draft_week(session, llm or get_router(), today, settings.tz)
+        return drafted if drafted else (None, None)
     if job_id == "briefing":
-        return await build_briefing(
+        text: str | None = await build_briefing(
             session,
             today,
             settings.tz,
@@ -87,11 +98,13 @@ async def _build(
             settings.app_user_name,
             unanswered_checkin=await _checkin_unanswered(session, today - dt.timedelta(days=1)),
         )
-    if job_id == "checkin":
-        return await build_checkin(session, today, settings.tz, voice)
-    return await build_followups(
-        session, now, today, parse_hhmm(settings.followup_time), settings.tz, voice
-    )
+    elif job_id == "checkin":
+        text = await build_checkin(session, today, settings.tz, voice)
+    else:
+        text = await build_followups(
+            session, now, today, parse_hhmm(settings.followup_time), settings.tz, voice
+        )
+    return text, None
 
 
 async def _checkin_unanswered(session: AsyncSession, day: dt.date) -> bool:
@@ -115,7 +128,14 @@ async def _checkin_unanswered(session: AsyncSession, day: dt.date) -> bool:
     return answer is None
 
 
-async def _post(session: AsyncSession, text: str, kind: str, team: Team, now: dt.datetime) -> int:
+async def _post(
+    session: AsyncSession,
+    text: str,
+    kind: str,
+    team: Team,
+    now: dt.datetime,
+    context: str | None = None,
+) -> int:
     """Into the most recent chat (a new one if there is none), from the coordinator."""
     conversation = await session.scalar(
         select(Conversation)
@@ -133,6 +153,7 @@ async def _post(session: AsyncSession, text: str, kind: str, team: Team, now: dt
         agent_id=team.coordinator.id,
         content=text,
         kind=kind,
+        context=context,
     )
     session.add(message)
     conversation.updated_at = now

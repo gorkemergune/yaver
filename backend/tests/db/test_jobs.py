@@ -211,7 +211,8 @@ async def test_scheduler_keeps_its_jobs_in_postgres(settings: Settings) -> None:
     scheduler = start_scheduler(settings)
     try:
         jobs = {job.id: job for job in scheduler.get_jobs()}
-        assert set(jobs) == {"briefing", "checkin", "followups"}
+        assert set(jobs) == {"briefing", "checkin", "followups", "weekly_plan"}
+        assert jobs["weekly_plan"].next_run_time.astimezone(IST).weekday() == 6  # Sunday
         assert jobs["checkin"].next_run_time.astimezone(IST).time() == dt.time(21, 0)
         assert jobs["briefing"].misfire_grace_time == 8 * 3600
     finally:
@@ -221,3 +222,133 @@ async def test_scheduler_keeps_its_jobs_in_postgres(settings: Settings) -> None:
         with engine.begin() as conn:
             conn.execute(text("DROP TABLE IF EXISTS apscheduler_jobs"))
         engine.dispose()
+
+
+# --- weekly plan (Sunday evening) ---------------------------------------------------------
+
+
+def draft_llm(*tasks: dict[str, Any]) -> Any:
+    from tests.agent_fakes import ScriptedLLM, call
+
+    return ScriptedLLM(
+        {
+            "weekly_planner": [
+                call(
+                    "week_draft",
+                    summary="Yoğun bir hafta: Cuma sınavın var.",
+                    tasks=list(tasks),
+                )
+            ]
+        }
+    )
+
+
+async def test_weekly_plan_is_a_proposal_until_yes(week: AsyncSession, settings: Settings) -> None:
+    llm = draft_llm(
+        {"title": "MATH221: çalışma 1", "date": "2026-11-24", "why": "sınav 27 Kasım"},
+        {"title": "Rapor", "why": "hafta içinde"},
+        {"title": "Geçen haftaya ait", "date": "2026-11-20"},  # outside the week: dropped
+    )
+    sunday = at(22, 20)
+
+    message_id = await run_job(
+        "weekly_plan",
+        now=sunday,
+        settings=settings,
+        sessionmaker=async_sessionmaker(week.bind, expire_on_commit=False),
+        team=example_team(),
+        llm=llm,
+    )
+
+    message = await week.get(Message, message_id)
+    assert message is not None
+    assert message.kind == "weekly_plan"
+    assert "| 24 Kasım Salı | MATH221: çalışma 1 | sınav 27 Kasım |" in message.content
+    assert "| Hafta boyunca | Rapor | hafta içinde |" in message.content
+    assert "Geçen haftaya ait" not in message.content
+    assert message.context == "[Haftalık plan taslağı -> öneri #1, henüz kaydedilmedi]"
+    facts = llm.requests[0][1].messages[0].content
+    assert "2026-11-23 23 Kasım Pazartesi: 09:00 Linear Algebra (class)" in facts
+    assert "Exam/deadline: MATH221 Ara Sınav on 27 Kasım Cuma" in facts
+    assert "Absences MATH221: 2 h of 4 h allowed" in facts
+    assert llm.purposes == ["weekly_plan"]  # -> smart tier
+
+    ctx = context(week, "agenda")  # Monday: "evet"
+    applied = await run_tool("apply_proposal", {"proposal_id": 1}, ctx)
+    assert [t["date"] for t in applied["tasks_created"]] == ["2026-11-24", "hafta"]
+
+
+async def test_history_keeps_sundays_plan_behind_mondays_briefing(
+    week: AsyncSession, settings: Settings
+) -> None:
+    from tests.agent_fakes import ScriptedLLM, coordinator
+
+    maker = async_sessionmaker(week.bind, expire_on_commit=False)
+    llm = draft_llm({"title": "Rapor"})
+    await run_job(
+        "weekly_plan",
+        now=at(22, 20),
+        settings=settings,
+        sessionmaker=maker,
+        team=example_team(),
+        llm=llm,
+    )
+    briefing = await job(week, settings, "briefing", at(23, 8))
+    assert briefing is not None
+
+    history = await coordinator(ScriptedLLM())._history(week, briefing.conversation_id)
+
+    assert history == []  # nothing from the user yet: no turn to answer
+    week.add(
+        Message(conversation_id=briefing.conversation_id, role=MessageRole.USER, content="evet")
+    )
+    week.add(
+        Message(
+            conversation_id=briefing.conversation_id,
+            role=MessageRole.ASSISTANT,
+            agent_id="yaver",
+            content="Tamam.",
+        )
+    )
+    await week.commit()
+    week.add(
+        Message(
+            conversation_id=briefing.conversation_id,
+            role=MessageRole.ASSISTANT,
+            agent_id="yaver",
+            content="Akşam check-in",
+            kind="checkin",
+        )
+    )
+    await week.commit()
+    history = await coordinator(ScriptedLLM())._history(week, briefing.conversation_id)
+    assert [m.role for m in history] == ["user", "assistant"]
+    assert history[1].content == "Tamam.\n\nAkşam check-in"  # the scheduler message is kept
+
+
+def test_weekly_plan_runs_on_sundays_only() -> None:
+    settings = Settings(_env_file=None)
+
+    assert "weekly_plan" in due_now(settings, at(22, 21))  # Sunday 21:00
+    assert "weekly_plan" not in due_now(settings, at(23, 21))  # Monday
+
+
+async def test_run_a_job_now_over_http(week: AsyncSession, settings: Settings) -> None:
+    import httpx2
+
+    from app.agent.team import get_team
+    from app.api.chat import get_session_factory
+    from app.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[get_session_factory] = lambda: async_sessionmaker(
+        week.bind, expire_on_commit=False
+    )
+    app.dependency_overrides[get_team] = example_team
+    transport = httpx2.ASGITransport(app=app)
+    async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:
+        first = (await http.post("/api/jobs/followups/run")).json()
+        unknown = await http.post("/api/jobs/nope/run")
+
+    assert first == {"job": "followups", "message_id": None}  # nothing due
+    assert unknown.status_code == 404

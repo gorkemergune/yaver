@@ -79,6 +79,7 @@ class ConversationMode(StrEnum):
 class ProposalKind(StrEnum):
     SCHEDULE = "schedule"  # weekly blocks
     EVENTS = "events"  # one-off events (exam notice, poster)
+    TASKS = "tasks"  # the Sunday weekly plan draft
 
 
 class ProposalStatus(StrEnum):

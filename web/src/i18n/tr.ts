@@ -46,7 +46,7 @@ export const tr = {
     thinking: "düşünüyor…",
     waiting: (provider: string) => `${providerName(provider)} yoğun, birkaç saniye bekliyorum…`,
     readingImages: (count: number) => (count > 1 ? `${String(count)} görsel okunuyor…` : "Görsel okunuyor…"),
-    origin: { briefing: "Sabah brifingi", checkin: "Akşam check-in", followup: "Takip" },
+    origin: { briefing: "Sabah brifingi", checkin: "Akşam check-in", followup: "Takip", weekly_plan: "Haftalık plan" },
     allDone: "✓ Hepsi tamam",
     edit: "Düzenle",
     editPrefix: "Bugün ",

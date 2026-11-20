@@ -13,8 +13,14 @@ from app.agent.tools.events import AddEventArgs, add_event
 from app.agent.tools.matching import find_course
 from app.agent.tools.schedule import AddBlockArgs, Weekday, create_weekly_blocks
 from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR, normalize
-from app.db.models import Conversation, Event, Holiday, Proposal, Term
-from app.db.models.enums import ConversationMode, ProposalKind, ProposalStatus
+from app.db.models import Conversation, Event, Holiday, Proposal, Task, Term
+from app.db.models.enums import (
+    ConversationMode,
+    ProposalKind,
+    ProposalStatus,
+    TaskScope,
+    TaskSource,
+)
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
 
 # Longer pastes are parsed by the smart tier (routing.purposes.schedule_parse).
@@ -258,6 +264,8 @@ async def apply_proposal(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
         )
     if proposal.kind is ProposalKind.SCHEDULE:
         result = await _apply_schedule(proposal, ctx)
+    elif proposal.kind is ProposalKind.TASKS:
+        result = await _apply_tasks(proposal, ctx)
     else:
         result = await _apply_events(proposal, ctx)
     proposal.status = ProposalStatus.APPLIED
@@ -287,6 +295,34 @@ async def _apply_schedule(proposal: Proposal, ctx: ToolContext) -> ToolResult:
     for other in others:
         other.status = ProposalStatus.DISCARDED
     return {"blocks_created": created, "already_existed": existing}
+
+
+async def _apply_tasks(proposal: Proposal, ctx: ToolContext) -> ToolResult:
+    """The weekly plan: day tasks on their day, the rest as tasks of that week."""
+    created, existing = [], []
+    for raw in proposal.entries:
+        day = dt.date.fromisoformat(raw["date"]) if raw.get("date") else None
+        monday = dt.date.fromisoformat(raw["week_start"])
+        duplicate = await ctx.session.scalar(
+            select(Task).where(
+                Task.title == raw["title"],
+                Task.date == day if day else Task.week_start == monday,
+            )
+        )
+        if duplicate is not None:
+            existing.append(raw["title"])
+            continue
+        task = Task(
+            title=raw["title"],
+            scope=TaskScope.DAY if day else TaskScope.WEEK,
+            date=day,
+            week_start=None if day else monday,
+            source=TaskSource.WEEKLY_PLAN,
+        )
+        ctx.session.add(task)
+        await ctx.recorder.created(task)
+        created.append({"title": task.title, "date": raw.get("date") or "hafta"})
+    return {"tasks_created": created, "already_existed": existing}
 
 
 async def _apply_events(proposal: Proposal, ctx: ToolContext) -> ToolResult:

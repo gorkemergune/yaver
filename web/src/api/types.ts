@@ -125,7 +125,7 @@ export interface HistoryMessage {
   created_at: string;
   change_set_id: string | null;
   attachments?: Attachment[];
-  kind?: "briefing" | "checkin" | "followup" | null; // written by the scheduler
+  kind?: "briefing" | "checkin" | "followup" | "weekly_plan" | null; // written by the scheduler
 }
 
 export interface HistoryResponse {

@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     briefing_time: str = "08:00"
     checkin_time: str = "21:00"
     followup_time: str = "12:00"
+    weekly_plan_time: str = "20:00"  # Sundays: the coming week's draft (smart tier)
 
     # --- Web Push (Phase 1) ---
     vapid_public_key: str | None = None
@@ -98,7 +99,7 @@ class Settings(BaseSettings):
             afternoon=_hour_range(self.clock_afternoon_hours),
         )
 
-    @field_validator("briefing_time", "checkin_time", "followup_time")
+    @field_validator("briefing_time", "checkin_time", "followup_time", "weekly_plan_time")
     @classmethod
     def _hhmm(cls, value: str) -> str:
         try:
