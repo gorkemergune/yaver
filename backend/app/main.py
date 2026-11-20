@@ -7,7 +7,19 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 
 from app import __version__
-from app.api import auth, chat, health, jobs, push, screen_time, uploads, usage, views, voice
+from app.api import (
+    auth,
+    chat,
+    health,
+    jobs,
+    push,
+    screen_time,
+    study,
+    uploads,
+    usage,
+    views,
+    voice,
+)
 from app.api.auth import require_auth
 from app.config import get_settings
 from app.db.session import dispose_engine
@@ -69,7 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     # Everything else needs a login when APP_PASSWORD is set.
     guarded = [Depends(require_auth)]
-    for module in (usage, chat, views, uploads, jobs, voice, screen_time, push):
+    for module in (usage, chat, views, uploads, jobs, voice, screen_time, push, study):
         app.include_router(module.router, prefix="/api", dependencies=guarded)
     return app
 

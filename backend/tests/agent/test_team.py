@@ -41,7 +41,9 @@ def test_every_yaver_gets_the_common_tools_and_planned_ones_are_skipped() -> Non
     names = [tool.name for tool in academic.tools]
     assert names[: len(COMMON_TOOLS)] == list(COMMON_TOOLS)
     assert "log_attendance" in names
-    assert "generate_study_sheet" not in names  # planned: skipped, not offered
+    discipline = team.get("discipline")
+    assert discipline is not None
+    assert "log_workout" not in [t.name for t in discipline.tools]  # planned: skipped
     assert "resolve_date" in [t.name for t in team.coordinator.tools]
 
 
@@ -218,7 +220,7 @@ def test_fast_path_tools_go_to_the_coordinator() -> None:
 
 def test_unknown_fast_path_tool_is_rejected() -> None:
     data = _example()
-    data["coordinator"]["fast_path_tools"] = ["generate_study_sheet"]  # planned, not built
+    data["coordinator"]["fast_path_tools"] = ["log_workout"]  # planned, not built
 
     with pytest.raises(ValidationError, match="fast_path_tools"):
         TeamConfig.model_validate(data)

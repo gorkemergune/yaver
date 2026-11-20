@@ -41,7 +41,7 @@ agents:
       - set_week_label           # "bu haftanın adı Hackathon Haftası olsun"
       - search_materials         # uploaded notes / syllabi, with file + page
       - get_syllabus             # weekly topics ("bu hafta ne işlendi?")
-      - generate_study_sheet     # Faz 3, tier=smart
+      - generate_study_sheet     # writes with the smart tier, sources from search_materials
     briefing_section: Dersler
 
   - id: agenda

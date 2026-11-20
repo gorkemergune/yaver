@@ -20,6 +20,7 @@ from app.api.uploads import store_pdf
 from app.config import Settings, get_settings
 from app.db.models import Attachment, LlmUsage, MaterialChunk, Proposal, SyllabusWeek
 from app.db.models.enums import ProposalKind
+from app.db.models.study import StudySheet
 from app.llm.router import LLMRouter, build_router, env_value
 from app.llm.usage import DbUsageStore
 
@@ -95,6 +96,21 @@ async def test_syllabus_pdf_end_to_end(
     assert "search_materials" in tools
     assert "söndür" in third.reply.lower() or "kaynak" in third.reply.lower()
     assert "ee211_syllabus.pdf" in third.reply  # the source is cited
+
+    fourth = await yaver.handle(
+        session,
+        "EE211 7. hafta için çalışma kağıdı hazırla",
+        conversation_id=first.conversation_id,
+        now=NOW,
+    )
+    print(f"4> {fourth.reply}")
+    sheet = await session.scalar(select(StudySheet))
+    assert sheet is not None
+    print(f"   sheet: {sheet.title!r}, {len(sheet.content_md)} chars, sources {sheet.sources}")
+    print(sheet.content_md[:1500])
+    assert "## Kaynaklar" in sheet.content_md
+    assert "ee211_syllabus.pdf, s. " in sheet.content_md
+    assert "#/sheet?id=" in fourth.reply  # the link reaches the user
 
     rows = (await session.scalars(select(LlmUsage).order_by(LlmUsage.id))).all()
     total = sum(r.cost_usd for r in rows)
