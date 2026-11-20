@@ -200,7 +200,7 @@ async def _post(
     """Into the most recent chat (a new one if there is none), from the coordinator."""
     conversation = await session.scalar(
         select(Conversation)
-        .where(Conversation.mode == ConversationMode.CHAT)
+        .where(Conversation.mode == ConversationMode.CHAT, Conversation.employee_id.is_(None))
         .order_by(Conversation.updated_at.desc(), Conversation.id.desc())
         .limit(1)
     )

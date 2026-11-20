@@ -32,6 +32,7 @@ from app.db.models import (
     EmployeeTask,
     JobRun,
     LlmUsage,
+    Message,
 )
 from app.db.models.enums import Activity, DeskRow, EmployeeTaskStatus, TaskOrigin
 from app.db.session import CONNECT_ARGS, get_session
@@ -426,6 +427,25 @@ async def test_scheduled_job_over_budget_is_not_recorded(
     assert office.state("agenda").needs_user_reason == BUDGET  # type: ignore[union-attr]
 
 
+async def test_scheduled_messages_skip_direct_employee_chats(
+    session: AsyncSession, office: Office
+) -> None:
+    main = Conversation(title="ana sohbet")
+    session.add(main)
+    await session.flush()
+    session.add(Conversation(title="Atlas", employee_id="academic"))  # newer, but direct
+    await session.commit()
+
+    from app.jobs.runner import _post
+
+    message_id = await _post(session, "Günaydın", "briefing", example_team(), NOW)
+    await session.commit()
+
+    message = await session.get(Message, message_id)
+    assert message is not None
+    assert message.conversation_id == main.id
+
+
 async def test_scheduled_job_shows_its_employee_working(
     session: AsyncSession, office: Office
 ) -> None:
@@ -526,6 +546,12 @@ async def test_employee_chat_notes_and_tasks_endpoints(
     # no conversation_id: the employee's latest direct chat goes on
     second = (await http.post("/api/employees/academic/chat", json={"message": "ne var?"})).json()
     assert second["conversation_id"] == body["conversation_id"]
+
+    # the direct chat is found from the panel, and never taken for the main chat
+    found = (await http.get("/api/employees/academic/chat")).json()
+    assert found == {"employee_id": "academic", "conversation_id": body["conversation_id"]}
+    assert (await http.get("/api/employees/agenda/chat")).json()["conversation_id"] is None
+    assert (await http.get("/api/conversations/latest")).json()["conversation_id"] is None
 
     notes = (await http.get("/api/employees/academic/notes")).json()
     assert [n["content"] for n in notes["notes"]] == ["EE211 quiz salı"]

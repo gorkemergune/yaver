@@ -186,8 +186,12 @@ async def attendance(session: AsyncSession = Depends(get_session)) -> dict[str, 
 
 @router.get("/conversations/latest")
 async def latest_conversation(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    # the main chat only: direct chats with an employee live in the office panel
     conversation_id = await session.scalar(
-        select(Conversation.id).order_by(Conversation.updated_at.desc()).limit(1)
+        select(Conversation.id)
+        .where(Conversation.employee_id.is_(None))
+        .order_by(Conversation.updated_at.desc())
+        .limit(1)
     )
     return {"conversation_id": conversation_id}
 

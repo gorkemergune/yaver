@@ -102,6 +102,24 @@ async def tasks(
     }
 
 
+@router.get("/employees/{employee_id}/chat")
+async def latest_chat(
+    employee_id: str, session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    """The employee's latest direct chat (its messages: /api/conversations/{id}/messages)."""
+    employee = await _employee(session, employee_id)
+    query = select(Conversation.id).where(Conversation.mode == ConversationMode.CHAT)
+    query = query.where(
+        Conversation.employee_id.is_(None)
+        if employee.is_coordinator
+        else Conversation.employee_id == employee.id
+    )
+    conversation_id = await session.scalar(
+        query.order_by(Conversation.updated_at.desc(), Conversation.id.desc()).limit(1)
+    )
+    return {"employee_id": employee.id, "conversation_id": conversation_id}
+
+
 class EmployeeChatRequest(BaseModel):
     message: str = Field("", max_length=20000)
     # None: the employee's latest direct chat (a new one if there is none)
