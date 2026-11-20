@@ -5,6 +5,7 @@ from app.db.models.audit import ChangeLog, LlmUsage
 from app.db.models.auth import AuthSession
 from app.db.models.conversation import Attachment, Conversation, Message
 from app.db.models.jobs import JobRun
+from app.db.models.materials import CourseMaterial, MaterialChunk, SyllabusWeek
 from app.db.models.planning import Followup, Memory, Task
 from app.db.models.proposals import Proposal
 from app.db.models.push import PushSubscription
@@ -27,17 +28,20 @@ __all__ = [
     "ChangeLog",
     "Conversation",
     "Course",
+    "CourseMaterial",
     "Event",
     "Followup",
     "Holiday",
     "JobRun",
     "LlmUsage",
+    "MaterialChunk",
     "Memory",
     "Message",
     "Proposal",
     "PushSubscription",
     "RecurringBlock",
     "ScreenTimeDay",
+    "SyllabusWeek",
     "Task",
     "Term",
     "WeekLabel",

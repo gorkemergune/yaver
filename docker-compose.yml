@@ -35,11 +35,13 @@ services:
       CONFIG_DIR: /config
       UPLOAD_DIR: /uploads
       BACKUP_DIR: /backups        # host side: BACKUP_DIR in .env (default ./backups)
+      MODEL_CACHE_DIR: /models    # embedding model for course materials (downloaded once)
     volumes:
       - ./config:/config:ro
       - ./examples:/examples:ro   # sample data (onboarding paste, live tests)
       - ./uploads:/uploads        # images sent in the chat (gitignored)
       - ${BACKUP_DIR:-./backups}:/backups   # pg_dump backups (gitignored)
+      - models:/models            # embedding model cache
     depends_on:
       db:
         condition: service_healthy
@@ -62,3 +64,4 @@ services:
 
 volumes:
   pgdata:
+  models:

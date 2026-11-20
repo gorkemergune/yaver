@@ -43,7 +43,6 @@ REGISTRY: dict[str, Tool] = {}
 
 # Named in agents.yaml but built in a later phase: skipped (not offered), not an error.
 PLANNED_TOOLS = {
-    "search_materials": "Faz 3",
     "generate_study_sheet": "Faz 3",
     "log_workout": "Faz 1",
     "set_app_limit": "Faz 4",
@@ -149,6 +148,7 @@ def _load_tool_modules() -> None:
         attendance,
         dates,
         events,
+        materials,
         memory,
         planning,
         schedule,

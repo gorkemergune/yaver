@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     backup_max_age_hours: float = 24  # on startup: back up when the newest is older
     backup_on_startup: bool = True
 
+    # --- Course materials (Phase 3): local embeddings, downloaded once (~220 MB) ---
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    model_cache_dir: Path = REPO_DIR / "models"  # gitignored; /models volume in Docker
+
     # --- Images sent in the chat ---
     upload_max_mb: float = 20  # per file, before processing
     image_max_edge: int = 1600  # longer side after automatic downscaling (px)

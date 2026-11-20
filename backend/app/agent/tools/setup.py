@@ -246,8 +246,8 @@ class ApplyArgs(BaseModel):
 
 @tool(
     "apply_proposal",
-    "Save a proposal (a weekly schedule, or events read from an image) after the user "
-    "confirmed its table.",
+    "Save a proposal (a weekly schedule, events read from an image, a syllabus) after the "
+    "user confirmed its table.",
     ApplyArgs,
     mutates=True,
 )
@@ -266,6 +266,10 @@ async def apply_proposal(args: ApplyArgs, ctx: ToolContext) -> ToolResult:
         result = await _apply_schedule(proposal, ctx)
     elif proposal.kind is ProposalKind.TASKS:
         result = await _apply_tasks(proposal, ctx)
+    elif proposal.kind is ProposalKind.SYLLABUS:
+        from app.agent.tools.materials import apply_syllabus  # here: import cycle
+
+        result = await apply_syllabus(proposal, ctx)
     else:
         result = await _apply_events(proposal, ctx)
     proposal.status = ProposalStatus.APPLIED

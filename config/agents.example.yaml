@@ -39,7 +39,8 @@ agents:
       - set_attendance_baseline  # absence hours from before Yaver
       - set_absence_limit
       - set_week_label           # "bu haftanın adı Hackathon Haftası olsun"
-      - search_materials         # Faz 3
+      - search_materials         # uploaded notes / syllabi, with file + page
+      - get_syllabus             # weekly topics ("bu hafta ne işlendi?")
       - generate_study_sheet     # Faz 3, tier=smart
     briefing_section: Dersler
 

@@ -53,8 +53,9 @@ class Message(CreatedAtMixin, Base):
 
 
 class Attachment(CreatedAtMixin, Base):
-    """An uploaded image. Stored re-encoded (no EXIF / location, long edge <= the limit)
-    under UPLOAD_DIR; linked to the user message once it is sent."""
+    """An uploaded image or PDF. Images are stored re-encoded (no EXIF / location, long
+    edge <= the limit), PDFs as they are (width = height = 0), under UPLOAD_DIR; linked to
+    the user message once it is sent."""
 
     __tablename__ = "attachments"
 
@@ -68,3 +69,4 @@ class Attachment(CreatedAtMixin, Base):
     height: Mapped[int]
     size_bytes: Mapped[int]
     sha256: Mapped[str] = mapped_column(String(64))
+    filename: Mapped[str | None] = mapped_column(String(300))  # as uploaded (PDF citations)

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.context import ToolContext
+from app.agent.documents import DocumentInput, read_documents
 from app.agent.loop import AgentRun, Emit, LLMClient, run_agent
 from app.agent.reply import dedupe_questions
 from app.agent.team import Member, Team
@@ -37,6 +38,9 @@ _ADDRESS = re.compile(r"^\s*([^\s,:;!?]+)\s*[,:;!]\s*(.+)$", re.DOTALL)
 
 
 logger = logging.getLogger(__name__)
+PDF_MIME = "application/pdf"
+# After a long block read from an image / PDF the model drifts to English without this.
+CONTEXT_REMINDER = "(Bu blokları kod okudu. Cevabın Türkçe olsun.)"
 
 
 @dataclass(slots=True)
@@ -115,7 +119,7 @@ def with_image_context(text: str, context: str | None) -> str:
     """The user's words plus what the code read from their images (see agent.vision)."""
     if not context:
         return text
-    return f"{text.strip() or '(Yalnızca görsel gönderdim.)'}\n\n{context}"
+    return f"{text.strip() or '(Yalnızca görsel gönderdim.)'}\n\n{context}\n\n{CONTEXT_REMINDER}"
 
 
 async def unsent_attachments(session: AsyncSession, ids: Sequence[int]) -> list[Attachment]:
@@ -414,17 +418,20 @@ class Coordinator:
                     "count": len(attachments),
                 }
             )
-        inputs = [
-            ImageInput(
-                attachment.id,
-                ImagePart(
-                    attachment.mime,
-                    resolve_stored(self.settings.upload_dir, attachment.path).read_bytes(),
-                ),
-            )
-            for attachment in attachments
-        ]
-        return attachments, await read_images(ctx, inputs)
+
+        def data(attachment: Attachment) -> bytes:
+            return resolve_stored(self.settings.upload_dir, attachment.path).read_bytes()
+
+        images = [a for a in attachments if a.mime != PDF_MIME]
+        pdfs = [a for a in attachments if a.mime == PDF_MIME]
+        blocks = []
+        if images:
+            inputs = [ImageInput(a.id, ImagePart(a.mime, data(a))) for a in images]
+            blocks.append(await read_images(ctx, inputs))
+        if pdfs:
+            documents = [DocumentInput(a.id, a.filename or "belge.pdf", data(a)) for a in pdfs]
+            blocks.append(await read_documents(ctx, documents))
+        return attachments, "\n\n".join(blocks)
 
     async def _history(self, session: AsyncSession, conversation_id: int) -> list[ChatMessage]:
         """Recent user turns and final answers as plain text (tool traffic is not replayed)."""

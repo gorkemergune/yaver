@@ -5,6 +5,7 @@
 data/
 uploads/
 backups/
+models/
 *.db
 
 # personal config (commit only the *.example.yaml versions)

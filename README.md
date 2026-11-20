@@ -46,7 +46,8 @@ Add your own specialists in `config/agents.yaml`.
 | Proactive | ✅ | Morning briefing, evening check-in with quick replies, follow-up questions, Sunday weekly plan draft; in the chat and as Web Push notifications (status page → Bildirimler; iPhone: add to home screen first) |
 | Backups | ✅ | Daily automatic `pg_dump`, scripts to take and restore backups |
 | Budget guard | ✅ | LLM spend per month, Sonnet -> Haiku at 80%, Claude off at 100% |
-| Study (RAG) | Phase 3 | Syllabus + notes -> weekly summaries and study sheets |
+| Course materials | ✅ started | Send a syllabus PDF: Sonnet reads the weekly topics, you confirm the table; passages are embedded locally (pgvector) and Friday answers from them with file + page |
+| Study sheets | Phase 3 | Notes -> study sheets with sources |
 | Desktop companion | Phase 4 | Floating assistant on Windows / macOS, screen time and app limits |
 
 ## Architecture

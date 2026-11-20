@@ -80,6 +80,7 @@ class ProposalKind(StrEnum):
     SCHEDULE = "schedule"  # weekly blocks
     EVENTS = "events"  # one-off events (exam notice, poster)
     TASKS = "tasks"  # the Sunday weekly plan draft
+    SYLLABUS = "syllabus"  # weekly topics read from a syllabus PDF
 
 
 class ProposalStatus(StrEnum):
