@@ -5,7 +5,8 @@
 data/
 uploads/
 backups/
-models/
+# embedding model cache (MODEL_CACHE_DIR) at the root only, not backend/app/db/models
+/models/
 *.db
 
 # personal config (commit only the *.example.yaml versions)
