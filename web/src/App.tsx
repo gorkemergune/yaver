@@ -8,6 +8,7 @@ import { ConnectionStatus } from "./components/ConnectionStatus";
 import { LoginView } from "./components/LoginView";
 import {
   ArrowRightIcon,
+  BoardIcon,
   CalendarIcon,
   ChatIcon,
   GaugeIcon,
@@ -22,16 +23,18 @@ import { useTheme } from "./lib/theme";
 import { DayView } from "./plan/DayView";
 import { WeekView } from "./plan/WeekView";
 import { budgetTone, money } from "./lib/format";
+import { BoardView } from "./office/BoardView";
 import { OfficeView } from "./office/OfficeView";
 import { StatusView } from "./status/StatusView";
 import { SheetView } from "./study/SheetView";
 
 // Takvim holds the Bugün / Yarın / Hafta views (their old links still work).
 const CALENDAR: Route[] = ["today", "tomorrow", "week"];
-const NAV: { route: Route; label: string; icon: ReactNode; also?: Route[] }[] = [
+const NAV: { route: Route; label: string; short?: string; icon: ReactNode; also?: Route[] }[] = [
   { route: "office", label: tr.nav.office, icon: <OfficeIcon /> },
   { route: "chat", label: tr.nav.chat, icon: <ChatIcon /> },
   { route: "today", label: tr.nav.calendar, icon: <CalendarIcon />, also: CALENDAR },
+  { route: "board", label: tr.nav.board, short: tr.nav.boardShort, icon: <BoardIcon /> },
   { route: "status", label: tr.nav.status, icon: <GaugeIcon /> },
 ];
 const CALENDAR_TABS: { route: Route; label: string; icon: ReactNode }[] = [
@@ -67,6 +70,7 @@ export function App() {
         {route === "today" && <DayView offset={0} />}
         {route === "tomorrow" && <DayView offset={1} />}
         {route === "week" && <WeekView />}
+        {route === "board" && <BoardView />}
         {route === "status" && <StatusView />}
         {route === "sheet" && <SheetView />}
       </main>
@@ -134,7 +138,7 @@ function SpendPill() {
 function BottomNav({ route }: { route: Route }) {
   return (
     <nav className="px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1 md:hidden print:hidden">
-      <ul className="yv-glass grid grid-cols-4 rounded-full p-1">
+      <ul className="yv-glass grid grid-cols-5 rounded-full p-1">
         {NAV.map((item) => (
           <li key={item.route}>
             <NavLink item={item} active={isActive(item, route)} />
@@ -175,7 +179,7 @@ function NavLink({
       className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-full text-[11px] font-medium transition-colors ${color} ${active ? "bg-white/70 dark:bg-white/12" : ""}`}
     >
       {item.icon}
-      {item.label}
+      {item.short ?? item.label}
     </a>
   );
 }

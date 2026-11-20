@@ -58,6 +58,9 @@ export interface Figure {
   cup: boolean;
   idleUntil: number; // ms; when an idle figure picks a new place
   holdUntil: number; // ms; stays at its meeting / desk until then (see DWELL_MS)
+  // the meeting it is in: the host's id (a standup, a handover); nobody leaves while
+  // someone of the same meeting is still on the way, and the last to arrive restarts the stay
+  group?: string | null;
 }
 
 export type Random = () => number;
@@ -94,11 +97,16 @@ const tableSeat = (spot: string | undefined): number | null => {
 /** Meeting room seats: a pair (`meeting_with` either way) shares the table, the
  *  coordinator on the near side facing us, the other across; a figure still on its way to
  *  (or sitting out) an earlier meeting keeps its seat and the newcomer sits across. */
-export function meetingSeats(staff: Staff, figures: Record<string, Figure>, now = 0): Record<string, string> {
+export function meetingSeats(
+  staff: Staff,
+  figures: Record<string, Figure>,
+  now = 0,
+  waiting: ReadonlySet<string> = new Set(),
+): Record<string, string> {
   const seats: Record<string, string> = {};
   const taken = new Set<string>();
   for (const f of Object.values(figures)) {
-    if (staff[f.id] && f.act === "meeting" && isHeld(f, now)) {
+    if (staff[f.id] && f.act === "meeting" && (isHeld(f, now) || waiting.has(f.id))) {
       seats[f.id] = f.spot;
       taken.add(f.spot);
     }
@@ -213,15 +221,25 @@ function place(e: OfficeEmployee, target: Target, now: number, random: Random): 
  * figures keep their place until `idleUntil`, then pick another.
  */
 export function planFigures(figures: Record<string, Figure>, staff: Staff, now: number, random: Random = Math.random): Record<string, Figure> {
-  const seats = meetingSeats(staff, figures, now);
+  // meetings someone is still walking to: the others in it wait (see Figure.group)
+  const gathering = new Set<string>();
+  for (const f of Object.values(figures)) if (f.act === "meeting" && f.path.length && f.group) gathering.add(f.group);
+  const waiting = new Set(
+    Object.values(figures)
+      .filter((f) => f.act === "meeting" && !!f.group && gathering.has(f.group))
+      .map((f) => f.id),
+  );
+  const seats = meetingSeats(staff, figures, now, waiting);
   const taken = new Set<string>(Object.values(seats));
   const next: Record<string, Figure> = {};
   // non-idle first: their places are fixed; idle figures avoid the spots they hold
   const ordered = Object.values(staff).sort((a, b) => Number(a.activity === "break") - Number(b.activity === "break"));
-  for (const f of Object.values(figures)) if (staff[f.id] && (IDLE.includes(f.act) || isHeld(f, now))) taken.add(f.spot);
+  for (const f of Object.values(figures)) {
+    if (staff[f.id] && (IDLE.includes(f.act) || isHeld(f, now) || waiting.has(f.id))) taken.add(f.spot);
+  }
   for (const e of ordered) {
     const f = figures[e.id];
-    const held = f && isHeld(f, now) && !(f.act === "work" && e.activity === "meeting");
+    const held = f && (isHeld(f, now) || waiting.has(f.id)) && !(f.act === "work" && e.activity === "meeting");
     let target: Target;
     if (f && held) target = { act: f.act, spot: f.spot };
     else if (e.activity === "working") target = { act: "work", spot: homeSpot(e) };
@@ -238,6 +256,7 @@ export function planFigures(figures: Record<string, Figure>, staff: Staff, now: 
       continue;
     }
     let moved = go(f, target);
+    if (!held) moved = { ...moved, group: target.act === "meeting" ? (e.meeting_with ?? e.id) : null };
     if (IDLE.includes(target.act) && !(IDLE.includes(f.act) && f.idleUntil > now)) {
       moved = { ...moved, idleUntil: now + IDLE_MIN_MS + random() * IDLE_SPAN_MS };
     }
@@ -268,7 +287,18 @@ export function stepFigures(figures: Record<string, Figure>, now: number): Recor
       holdUntil: arrived ? now + (DWELL_MS[f.act] ?? 0) : f.holdUntil,
     };
   }
-  return changed ? next : figures;
+  if (!changed) return figures;
+  // the last one in: everyone in that meeting stays for the full time from now
+  const stay = now + (DWELL_MS.meeting ?? 0);
+  for (const f of Object.values(next)) {
+    if (f.act !== "meeting" || f.path.length || !f.group || figures[f.id]?.path.length !== 1) continue;
+    for (const [id, other] of Object.entries(next)) {
+      if (other.group === f.group && other.act === "meeting" && !other.path.length && other.holdUntil < stay) {
+        next[id] = { ...other, holdUntil: stay };
+      }
+    }
+  }
+  return next;
 }
 
 // ---------- what is drawn ----------

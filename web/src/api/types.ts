@@ -183,7 +183,7 @@ export interface HistoryMessage {
   created_at: string;
   change_set_id: string | null;
   attachments?: Attachment[];
-  kind?: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | null; // written by the scheduler
+  kind?: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | "day_report" | null; // written by the scheduler
 }
 
 export interface HistoryResponse {
@@ -284,4 +284,24 @@ export interface EmployeeTask {
   tools: string[];
   started_at: string | null;
   finished_at: string | null;
+}
+
+export type BoardColumn = "waiting" | "running" | "approval" | "done";
+
+export interface BoardCard {
+  id: string;
+  column: BoardColumn;
+  employee_id: string;
+  title: string;
+  source: "user" | "yaver" | "shift";
+  requested_by?: string | null;
+  status: "scheduled" | "running" | "done" | "failed";
+  result?: string | null;
+  at: string;
+}
+
+export interface BoardResponse {
+  columns: BoardColumn[];
+  cards: BoardCard[];
+  ts: string;
 }

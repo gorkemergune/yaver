@@ -198,6 +198,54 @@ describe("figures follow the backend state", () => {
     expect(seats.academic).toBe("meet:4"); // across from Yaver's side, next to Deniz
   });
 
+  it("standup: ten people fit in the meeting room, everyone on a different spot", () => {
+    const ids = ["yaver", "academic", "agenda", "discipline", "career", "startup", "ads", "research", "content", "social"];
+    const staff: Staff = Object.fromEntries(
+      ids.map((id, i) => [
+        id,
+        employee(id, id === "yaver" ? { row: "office", col: 0 } : { row: i % 2 ? "back" : "front", col: i % 5 }, {
+          activity: "meeting",
+          meeting_with: id === "yaver" ? null : "yaver",
+        }),
+      ]),
+    );
+    const figures = arrive(planFigures({}, staff, 0));
+    const spots = Object.values(figures).map((f) => f.spot);
+    expect(new Set(spots).size).toBe(10);
+    for (const f of Object.values(figures)) {
+      expect(f.spot).toMatch(/^meet:/);
+      expect(inMeetingRoom(f.x, f.y)).toBe(true);
+    }
+  });
+
+  it("standup: nobody leaves before the last one arrives, then they stay together", () => {
+    const ids = ["yaver", "academic", "agenda"];
+    const desks: Record<string, OfficeEmployee["desk"]> = { yaver: { row: "office", col: 0 }, academic: { row: "back", col: 0 }, agenda: { row: "front", col: 2 } };
+    let staff: Staff = Object.fromEntries(
+      ids.map((id) => [id, employee(id, desks[id] ?? { row: "back", col: 1 }, { activity: "meeting", meeting_with: id === "yaver" ? null : "yaver" })]),
+    );
+    let figures = planFigures(planFigures({}, STAFF, 0, fixed(0.1)), staff, 0, fixed(0.1));
+    // the backend meeting is over at once (a few seconds of LLM calls)
+    staff = Object.fromEntries(ids.map((id) => [id, { ...need(staff[id], id), activity: "break" as const, meeting_with: null }]));
+    let t = 0;
+    let lastArrival = 0;
+    while (Object.values(figures).some((f) => f.path.length)) {
+      t += TICK;
+      const before = figures;
+      figures = stepFigures(planFigures(figures, staff, t, fixed(0.1)), t);
+      for (const f of Object.values(figures)) {
+        if (need(before[f.id], f.id).path.length && !f.path.length) lastArrival = t;
+        // while anyone walks in, those already there keep their seats
+        expect(f.act).toBe("meeting");
+      }
+    }
+    // after the last arrival everyone stays the full meeting time, then leaves
+    const together = planFigures(figures, staff, lastArrival + (DWELL_MS.meeting ?? 0) - 100, fixed(0.1));
+    expect(Object.values(together).every((f) => f.act === "meeting" && f.spot.startsWith("meet:"))).toBe(true);
+    const after = planFigures(together, staff, lastArrival + (DWELL_MS.meeting ?? 0) + 100, fixed(0.1));
+    expect(Object.values(after).some((f) => f.act !== "meeting")).toBe(true);
+  });
+
   it("break: idle places only - never the meeting room or someone's desk", () => {
     for (const r of [0, 0.2, 0.5, 0.7, 0.99]) {
       const figures = planFigures({}, STAFF, 0, fixed(r));

@@ -7,7 +7,8 @@ import { Composer } from "../chat/Composer";
 import type { PendingImage } from "../chat/ImageStrip";
 import { useChat } from "../chat/useChat";
 import { tr } from "../i18n/tr";
-import { href } from "../lib/route";
+import { apiPost } from "../api/client";
+import { href, useHashParam } from "../lib/route";
 import { EmployeePanel } from "./EmployeePanel";
 import type { AssistantItem } from "../chat/model";
 import { figureView, isNight, type Staff } from "./model";
@@ -36,7 +37,8 @@ export function OfficeView() {
   const office = useOffice();
   const chat = useChat(); // the main conversation, shared with the Sohbet tab
   const figures = useFigures(office.staff);
-  const [selected, setSelected] = useState<string | null>(null);
+  // in the URL (#/office?employee=academic): the task board opens a panel this way
+  const [selected, setSelected] = useHashParam("employee");
   const night = isNight(useHour());
   const people = Object.values(office.staff);
   const members = useMemo<Record<string, Member>>(
@@ -77,12 +79,13 @@ export function OfficeView() {
           figures={figures}
           selected={selected}
           onSelect={(id) => {
-            setSelected((prev) => (prev === id ? null : id));
+            setSelected(selected === id ? null : id);
           }}
           night={night}
         />
         <MobileList staff={office.staff} figures={figures} selected={selected} onSelect={setSelected} />
         <MainComposer chat={chat} />
+        {import.meta.env.DEV && <DevRituals />}
       </section>
 
       <aside aria-label={tr.office.panel.now} className="flex min-w-0 flex-[1_1_340px] flex-col gap-3.5 md:max-w-[460px]">
@@ -255,5 +258,37 @@ function Feed({ feed, staff }: { feed: FeedItem[]; staff: Staff }) {
         })
       )}
     </section>
+  );
+}
+
+/** Development only (npm run dev): start a ritual now to watch it in the scene. It runs the
+ *  real job (POST /api/jobs/{id}/run?force=true): real LLM calls, a real chat message. */
+function DevRituals() {
+  const [status, setStatus] = useState<string | null>(null);
+  const rituals: [string, string][] = [
+    ["briefing", tr.office.dev.standup],
+    ["day_report", tr.office.dev.dayReport],
+    ["weekly_plan", tr.office.dev.weekly],
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-amber-400/60 px-3 py-2 text-xs">
+      <span className="font-medium text-amber-600 dark:text-amber-300">{tr.office.dev.label}</span>
+      {rituals.map(([job, label]) => (
+        <button
+          key={job}
+          type="button"
+          className="rounded-full bg-amber-400/15 px-3 py-1 font-medium text-amber-700 hover:bg-amber-400/25 dark:text-amber-200"
+          onClick={() => {
+            setStatus(tr.office.dev.started(label));
+            apiPost(`/jobs/${job}/run?force=true`).catch(() => {
+              setStatus(tr.office.dev.failed);
+            });
+          }}
+        >
+          {label}
+        </button>
+      ))}
+      {status && <span className="text-slate-500 dark:text-[#9aa2c9]">{status}</span>}
+    </div>
   );
 }

@@ -27,6 +27,14 @@ export const ChatIcon = (p: IconProps) => (
     <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12Z" />
   </Icon>
 );
+/** Three columns: the task board. */
+export const BoardIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="5" height="16" rx="1.5" />
+    <rect x="9.5" y="4" width="5" height="11" rx="1.5" />
+    <rect x="16" y="4" width="5" height="7" rx="1.5" />
+  </Icon>
+);
 /** An isometric desk: the office. */
 export const OfficeIcon = (p: IconProps) => (
   <Icon {...p}>
