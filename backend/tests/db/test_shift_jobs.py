@@ -123,6 +123,14 @@ def test_provider_choice_from_settings() -> None:
     assert getattr(search.web_search_from(chosen), "name", None) == "brave"
 
 
+async def test_pending_without_the_employee_row_does_not_fail(session: AsyncSession) -> None:
+    """No office yet (employees not synced): the tool still answers, nothing is noted."""
+    result = await tool(context(session, agent_id="ads"), "get_ad_report", days=7)
+    assert result["status"] == "integration_pending"
+    await session.commit()
+    assert await notes_of(session, "ads") == []
+
+
 async def test_ad_report_is_a_pending_skeleton(session: AsyncSession, office: Office) -> None:
     from pydantic import SecretStr
 

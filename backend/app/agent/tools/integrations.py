@@ -23,8 +23,7 @@ async def _pending(ctx: ToolContext, integration: str, note: str) -> ToolResult:
     return {
         "status": "integration_pending",
         "integration": integration,
-        "message": note,
-        "noted": True,  # in the notebook: tell the user in one sentence, don't ask them
+        "message": note,  # in the notebook: tell the user in one sentence, don't ask them
     }
 
 

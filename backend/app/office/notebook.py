@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.change_log import ChangeRecorder
-from app.db.models import EmployeeNote
+from app.db.models import Employee, EmployeeNote
 from app.office.budget import day_start
 
 
@@ -25,7 +25,10 @@ async def write_note(
 ) -> EmployeeNote | None:
     """`once_a_day`: skip when the same note was already written today (status notes such
     as "web arama anahtarı bekleniyor"). With a recorder the note joins the message's
-    change set (undo)."""
+    change set (undo). None also when the employee is not in the office (yet): a note
+    must never fail the chat message it belongs to."""
+    if await session.get(Employee, employee_id) is None:
+        return None
     if once_a_day:
         exists = await session.scalar(
             select(EmployeeNote.id).where(
