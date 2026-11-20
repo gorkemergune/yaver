@@ -11,6 +11,7 @@ import { budgetTone, money } from "../lib/format";
 import { Notice } from "../plan/DayView";
 import { Card } from "./Card";
 import { PushCard } from "./PushCard";
+import { SheetsCard } from "../study/SheetsCard";
 import { weekRange } from "../plan/week";
 import { href } from "../lib/route";
 
@@ -18,6 +19,7 @@ export function StatusView() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 px-3 py-4">
       <TermCard />
+      <SheetsCard />
       <TeamCard />
       <AttendanceCard />
       <PushCard />

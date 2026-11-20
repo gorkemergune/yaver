@@ -10,7 +10,7 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "check": "npm run typecheck && npm run lint && npm run test",
+    "check": "npm run typecheck && npm run lint && npm run test && vite build --logLevel warn",
     "test": "vitest run"
   },
   "dependencies": {

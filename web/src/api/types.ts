@@ -106,6 +106,21 @@ export interface WeekPlanResponse {
   days: DayPlan[];
 }
 
+export interface StudySheetSummary {
+  id: number;
+  title: string;
+  course: string | null;
+  week: number | null;
+  created_at: string;
+  sources: number;
+}
+
+export interface StudySheet extends Omit<StudySheetSummary, "sources"> {
+  content_md: string; // ends with "## Kaynaklar"
+  model: string;
+  sources: { n: number; title: string; pages: string; material_id: number }[];
+}
+
 export interface TermWeeks {
   term: { id: number; name: string; start_date: string; end_date: string } | null;
   current_week_start: string;

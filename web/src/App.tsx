@@ -22,6 +22,7 @@ import { DayView } from "./plan/DayView";
 import { WeekView } from "./plan/WeekView";
 import { budgetTone, money } from "./lib/format";
 import { StatusView } from "./status/StatusView";
+import { SheetView } from "./study/SheetView";
 
 const NAV: { route: Route; label: string; icon: ReactNode }[] = [
   { route: "chat", label: tr.nav.chat, icon: <ChatIcon /> },
@@ -46,15 +47,16 @@ export function App() {
     );
   }
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-dvh flex-col print:block print:h-auto">
       <Backdrop />
       <Header route={route} />
-      <main className="min-h-0 flex-1 overflow-y-auto">
+      <main className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
         {route === "chat" && <ChatView />}
         {route === "today" && <DayView offset={0} />}
         {route === "tomorrow" && <DayView offset={1} />}
         {route === "week" && <WeekView />}
         {route === "status" && <StatusView />}
+        {route === "sheet" && <SheetView />}
       </main>
       <BottomNav route={route} />
     </div>
@@ -65,7 +67,7 @@ function Header({ route }: { route: Route }) {
   const { theme, cycle } = useTheme();
   const themeIcon = { system: <MonitorIcon />, light: <SunriseIcon />, dark: <MoonIcon /> }[theme];
   return (
-    <header className="yv-glass border-x-0 border-t-0 pt-[env(safe-area-inset-top)]">
+    <header className="yv-glass border-x-0 border-t-0 pt-[env(safe-area-inset-top)] print:hidden">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-3">
         <a href={href("chat")} className="flex items-center gap-2">
           <img src="/favicon.svg" alt="" className="h-7 w-7" />
@@ -119,7 +121,7 @@ function SpendPill() {
 
 function BottomNav({ route }: { route: Route }) {
   return (
-    <nav className="px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1 md:hidden">
+    <nav className="px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1 md:hidden print:hidden">
       <ul className="yv-glass grid grid-cols-5 rounded-full p-1">
         {NAV.map((item) => (
           <li key={item.route}>

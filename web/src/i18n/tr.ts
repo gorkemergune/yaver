@@ -147,6 +147,18 @@ export const tr = {
     absentCourse: (course: string, hours: number) => `${course}: gelmedin · ${String(hours)} saat`,
     movedAway: "taşındı",
   },
+  study: {
+    title: "Çalışma kağıtları",
+    empty: "Henüz yok. Notlarını gönderdikten sonra Friday'e \"bu haftanın EE211 notlarından çalışma kağıdı\" diyebilirsin.",
+    back: "Geri",
+    downloadMd: "Markdown indir",
+    pdf: "PDF olarak kaydet",
+    notFound: "Çalışma kağıdı bulunamadı.",
+    note: "Yalnızca yüklediğin notlardan yazıldı; her bilginin yanında kaynağının numarası var.",
+    week: (n: number) => `${String(n)}. hafta`,
+    sources: (n: number) => `${String(n)} kaynak`,
+    date: (iso: string) => new Date(iso).toLocaleDateString("tr-TR", { day: "numeric", month: "long" }),
+  },
   push: {
     title: "Bildirimler",
     states: {

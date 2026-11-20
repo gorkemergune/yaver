@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-// "design-preview" is not in the navigation: opened by link (#/design-preview or /design-preview).
-export const ROUTES = ["chat", "today", "tomorrow", "week", "status", "design-preview"] as const;
+// Not in the navigation, opened by link: "sheet" (#/sheet?id=3), "design-preview".
+export const ROUTES = ["chat", "today", "tomorrow", "week", "status", "sheet", "design-preview"] as const;
 export type Route = (typeof ROUTES)[number];
 
 /** `#/week?week=2026-11-16` -> ["week", "week=2026-11-16"] */

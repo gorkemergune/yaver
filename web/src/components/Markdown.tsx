@@ -8,11 +8,15 @@ export function Markdown({ text }: { text: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noreferrer noopener">
-              {children}
-            </a>
-          ),
+          // in-app links (#/sheet?id=3) stay in the app; the rest open a new tab
+          a: ({ children, href }) =>
+            href?.startsWith("#") ? (
+              <a href={href}>{children}</a>
+            ) : (
+              <a href={href} target="_blank" rel="noreferrer noopener">
+                {children}
+              </a>
+            ),
         }}
       >
         {text}

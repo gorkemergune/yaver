@@ -2,7 +2,7 @@
  * everything; switched off with reduced motion by the .yv-drift rule). */
 export function Backdrop() {
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden print:hidden">
       <div className="yv-drift absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-indigo-300/55 blur-3xl dark:bg-indigo-600/35" />
       <div
         className="yv-drift absolute -right-24 top-1/3 h-96 w-96 rounded-full bg-pink-300/40 blur-3xl dark:bg-fuchsia-600/20"
