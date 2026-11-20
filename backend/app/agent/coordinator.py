@@ -28,8 +28,8 @@ from app.core.time_resolver import (
     format_calendar_context,
     normalize,
 )
-from app.db.models import Attachment, Conversation, Memory, Message
-from app.db.models.enums import ConversationMode, MessageRole
+from app.db.models import Attachment, Conversation, Followup, Memory, Message
+from app.db.models.enums import ConversationMode, FollowupStatus, MessageRole
 from app.llm.types import ChatMessage, ImagePart
 from app.services.images import resolve_stored
 
@@ -70,7 +70,7 @@ class ChatReply:
         return sum((call.cost_usd for call in self.llm_calls), Decimal(0))
 
 
-def system_suffix(ctx: ToolContext, memories: list[str]) -> str:
+def system_suffix(ctx: ToolContext, memories: list[str], followups: list[str] | None = None) -> str:
     """Per-day context, kept out of the cached system prompt."""
     local = ctx.now.astimezone(ctx.tz)
     lines = [
@@ -80,6 +80,11 @@ def system_suffix(ctx: ToolContext, memories: list[str]) -> str:
     ]
     if memories:
         lines += ["Kullanıcı hakkında bilinenler:", *(f"- {m}" for m in memories)]
+    if followups:
+        lines += [
+            "Bekleyen takipler (haberi gelince update_followup, başlıktan bir kelimeyle):",
+            *(f"- {f}" for f in followups),
+        ]
     # The last line the model reads before answering: the rules above are English and Haiku
     # then sometimes answers in English.
     lines.append("Cevabını Türkçe yaz.")
@@ -199,7 +204,16 @@ class Coordinator:
             llm=self.llm,
         )
         memories = list((await session.scalars(select(Memory.content).where(Memory.active))).all())
-        suffix = system_suffix(ctx, memories)
+        waiting = list(
+            (
+                await session.scalars(
+                    select(Followup.title)
+                    .where(Followup.status == FollowupStatus.WAITING)
+                    .order_by(Followup.id)
+                )
+            ).all()
+        )
+        suffix = system_suffix(ctx, memories, waiting)
         runs: list[AgentRun] = []
         attachments, image_context = await self._read_images(session, ctx, attachment_ids, emit)
         model_text = with_image_context(text, image_context)
