@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import __version__
-from app.api import chat, health, jobs, uploads, usage, views, voice
+from app.api import chat, health, jobs, screen_time, uploads, usage, views, voice
 from app.config import get_settings
 from app.db.session import dispose_engine
 from app.jobs.scheduler import catch_up, start_scheduler
@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(uploads.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
     app.include_router(voice.router, prefix="/api")
+    app.include_router(screen_time.router, prefix="/api")
     return app
 
 

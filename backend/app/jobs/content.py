@@ -15,6 +15,7 @@ from app.db.models import Course, Event, Followup
 from app.db.models.enums import EventKind, FollowupStatus, TaskStatus
 from app.services.attendance import course_summary
 from app.services.schedule import DayPlan, PlanItem, get_day_plan
+from app.services.screen_time import checkin_line, day_summary
 
 # Which yaver speaks for which kind of item (ids of the default / example team).
 ACADEMIC_KINDS = frozenset({"class", "lab", "exam", "quiz", "makeup"})
@@ -170,6 +171,10 @@ async def build_checkin(
         )
     if tasks:
         lines.append("- **Görevler**: " + ", ".join(tasks) + " - bitti mi?")
+    screen = await day_summary(session, today)
+    screen_text = checkin_line(screen) if screen else None
+    if screen_text:
+        lines.append(f"- {voice.label('discipline', 'Ekran')}: {screen_text}.")
     lines.append(
         'Hepsi tamamsa "✓ Hepsi tamam" demen yeter; değilse tek cümleyle yaz '
         '("spor hariç hepsi tamam").'

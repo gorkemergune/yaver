@@ -46,7 +46,6 @@ PLANNED_TOOLS = {
     "search_materials": "Faz 3",
     "generate_study_sheet": "Faz 3",
     "log_workout": "Faz 1",
-    "get_screen_time": "Faz 4",
     "set_app_limit": "Faz 4",
     "grant_limit_extension": "Faz 4",
 }
@@ -153,6 +152,7 @@ def _load_tool_modules() -> None:
         memory,
         planning,
         schedule,
+        screen,
         setup,
         undo,
     )

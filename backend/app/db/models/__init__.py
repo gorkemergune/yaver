@@ -13,6 +13,7 @@ from app.db.models.schedule import (
     Event,
     RecurringBlock,
 )
+from app.db.models.screen import ScreenTimeDay
 
 __all__ = [
     "Attachment",
@@ -31,6 +32,7 @@ __all__ = [
     "Message",
     "Proposal",
     "RecurringBlock",
+    "ScreenTimeDay",
     "Task",
     "Term",
 ]
