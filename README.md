@@ -84,6 +84,15 @@ Try the scheduled messages without waiting: `curl -X POST "localhost:8000/api/jo
 (also `checkin`, `followups`, `weekly_plan`). Times: `BRIEFING_TIME`, `CHECKIN_TIME`,
 `FOLLOWUP_TIME`, `WEEKLY_PLAN_TIME` in `.env`.
 
+## Login
+
+With `APP_PASSWORD` empty, there is no login: fine while Yaver is only reachable from your
+own computer. **Set a password before you open it to your phone** (Tailscale): every `/api`
+route except health then needs a session. The browser gets an httpOnly cookie (login screen),
+the desktop app a token (⚙ → Parola). Sessions live in Postgres and end after
+`SESSION_DAYS` (30) without use; "Oturumu kapat" on the status page ends one. Five wrong
+passwords in ten minutes lock the login for a while.
+
 ## Backups
 
 > ⚠️ **`docker compose down -v` deletes your data.** `-v` removes the `pgdata` volume, i.e.

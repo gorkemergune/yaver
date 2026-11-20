@@ -14,6 +14,7 @@ export interface Settings {
   default_api_url: string;
   api_url_from_env: boolean;
   autostart: boolean;
+  logged_in: boolean;
 }
 
 export interface Change {
@@ -56,6 +57,9 @@ export const api = {
     invoke<ChatResponse>("send_chat", { message, conversationId }),
   undo: (changeSetId: string) => invoke<unknown>("undo_changes", { changeSetId }),
   team: () => invoke<Team>("get_team"),
+  /** false: the server has no password (nothing to log in to). */
+  login: (password: string) => invoke<boolean>("login", { password }),
+  logout: () => invoke<undefined>("logout"),
   hideChat: () => invoke<undefined>("hide_chat"),
   screenTime: () => invoke<ScreenSummary>("screen_time_today"),
   openConfigFolder: () => invoke<undefined>("open_config_folder"),

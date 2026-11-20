@@ -64,11 +64,19 @@ Edits to the file are picked up within a minute, with no restart. A broken (inva
 
 To find an app's exe name, open Task Manager → *Details*, or hover over the app's row in the clock tab.
 
+## Login
+
+If the server has `APP_PASSWORD` set, open ⚙ and log in under *Parola* once. The app keeps
+the session token in `%APPDATA%\com.yaver.desktop\session.json` (not in `config.json`) and
+sends it with every request, the screen-time sync included. Without a login the chat says
+"Giriş gerekli" and screen time waits in the local file until you log in.
+
 ## Where data lives
 
 | What | Where |
 |---|---|
 | Settings | `%APPDATA%\com.yaver.desktop\config.json` |
+| Login token | `%APPDATA%\com.yaver.desktop\session.json` (only with a server password) |
 | Screen time | `%LOCALAPPDATA%\com.yaver.desktop\screen_time.sqlite3` (`screen_sessions`, `limit_alerts`, `sync_state`) |
 | Logs | `%LOCALAPPDATA%\com.yaver.desktop\logs\Yaver.log` |
 | Autostart | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` → `Yaver` (only when turned on) |

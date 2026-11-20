@@ -61,6 +61,9 @@ export function errorMessage(error: unknown): string {
     case "timeout":
     case "bad_response":
     case "save_failed":
+    case "login_required":
+    case "wrong_password":
+    case "too_many_attempts":
       return tr.errors[error.code];
     case "http":
       return tr.errors.http(error.status ?? 0);

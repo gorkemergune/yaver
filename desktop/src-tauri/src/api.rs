@@ -3,6 +3,7 @@
 
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::sync::RwLock;
 use std::time::Duration;
 
 pub const DEFAULT_API_URL: &str = "http://localhost:8080";
@@ -16,7 +17,8 @@ const SHORT_TIMEOUT: Duration = Duration::from_secs(15);
 /// Error shape the frontend turns into a Turkish message.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ApiError {
-    /// `invalid_url` | `unreachable` | `timeout` | `http` | `bad_response`
+    /// `invalid_url` | `unreachable` | `timeout` | `http` | `bad_response` |
+    /// `login_required` | `wrong_password` | `too_many_attempts`
     pub code: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<u16>,
@@ -72,15 +74,28 @@ pub fn normalize_api_url(raw: &str) -> Result<String, ApiError> {
 
 pub struct Client {
     http: reqwest::Client,
+    /// Bearer token from `POST /api/auth/login` (servers with `APP_PASSWORD`).
+    token: RwLock<Option<String>>,
 }
 
 impl Client {
-    pub fn new() -> Self {
+    pub fn new(token: Option<String>) -> Self {
         let http = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(5))
             .build()
             .expect("HTTP client");
-        Self { http }
+        Self {
+            http,
+            token: RwLock::new(token),
+        }
+    }
+
+    pub fn set_token(&self, token: Option<String>) {
+        *self.token.write().expect("token lock") = token;
+    }
+
+    pub fn has_token(&self) -> bool {
+        self.token.read().expect("token lock").is_some()
     }
 
     async fn send(
@@ -88,6 +103,11 @@ impl Client {
         request: reqwest::RequestBuilder,
         timeout: Duration,
     ) -> Result<Value, ApiError> {
+        let token = self.token.read().expect("token lock").clone();
+        let request = match token {
+            Some(token) => request.bearer_auth(token),
+            None => request,
+        };
         let response = request.timeout(timeout).send().await?;
         let status = response.status();
         let text = response.text().await?;
@@ -95,7 +115,7 @@ impl Client {
             return Err(ApiError {
                 status: Some(status.as_u16()),
                 detail: error_detail(&text),
-                ..ApiError::new("http")
+                ..ApiError::new(error_code(status.as_u16(), &text))
             });
         }
         serde_json::from_str(&text).map_err(|err| ApiError {
@@ -134,6 +154,28 @@ impl Client {
         self.send(request, SHORT_TIMEOUT).await
     }
 
+    /// `POST /api/auth/login`; `Ok(None)` = the server has no password (nothing to keep).
+    pub async fn login(
+        &self,
+        base: &str,
+        password: &str,
+        device: &str,
+    ) -> Result<Option<String>, ApiError> {
+        let body = json!({ "password": password, "client": "desktop", "device": device });
+        let request = self.http.post(format!("{base}/api/auth/login")).json(&body);
+        let value = self.send(request, SHORT_TIMEOUT).await?;
+        Ok(value
+            .get("token")
+            .and_then(Value::as_str)
+            .map(str::to_owned))
+    }
+
+    /// `POST /api/auth/logout`: ends the session on the server too.
+    pub async fn logout(&self, base: &str) -> Result<Value, ApiError> {
+        let request = self.http.post(format!("{base}/api/auth/logout"));
+        self.send(request, SHORT_TIMEOUT).await
+    }
+
     /// `GET /api/team`: names and label colors; also the "is the server there?" check.
     pub async fn team(&self, base: &str) -> Result<Value, ApiError> {
         let request = self.http.get(format!("{base}/api/team"));
@@ -152,6 +194,21 @@ fn error_detail(body: &str) -> Option<String> {
             .and_then(Value::as_str)
             .map(str::to_owned),
         other => Some(other.to_string()),
+    }
+}
+
+/// Auth failures get their own codes (the panel says what to do); the rest is `http`.
+fn error_code(status: u16, body: &str) -> &'static str {
+    let code = serde_json::from_str::<Value>(body).ok().and_then(|v| {
+        v.pointer("/detail/code")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    });
+    match (status, code.as_deref()) {
+        (401, Some("wrong_password")) => "wrong_password",
+        (401, _) => "login_required",
+        (429, _) => "too_many_attempts",
+        _ => "http",
     }
 }
 
@@ -204,6 +261,24 @@ mod tests {
             Some("gone")
         );
         assert_eq!(error_detail("<html>502</html>"), None);
+    }
+
+    #[test]
+    fn auth_errors_have_their_own_codes() {
+        assert_eq!(
+            error_code(401, r#"{"detail": {"code": "login_required"}}"#),
+            "login_required"
+        );
+        assert_eq!(
+            error_code(401, r#"{"detail": {"code": "wrong_password"}}"#),
+            "wrong_password"
+        );
+        assert_eq!(error_code(401, "<html>"), "login_required");
+        assert_eq!(
+            error_code(429, r#"{"detail": {"code": "too_many_attempts"}}"#),
+            "too_many_attempts"
+        );
+        assert_eq!(error_code(500, ""), "http");
     }
 
     #[test]

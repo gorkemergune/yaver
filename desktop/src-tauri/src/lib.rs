@@ -4,6 +4,7 @@ mod config;
 mod layout;
 mod notice;
 mod screentime;
+mod session;
 mod tray;
 mod windows;
 
@@ -44,12 +45,13 @@ impl AppState {
                 (config::Config::default(), Some(err))
             }
         };
+        let token = session::load(&config_dir);
         Self {
             config_dir,
             config: Mutex::new(config),
             config_error: Mutex::new(error),
             move_generation: AtomicU64::new(0),
-            api: api::Client::new(),
+            api: api::Client::new(token),
         }
     }
 
@@ -168,6 +170,8 @@ struct Settings {
     api_url_from_env: bool,
     /// Starts with the Windows session.
     autostart: bool,
+    /// A login token is saved (the server may still have ended it).
+    logged_in: bool,
 }
 
 #[tauri::command]
@@ -177,7 +181,37 @@ fn get_settings(app: AppHandle, state: State<'_, AppState>) -> Settings {
         default_api_url: api::DEFAULT_API_URL,
         api_url_from_env: env_api_url().is_some(),
         autostart: autostart::is_enabled(&app),
+        logged_in: state.api.has_token(),
     }
+}
+
+/// Logs in to a server with `APP_PASSWORD`; `false` = the server has no password.
+#[tauri::command]
+async fn login(state: State<'_, AppState>, password: String) -> Result<bool, api::ApiError> {
+    let base = state.api_url();
+    let device = screentime::sync::device_name();
+    let token = state.api.login(&base, &password, &device).await?;
+    let enabled = token.is_some();
+    if let Some(token) = token {
+        session::save(&state.config_dir, Some(&token)).map_err(|err| api::ApiError {
+            code: "save_failed",
+            status: None,
+            detail: Some(err.to_string()),
+        })?;
+        state.api.set_token(Some(token));
+    }
+    Ok(enabled)
+}
+
+/// Ends the session on the server (best effort) and forgets the token here.
+#[tauri::command]
+async fn logout(state: State<'_, AppState>) -> Result<(), String> {
+    let base = state.api_url();
+    if state.api.has_token() {
+        let _ = state.api.logout(&base).await;
+    }
+    state.api.set_token(None);
+    session::save(&state.config_dir, None).map_err(|e| e.to_string())
 }
 
 /// Turns login autostart on/off; returns the resulting state.
@@ -303,6 +337,8 @@ pub fn run() {
             send_chat,
             undo_changes,
             get_team,
+            login,
+            logout,
             open_config_folder,
             screentime::screen_time_today,
             notice::current_notice,

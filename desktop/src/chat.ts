@@ -239,6 +239,11 @@ const apiUrlEnv = byId("api-url-env", HTMLElement);
 const saveUrl = byId("save-url", HTMLButtonElement);
 const testUrl = byId("test-url", HTMLButtonElement);
 const settingsStatus = byId("settings-status", HTMLElement);
+const loginForm = byId("login-form", HTMLFormElement);
+const password = byId("password", HTMLInputElement);
+const loginButton = byId("login-button", HTMLButtonElement);
+const logoutButton = byId("logout-button", HTMLButtonElement);
+const loginStatus = byId("login-status", HTMLElement);
 const autostart = byId("autostart", HTMLInputElement);
 const autostartStatus = byId("autostart-status", HTMLElement);
 
@@ -255,7 +260,41 @@ async function loadSettings(): Promise<void> {
   apiUrlEnv.hidden = !settings.api_url_from_env;
   autostart.checked = settings.autostart;
   autostartStatus.textContent = "";
+  logoutButton.hidden = !settings.logged_in;
+  loginStatus.textContent = "";
 }
+
+function setLoginStatus(text: string, kind: "ok" | "err" | "" = ""): void {
+  loginStatus.textContent = text;
+  loginStatus.className = kind ? `status ${kind}` : "status";
+}
+
+loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!password.value) return;
+  loginButton.disabled = true;
+  api
+    .login(password.value)
+    .then((enabled) => {
+      password.value = "";
+      logoutButton.hidden = !enabled;
+      setLoginStatus(enabled ? tr.settings.loggedIn : tr.settings.authOff, "ok");
+      void refreshTeam().catch(() => undefined);
+    })
+    .catch((error: unknown) => {
+      setLoginStatus(errorMessage(error), "err");
+    })
+    .finally(() => {
+      loginButton.disabled = false;
+    });
+});
+
+logoutButton.addEventListener("click", () => {
+  void api.logout().then(() => {
+    logoutButton.hidden = true;
+    setLoginStatus(tr.settings.loggedOut, "ok");
+  });
+});
 
 autostart.addEventListener("change", () => {
   autostart.disabled = true;
@@ -324,6 +363,10 @@ function init(): void {
   apiUrlEnv.textContent = tr.settings.apiUrlFromEnv;
   saveUrl.textContent = tr.settings.save;
   testUrl.textContent = tr.settings.test;
+  byId("password-label", HTMLElement).textContent = tr.settings.password;
+  byId("password-hint", HTMLElement).textContent = tr.settings.passwordHint;
+  loginButton.textContent = tr.settings.login;
+  logoutButton.textContent = tr.settings.logout;
   byId("autostart-label", HTMLElement).textContent = tr.settings.autostart;
   byId("autostart-hint", HTMLElement).textContent = tr.settings.autostartHint;
   renderEmpty();

@@ -36,6 +36,16 @@
           </div>
           <p class="status" id="settings-status" role="status"></p>
         </form>
+        <form id="login-form">
+          <label for="password" id="password-label"></label>
+          <input id="password" type="password" autocomplete="current-password" />
+          <p class="hint" id="password-hint"></p>
+          <div class="row">
+            <button type="submit" id="login-button"></button>
+            <button type="button" id="logout-button" class="secondary" hidden></button>
+          </div>
+          <p class="status" id="login-status" role="status"></p>
+        </form>
         <div class="toggle-row">
           <input type="checkbox" id="autostart" />
           <label for="autostart" id="autostart-label"></label>
