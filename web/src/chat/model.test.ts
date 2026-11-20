@@ -144,6 +144,27 @@ describe("historyToItems", () => {
     expect(first?.kind === "assistant" && first.undone).toBe(true);
   });
 
+  it("keeps a scheduler message apart from the answer before it", () => {
+    const history: HistoryResponse = {
+      conversation_id: 1,
+      messages: [
+        { id: 1, role: "user", agent_id: null, content: "yarın ne var?", created_at: "", change_set_id: null },
+        { id: 2, role: "assistant", agent_id: "academic", content: "Linear 09:00", created_at: "", change_set_id: null },
+        { id: 3, role: "assistant", agent_id: "yaver", content: "Yarın Linear var.", created_at: "", change_set_id: null },
+        { id: 4, role: "assistant", agent_id: "yaver", content: "Akşam check-in", created_at: "", change_set_id: null, kind: "checkin" },
+      ],
+      change_sets: {},
+    };
+
+    const items = historyToItems(history, names);
+
+    expect(items.map((i) => (i.kind === "assistant" ? [i.text, i.origin, i.steps.length] : i.text))).toEqual([
+      "yarın ne var?",
+      ["Yarın Linear var.", null, 1],
+      ["Akşam check-in", "checkin", 0],
+    ]);
+  });
+
   it("keeps the images of a user message", () => {
     const history: HistoryResponse = {
       conversation_id: 1,

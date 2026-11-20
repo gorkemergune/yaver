@@ -167,6 +167,42 @@ export function useChat() {
     [refreshData],
   );
 
+  // Scheduler messages (briefing, check-in) arrive without a request: reload the
+  // conversation when the window comes back and once a minute, unless a reply is streaming.
+  const lastServerId = useRef(0);
+  useEffect(() => {
+    if (!loaded || !team.data) return;
+    const refresh = async (): Promise<void> => {
+      if (busy || document.visibilityState !== "visible") return;
+      try {
+        const latest = (await apiGet<{ conversation_id: number | null }>("/conversations/latest")).conversation_id;
+        if (latest === null || (conversationId !== null && latest !== conversationId)) return;
+        const history = await apiGet<HistoryResponse>(`/conversations/${String(latest)}/messages`);
+        const newest = history.messages.reduce((max, m) => Math.max(max, m.id), 0);
+        if (newest === lastServerId.current) return;
+        lastServerId.current = newest;
+        setItems(historyToItems(history, names));
+        if (conversationId === null) {
+          setConversationId(latest);
+          storeConversation(latest);
+        }
+      } catch {
+        // offline for a moment: try again later
+      }
+    };
+    const onVisible = (): void => {
+      void refresh();
+    };
+    const timer = window.setInterval(onVisible, 60_000);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [loaded, team.data, busy, conversationId, names]);
+
   const newChat = useCallback(() => {
     abort.current?.abort();
     setItems([]);

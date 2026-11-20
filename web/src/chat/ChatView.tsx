@@ -133,6 +133,17 @@ export function ChatView() {
                   members={members}
                   undo={chat.undo}
                   onUndo={(changeSetId) => void chat.undoChange(item.id, changeSetId)}
+                  quickReplies={
+                    item.origin === "checkin" && item.id === last?.id && !chat.busy
+                      ? {
+                          onAllDone: () => void chat.send(tr.chat.allDone),
+                          onEdit: () => {
+                            setDraft(tr.chat.editPrefix);
+                            document.querySelector<HTMLTextAreaElement>("form textarea")?.focus();
+                          },
+                        }
+                      : undefined
+                  }
                 />
               ),
             )}
@@ -176,11 +187,13 @@ function Answer({
   members,
   undo,
   onUndo,
+  quickReplies,
 }: {
   item: AssistantItem;
   members: Record<string, Member>;
   undo: UndoState;
   onUndo: (changeSetId: string) => void;
+  quickReplies?: { onAllDone: () => void; onEdit: () => void };
 }) {
   const speaker = item.speaker ? members[item.speaker] : undefined;
   const color = speaker?.color ?? "#6366f1";
@@ -194,6 +207,11 @@ function Answer({
       <div className="min-w-0 flex-1">
         <p className="font-grotesk text-[0.8rem] font-semibold tracking-wide" style={{ color }}>
           {speaker?.name ?? tr.appName}
+          {item.origin && (
+            <span className="ml-2 rounded-full bg-slate-900/5 px-2 py-0.5 font-sans text-[0.7rem] font-medium text-slate-500 dark:bg-white/10 dark:text-slate-300">
+              {tr.chat.origin[item.origin]}
+            </span>
+          )}
         </p>
         <div className="mt-0.5 text-[0.97rem] leading-relaxed">
           {item.text ? (
@@ -215,6 +233,24 @@ function Answer({
           <p className="text-sm text-rose-600 dark:text-rose-400">
             {tr.chat.errors[item.error] ?? tr.chat.errors.internal}
           </p>
+        )}
+        {quickReplies && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={quickReplies.onAllDone}
+              className="min-h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 px-4 text-sm font-medium text-white shadow-[0_8px_20px_-10px_rgba(16,185,129,0.9)] hover:brightness-110"
+            >
+              {tr.chat.allDone}
+            </button>
+            <button
+              type="button"
+              onClick={quickReplies.onEdit}
+              className="yv-glass min-h-10 rounded-full px-4 text-sm font-medium"
+            >
+              {tr.chat.edit}
+            </button>
+          </div>
         )}
         <Steps steps={item.steps} members={members} />
         {item.changeSetId && (

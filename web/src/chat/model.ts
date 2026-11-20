@@ -36,6 +36,7 @@ export interface AssistantItem {
   undone: boolean;
   error: string | null;
   status: StatusLine | null; // waiting on Groq, reading images
+  origin: "briefing" | "checkin" | "followup" | null; // a message Yaver wrote on its own
 }
 
 export type ChatItem = UserItem | AssistantItem;
@@ -53,6 +54,7 @@ export function pendingAssistant(id: string): AssistantItem {
     undone: false,
     error: null,
     status: null,
+    origin: null,
   };
 }
 
@@ -162,7 +164,17 @@ export function historyToItems(history: HistoryResponse, names: Record<string, s
   };
 
   for (const message of history.messages) {
-    if (message.role === "user") {
+    if (message.kind) {
+      // briefing / check-in / follow-up: its own item, never a step of an answer
+      flush();
+      items.push({
+        ...pendingAssistant(`h${String(message.id)}`),
+        speaker: message.agent_id,
+        text: message.content,
+        streaming: false,
+        origin: message.kind,
+      });
+    } else if (message.role === "user") {
       flush();
       items.push({
         kind: "user",
