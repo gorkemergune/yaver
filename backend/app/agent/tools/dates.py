@@ -12,7 +12,8 @@ from app.core.time_resolver import WEEKDAY_NAMES_TR, Status, normalize, resolve
 class ResolveDateArgs(BaseModel):
     expression: str = Field(
         description="The user's own words for the date/time, e.g. 'yarın 14'te', "
-        "'haftaya salı', 'geçen salı', '28-29 kasım', 'bu akşam'. One expression per call."
+        "'haftaya salı', 'geçen salı', '28-29 kasım', 'bu akşam'; a list of days of one month "
+        "('5 12 17 19 kasım') comes back as `dates`. One expression per call."
     )
     direction: Literal["future", "past", "any"] = Field(
         "any",
@@ -60,6 +61,7 @@ async def _resolve_list(days: list[str], args: ResolveDateArgs, ctx: ToolContext
             "expression": args.expression,
             "dates": [r["start"] for r in results],
             "weekdays": [r["weekday"] for r in results],
+            "note": "the user named these separate days: use all of them, nothing to ask",
         }
     return {"status": "partly_resolved", "expression": args.expression, "items": results}
 

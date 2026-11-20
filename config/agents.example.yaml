@@ -12,7 +12,8 @@ coordinator:
   tier: fast
   tools: [delegate, get_day_plan, get_week_plan, undo, remember, forget]
   # Simple one-area messages ("bugün linear iptal") are done directly, without delegating.
-  fast_path_tools: [cancel_block_on, log_attendance, add_event, add_task]
+  # Attendance always goes to the classes yaver: its prompt has the class-hour rules.
+  fast_path_tools: [cancel_block_on, add_event, add_task]
 
 agents:
   - id: academic

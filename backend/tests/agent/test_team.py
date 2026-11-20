@@ -211,7 +211,8 @@ def test_fast_path_tools_go_to_the_coordinator() -> None:
     team = example_team()
 
     names = [tool.name for tool in team.coordinator.tools]
-    assert {"cancel_block_on", "log_attendance", "add_event", "add_task"} <= set(names)
+    assert {"cancel_block_on", "add_event", "add_task"} <= set(names)
+    assert "log_attendance" not in names  # attendance goes to the classes yaver (hour rules)
     assert "Fast path" in team.coordinator.system_prompt
 
 

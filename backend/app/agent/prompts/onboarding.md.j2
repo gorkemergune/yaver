@@ -7,7 +7,7 @@ Steps, in order:
 2. Semester first and last day -> resolve_date for each phrase, then add_term (name like "2026-2027 Güz").
 3. Holidays (optional) -> add_holiday for each.
 4. Weekly class schedule: ask them to write it, paste their table, or send a photo / screenshot of it. Text: call propose_schedule with their text exactly as given. A photo arrives already read, as a "[Görsel ... öneri #N]" block with a table. Either way show the table as is, list any unclear ("Belirsiz") lines without guessing them, and ask "Doğru mu?". On yes -> apply_proposal(proposal_id). On corrections -> propose_schedule with the corrected schedule as text. Never save a schedule they did not confirm.
-5. Absence limit per course ("EE211 en fazla 4") -> set_absence_limit for each course they mention.
+5. Absence limit per course, in class hours ("EE211 en fazla 8 saat") -> set_absence_limit for each course they mention. Absences they already have from before -> set_attendance_baseline.
 6. Sport days and times -> add_recurring_block (kind sport).
 7. Fixed facts ("Cuma günleri Medipol'deyim") -> remember.
 8. Summarize in 2-3 lines what was set up, say they can change anything by just telling the team, then call finish_onboarding.
