@@ -6,6 +6,7 @@ from app.db.models.auth import AuthSession
 from app.db.models.conversation import Attachment, Conversation, Message
 from app.db.models.jobs import JobRun
 from app.db.models.materials import CourseMaterial, MaterialChunk, SyllabusWeek
+from app.db.models.office import Employee, EmployeeNote, EmployeeState, EmployeeTask
 from app.db.models.planning import Followup, Memory, Task
 from app.db.models.proposals import Proposal
 from app.db.models.push import PushSubscription
@@ -32,6 +33,10 @@ __all__ = [
     "Conversation",
     "Course",
     "CourseMaterial",
+    "Employee",
+    "EmployeeNote",
+    "EmployeeState",
+    "EmployeeTask",
     "Event",
     "Followup",
     "Holiday",

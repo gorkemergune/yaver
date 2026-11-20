@@ -26,6 +26,10 @@ class Conversation(TimestampMixin, Base):
     # The question the team is waiting on (app.agent.pending): the call that finishes the job
     # for each option, or just who asked. Replaced or cleared by every message.
     pending_action: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+    # A direct chat with one employee (POST /api/employees/{id}/chat); NULL = the main chat.
+    employee_id: Mapped[str | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL"), index=True
+    )
 
 
 class Message(CreatedAtMixin, Base):

@@ -93,3 +93,31 @@ class ChangeOp(StrEnum):
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"
+
+
+class Activity(StrEnum):
+    """What an employee is doing (docs/OFFICE.md). Idle variations such as walking around
+    are chosen by the web app from BREAK; the backend never writes them."""
+
+    WORKING = "working"  # running an LLM / tool call, or has work queued
+    MEETING = "meeting"  # handing work over (delegation) or a standup
+    BREAK = "break"  # idle, empty inbox
+    OFF = "off"  # outside working hours (O5)
+
+
+class DeskRow(StrEnum):
+    OFFICE = "office"  # the coordinator's own room
+    BACK = "back"
+    FRONT = "front"
+
+
+class TaskOrigin(StrEnum):
+    USER = "user"  # the user asked this employee (chat, direct chat)
+    YAVER = "yaver"  # delegated by the coordinator
+    SHIFT = "shift"  # a scheduled job of the employee
+
+
+class EmployeeTaskStatus(StrEnum):
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
