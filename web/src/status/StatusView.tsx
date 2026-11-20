@@ -10,6 +10,7 @@ import { tr } from "../i18n/tr";
 import { budgetTone, money } from "../lib/format";
 import { Notice } from "../plan/DayView";
 import { Card } from "./Card";
+import { CalendarCard } from "./CalendarCard";
 import { PushCard } from "./PushCard";
 import { SheetsCard } from "../study/SheetsCard";
 import { weekRange } from "../plan/week";
@@ -23,6 +24,7 @@ export function StatusView() {
       <TeamCard />
       <AttendanceCard />
       <PushCard />
+      <CalendarCard />
       <SpendCard />
       <SessionCard />
     </div>

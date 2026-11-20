@@ -159,6 +159,18 @@ export const tr = {
     sources: (n: number) => `${String(n)} kaynak`,
     date: (iso: string) => new Date(iso).toLocaleDateString("tr-TR", { day: "numeric", month: "long" }),
   },
+  calendar: {
+    title: "Takvim aboneliği",
+    what: "Derslerin (iptal ve taşımalar işlenmiş hâliyle), sınavların ve etkinliklerin telefonunun takviminde görünsün. Saatte bir güncellenir; yalnızca okunur.",
+    open: "Takvime ekle",
+    copy: "Bağlantıyı kopyala",
+    copied: "Kopyalandı.",
+    copyFailed: "Olmadı; bağlantıyı elle seçip kopyalayabilirsin.",
+    rotate: "Yeni bağlantı",
+    rotateConfirm: "Eski bağlantı çalışmayı bırakacak; aboneliği yeni bağlantıyla yeniden eklemen gerekecek. Devam?",
+    rotated: "Yeni bağlantı hazır; eskisi artık çalışmıyor.",
+    howto: "iPhone: \"Takvime ekle\"ye dokun ya da Ayarlar → Takvim → Hesaplar → Hesap Ekle → Diğer → Takvim Aboneliği Ekle. Telefon bu adrese ulaşabilmeli (Tailscale). Bağlantı gizli bir anahtar içerir, paylaşma.",
+  },
   push: {
     title: "Bildirimler",
     states: {
