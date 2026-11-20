@@ -66,6 +66,14 @@ routing:
   rate_limit_max_wait_seconds: 3 # 429 "try again in <=3s": wait on the same tier
   rate_limit_max_waits: 2        # ... at most this many times, then fail over
 
+# Voice messages (mic button): speech to text. Not a tier - no failover.
+stt:
+  provider: groq
+  model: whisper-large-v3
+  language: tr                   # null: detect the language
+  usd_per_hour: 0.111            # Groq price; at least 10 s billed per request
+  min_billed_seconds: 10
+
 # Monthly limit comes from CLAUDE_MONTHLY_BUDGET_USD in .env.
 budget:
   provider: anthropic            # spend of this provider counts toward the limit

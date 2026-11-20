@@ -7,12 +7,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app import __version__
-from app.api import chat, health, jobs, uploads, usage, views
+from app.api import chat, health, jobs, uploads, usage, views, voice
 from app.config import get_settings
 from app.db.session import dispose_engine
 from app.jobs.scheduler import catch_up, start_scheduler
 from app.llm.check_models import log_startup_check
 from app.llm.router import get_router
+from app.llm.stt import get_stt
 from app.services.backup import backup_if_due
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
                 await task
     if get_router.cache_info().currsize:
         await get_router().aclose()
+    if get_stt.cache_info().currsize:
+        await get_stt().aclose()
     await dispose_engine()
 
 
@@ -59,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(views.router, prefix="/api")
     app.include_router(uploads.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
+    app.include_router(voice.router, prefix="/api")
     return app
 
 

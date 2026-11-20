@@ -63,11 +63,22 @@ class BudgetConfig(_Strict):
     allowed_at_limit: list[str] = Field(default_factory=lambda: ["fast", "local"])
 
 
+class SttConfig(_Strict):
+    """Speech to text for voice messages (not a tier: no failover, no tool calls)."""
+
+    provider: str = "groq"
+    model: str = "whisper-large-v3"
+    language: str | None = "tr"  # null: let the model detect it
+    usd_per_hour: float = 0.111
+    min_billed_seconds: float = 10  # Groq bills at least 10 s per request
+
+
 class ProvidersConfig(_Strict):
     tiers: dict[str, TierConfig]
     providers: dict[str, ProviderConfig]
     routing: RoutingConfig
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
+    stt: SttConfig = Field(default_factory=SttConfig)
 
     @model_validator(mode="after")
     def _check_references(self) -> "ProvidersConfig":
