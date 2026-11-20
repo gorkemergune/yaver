@@ -185,6 +185,6 @@ describe("historyToItems", () => {
 
     const [user] = historyToItems(history, names);
 
-    expect(user?.kind === "user" && user.images).toEqual([{ url: "/api/uploads/7", name: "#7" }]);
+    expect(user?.kind === "user" && user.images).toEqual([{ url: "/api/uploads/7", name: "#7", mime: "image/png" }]);
   });
 });

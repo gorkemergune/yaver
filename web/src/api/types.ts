@@ -154,9 +154,10 @@ export interface Change {
 export interface Attachment {
   id: number;
   url: string;
-  mime: string;
+  mime: string; // image/jpeg ... or application/pdf (width = height = 0)
   width: number;
   height: number;
+  filename?: string | null;
 }
 
 export interface HistoryMessage {

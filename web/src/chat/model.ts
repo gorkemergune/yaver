@@ -19,7 +19,7 @@ export interface UserItem {
   kind: "user";
   id: string;
   text: string;
-  images: { url: string; name: string }[];
+  images: { url: string; name: string; mime?: string }[];
 }
 
 export type StatusLine = { code: "rate_limited"; provider: string } | { code: "reading_images"; count: number };
@@ -180,7 +180,11 @@ export function historyToItems(history: HistoryResponse, names: Record<string, s
         kind: "user",
         id: `h${String(message.id)}`,
         text: message.content,
-        images: (message.attachments ?? []).map((a) => ({ url: a.url, name: `#${String(a.id)}` })),
+        images: (message.attachments ?? []).map((a) => ({
+          url: a.url,
+          name: a.filename ?? `#${String(a.id)}`,
+          mime: a.mime,
+        })),
       });
     } else {
       group.push(message);

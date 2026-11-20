@@ -9,7 +9,7 @@ import { tr } from "../i18n/tr";
 import { TypingDots } from "../design/parts";
 import { ChangeCard } from "./ChangeCard";
 import { Greeting } from "./Greeting";
-import { MAX_IMAGES, imageFiles } from "../api/uploads";
+import { MAX_IMAGES, attachableFiles } from "../api/uploads";
 import { Composer } from "./Composer";
 import { Thumb, type PendingImage } from "./ImageStrip";
 import type { AssistantItem } from "./model";
@@ -83,7 +83,7 @@ export function ChatView() {
         if (!event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
         setDragging(false);
-        addFiles(imageFiles(event.dataTransfer.files));
+        addFiles(attachableFiles(event.dataTransfer.files));
       }}
     >
       {dragging && (
@@ -115,7 +115,7 @@ export function ChatView() {
                     <div className="flex max-w-[85%] flex-wrap justify-end gap-1">
                       {item.images.map((image) => (
                         <a key={image.url} href={image.url} target="_blank" rel="noreferrer">
-                          <Thumb url={image.url} name={image.name} className="h-28 w-28 sm:h-36 sm:w-36" />
+                          <Thumb url={image.url} name={image.name} mime={image.mime} className="h-28 w-28 sm:h-36 sm:w-36" />
                         </a>
                       ))}
                     </div>

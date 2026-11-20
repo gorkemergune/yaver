@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type SubmitEvent } from "react";
 
-import { imageFiles } from "../api/uploads";
+import { attachableFiles } from "../api/uploads";
 import { MicIcon, PaperclipIcon, SendIcon, XIcon } from "../components/icons";
 import { TypingDots } from "../design/parts";
 import { tr } from "../i18n/tr";
@@ -60,7 +60,7 @@ export function Composer({
 
   // Ctrl+V of a screenshot: the image is attached, text pastes as usual.
   function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const files = imageFiles(event.clipboardData.files);
+    const files = attachableFiles(event.clipboardData.files);
     if (files.length > 0) {
       event.preventDefault();
       onAddFiles(files);
@@ -107,15 +107,15 @@ export function Composer({
         >
           {voice.state === "transcribing" ? <TypingDots color="currentColor" /> : <MicIcon />}
         </button>
-        {/* accept="image/*": iPhone offers camera, photo library and files */}
+        {/* accept="image/*" (+ PDF): iPhone offers camera, photo library and files */}
         <input
           ref={picker}
           type="file"
-          accept="image/*,.heic,.heif"
+          accept="image/*,.heic,.heif,application/pdf,.pdf"
           multiple
           hidden
           onChange={(event) => {
-            onAddFiles(imageFiles(event.target.files));
+            onAddFiles(attachableFiles(event.target.files));
             event.target.value = ""; // the same file can be picked again
           }}
         />
