@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>EE211 Hafta 7 - Thevenin ve Norton (örnek ders notu)</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12pt; margin: 2cm; line-height: 1.4; }
+  h1 { font-size: 18pt; } h2 { font-size: 14pt; margin-top: 1.2em; }
+  .page { page-break-after: always; }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>EE211 Hafta 7: Thevenin ve Norton Eşdeğerleri</h1>
+<p>Uydurma örnek ders notu; gerçek bir dersle ilgisi yoktur.</p>
+<h2>Thevenin teoremi</h2>
+<p>Doğrusal, iki uçlu herhangi bir devre, uçlarından bakıldığında bir V_Th gerilim kaynağı ve ona
+seri bağlı bir R_Th direnci ile değiştirilebilir. V_Th, uçlar açık devreyken ölçülen gerilimdir
+(açık devre gerilimi).</p>
+<p>R_Th bulmak için: bağımsız gerilim kaynakları kısa devre, bağımsız akım kaynakları açık devre
+yapılır; uçlardan görülen eşdeğer direnç hesaplanır. Bağımlı kaynak varsa uçlara bir test
+kaynağı bağlanır ve R_Th = v_test / i_test olarak bulunur.</p>
+</div>
+<div class="page">
+<h2>Norton teoremi</h2>
+<p>Aynı devre bir I_N akım kaynağı ve ona paralel bir R_N direnci ile de gösterilebilir.
+I_N, uçlar kısa devre edildiğinde akan akımdır. R_N = R_Th ve I_N = V_Th / R_Th.</p>
+<h2>Maksimum güç transferi</h2>
+<p>Yük direnci R_L, Thevenin direncine eşit olduğunda (R_L = R_Th) yüke aktarılan güç en
+büyüktür: P_max = V_Th^2 / (4 R_Th).</p>
+<h2>Örnek</h2>
+<p>12 V kaynak, 4 ohm ve 6 ohm dirençlerden oluşan gerilim bölücüde 6 ohm uçlarından bakılırsa:
+V_Th = 12 * 6 / (4 + 6) = 7.2 V, R_Th = 4 * 6 / (4 + 6) = 2.4 ohm.</p>
+</div>
+</body>
+</html>

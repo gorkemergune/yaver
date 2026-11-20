@@ -117,3 +117,55 @@ async def test_syllabus_pdf_end_to_end(
     for row in rows:
         print(f"   {row.purpose:<18} {row.tier:<9} {row.provider}/{row.model} ${row.cost_usd}")
     print(f"   total ${total}")
+
+
+NOTES_PDF = PDF.with_name("ee211_hafta7_notlar.pdf")
+
+
+async def test_lecture_notes_pdf_named_by_the_user(
+    session: AsyncSession, router: LLMRouter, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models import Course, CourseMaterial
+
+    settings = Settings(upload_dir=tmp_path, app_password=None)
+    monkeypatch.setattr(materials_tools, "get_settings", lambda: settings)
+    yaver = Coordinator(router, get_team(), settings)
+    session.add(Course(code="EE211", name="Devre Teorisi I"))
+    raw = NOTES_PDF.read_bytes()
+    attachment = Attachment(
+        path=store_pdf(raw, tmp_path, NOW),
+        mime="application/pdf",
+        width=0,
+        height=0,
+        size_bytes=len(raw),
+        sha256=hashlib.sha256(raw).hexdigest(),
+        filename="ee211_hafta7_notlar.pdf",
+    )
+    session.add(attachment)
+    await session.commit()
+
+    first = await yaver.handle(
+        session, "EE211 7. hafta ders notlarım", now=NOW, attachment_ids=[attachment.id]
+    )
+    print(f"\n1> {first.reply}")
+    material = await session.scalar(select(CourseMaterial))
+    assert material is not None
+    print(f"   material: week {material.week_no}, indexed {material.indexed_at is not None}")
+    if material.indexed_at is None:  # it asked instead of saving: confirm
+        second = await yaver.handle(session, "evet", conversation_id=first.conversation_id, now=NOW)
+        print(f"2> {second.reply}")
+        await session.refresh(material)
+    assert material.indexed_at is not None
+    assert material.week_no == 7
+
+    third = await yaver.handle(
+        session,
+        "Norton akımı nasıl bulunuyor, maksimum güç ne zaman oluyor?",
+        conversation_id=first.conversation_id,
+        now=NOW,
+    )
+    print(f"3> {third.reply}")
+    assert "ee211_hafta7_notlar.pdf" in third.reply
+    assert "R_L = R_Th" in third.reply or "R_Th" in third.reply
+    rows = (await session.scalars(select(LlmUsage).order_by(LlmUsage.id))).all()
+    print(f"   total ${sum(r.cost_usd for r in rows)}")

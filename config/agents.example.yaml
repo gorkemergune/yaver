@@ -41,6 +41,7 @@ agents:
       - set_week_label           # "bu haftanın adı Hackathon Haftası olsun"
       - search_materials         # uploaded notes / syllabi, with file + page
       - get_syllabus             # weekly topics ("bu hafta ne işlendi?")
+      - save_material            # uploaded notes -> course + week, searchable
       - generate_study_sheet     # writes with the smart tier, sources from search_materials
     briefing_section: Dersler
 

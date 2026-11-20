@@ -6,6 +6,8 @@ agent.vision does for images). The team gets "[PDF N ...]" blocks.
 3. A syllabus is read by `syllabus_parse` (Sonnet): course + topics per week -> a proposal
    with a table. Nothing is saved before the user says yes (apply_proposal); then the
    weekly topics, the material and its searchable passages are written.
+4. Lecture notes become a pending material (agent.intake): Friday links them to a course
+   and week (save_material), then they are searchable.
 """
 
 import asyncio
@@ -16,6 +18,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from app.agent.context import ToolContext
+from app.agent.intake import pending_material
 from app.agent.tools import json_schema
 from app.db.models import Proposal
 from app.db.models.enums import ProposalKind
@@ -109,6 +112,16 @@ async def _read_one(ctx: ToolContext, number: int, item: DocumentInput) -> str:
     kind = DocumentKind.model_validate(_arguments(response, CLASSIFY_TOOL.name))
     if kind.kind == "syllabus":
         return await _syllabus(ctx, number, item, name, text)
+    if kind.kind == "notes":
+        pending = await pending_material(
+            ctx,
+            attachment_id=item.attachment_id,
+            title=item.filename,
+            pages=len(pages),
+            sample=text,
+            course_hint=kind.course,
+        )
+        return f"[PDF {number}: {name}: {kind.summary} {pending}]"
     return f"[PDF {number}: {name}: {kind.summary}]"
 
 

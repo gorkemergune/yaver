@@ -2,7 +2,7 @@
 topics, and save a confirmed syllabus (called from apply_proposal)."""
 
 import asyncio
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -85,6 +85,60 @@ async def get_syllabus(args: GetSyllabusArgs, ctx: ToolContext) -> ToolResult:
     if not weeks:
         result["note"] = "no syllabus uploaded for this course (or no such week)"
     return result
+
+
+class SaveMaterialArgs(BaseModel):
+    material_id: int = Field(description="the N of 'materyal #N'")
+    course: str = Field(description="course code or name")
+    week: int | None = Field(None, ge=1, le=30, description="term week; omit if it spans weeks")
+    kind: Literal["notes", "slides", "other"] = "notes"
+
+
+@tool(
+    "save_material",
+    "Link uploaded notes ('materyal #N') to a course and week and make them searchable. "
+    "Only after the user said or confirmed the course (and week).",
+    SaveMaterialArgs,
+    mutates=True,
+)
+async def save_material(args: SaveMaterialArgs, ctx: ToolContext) -> ToolResult:
+    material = await ctx.session.get(CourseMaterial, args.material_id)
+    if material is None:
+        raise ToolError(f"no material #{args.material_id}")
+    course = await require_course(ctx, args.course)
+    if material.indexed_at is not None:  # already saved: move it to another course / week
+        before = ctx.recorder.before_update(material)
+        material.course_id, material.week_no, material.kind = course.id, args.week, args.kind
+        await ctx.recorder.updated(material, before)
+    else:
+        material.course_id, material.week_no, material.kind = course.id, args.week, args.kind
+        # recorded as created now: "Geri al" removes it (and its passages)
+        await ctx.recorder.created(material)
+    pages = await _material_pages(ctx, material)
+    passages = await index_material(ctx.session, material, pages, ctx.now)
+    return {
+        "material_saved": {
+            "title": material.title,
+            "course": course.code,
+            "week": args.week,
+            "searchable_passages": passages,
+        }
+    }
+
+
+async def _material_pages(ctx: ToolContext, material: CourseMaterial) -> list[str]:
+    if material.source_text:  # a photo, read when it was sent
+        return [material.source_text]
+    attachment = (
+        await ctx.session.get(Attachment, material.attachment_id)
+        if material.attachment_id
+        else None
+    )
+    if attachment is None:
+        raise ToolError("the file of this material is gone; ask the user to send it again")
+    path = resolve_stored(get_settings().upload_dir, attachment.path)
+    data = await asyncio.to_thread(path.read_bytes)
+    return await asyncio.to_thread(page_texts, data)
 
 
 async def apply_syllabus(proposal: Proposal, ctx: ToolContext) -> ToolResult:

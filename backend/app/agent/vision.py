@@ -21,6 +21,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from app.agent.context import ToolContext
+from app.agent.intake import pending_material
 from app.agent.tools import HHMM_PATTERN, json_schema
 from app.agent.tools.setup import (
     PARSER_TOOL,
@@ -66,6 +67,10 @@ class ImageReading(BaseModel):
 
 class DocumentText(BaseModel):
     text: str = Field(description="the readable content, as Markdown (tables as tables)")
+    course: str | None = Field(None, description="course code or name, if visible")
+    lecture_notes: bool = Field(
+        False, description="true: lecture notes, slides, a book page (course material)"
+    )
     unclear: list[str] = Field(default_factory=list)
 
 
@@ -208,10 +213,23 @@ def resolve_notice_date(
 async def _document(ctx: ToolContext, number: int, item: ImageInput) -> str:
     response = await _ask(ctx, DOCUMENT_PROMPT, DOCUMENT_TOOL, item.image, DOCUMENT_PURPOSE)
     document = DocumentText.model_validate(_arguments(response, DOCUMENT_TOOL.name))
-    text = document.text.strip()
+    full = document.text.strip()
+    text = full
     if len(text) > MAX_DOCUMENT_CHARS:
         text = text[:MAX_DOCUMENT_CHARS] + "\n[... devamı kısaltıldı]"
-    return _with_unclear(f"[Görsel {number}: belge / not]\n{text}", document.unclear)
+    header = f"[Görsel {number}: belge / not]"
+    if document.lecture_notes and full:
+        pending = await pending_material(
+            ctx,
+            attachment_id=item.attachment_id,
+            title=f"fotoğraf #{item.attachment_id}",
+            pages=1,
+            sample=full,
+            course_hint=document.course,
+            source_text=full,
+        )
+        header = f"[Görsel {number}: ders notu {pending}]"
+    return _with_unclear(f"{header}\n{text}", document.unclear)
 
 
 async def _ask(
