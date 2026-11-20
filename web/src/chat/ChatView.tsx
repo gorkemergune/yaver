@@ -177,6 +177,14 @@ export function ChatView() {
         images={images}
         onAddFiles={addFiles}
         onRemoveImage={removeImage}
+        onVoiceText={(text) => {
+          setNotice(null);
+          void chat.send(text, "chat", images);
+          setImages([]);
+        }}
+        onVoiceError={(code) => {
+          setNotice(tr.voice.errors[code] ?? tr.voice.errors.stt_unavailable ?? null);
+        }}
       />
     </div>
   );
