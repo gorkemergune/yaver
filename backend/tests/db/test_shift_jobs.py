@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.agent.team import TeamConfig
 from app.config import Settings
-from app.db.models import EmployeeNote, Event, Followup, JobRun
+from app.db.models import EmployeeNote, EmployeeTask, Event, Followup, JobRun
 from app.db.models.enums import Activity, EventKind, FollowupCheckRule, FollowupStatus
 from app.db.session import CONNECT_ARGS
 from app.integrations import web_search as search
@@ -211,6 +211,12 @@ async def test_web_scan_notes_the_top_results(session: AsyncSession, office: Off
         "Tarama · yapay zeka girişim haberleri: yapay zeka girişim haberleri haberi 1 (site1.com)"
     )
     assert await notes_of(session, "startup") == [text]
+    inbox = (
+        await session.scalars(select(EmployeeTask).where(EmployeeTask.employee_id == "startup"))
+    ).all()
+    assert [(t.source.value, t.instruction, t.status.value, t.result) for t in inbox] == [
+        ("shift", "Sabah rakip taraması", "done", text)
+    ]
     states = [(e["activity"], e["task"]) for e in events if e["type"] == "state"]
     assert states == [("working", "Sabah rakip taraması"), ("break", None)]
     assert any(e["type"] == "note" for e in events)

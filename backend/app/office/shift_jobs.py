@@ -23,7 +23,7 @@ from app.db.models.enums import EventKind, FollowupStatus
 from app.db.session import get_sessionmaker
 from app.integrations import web_search as search
 from app.integrations.meta_ads import NO_CREDENTIALS, NOT_BUILT, ads_status
-from app.office.notebook import note_event, write_note
+from app.office.notebook import note_event, record_shift, write_note
 from app.office.shifts import OverBudgetError, run_shift
 from app.office.state import Office
 
@@ -213,6 +213,8 @@ async def run_shift_job(
                 source="shift",
                 once_a_day=text in STATUS_NOTES,
             )
+        finished = max(now, dt.datetime.now(dt.UTC)) if office is not None else now
+        await record_shift(session, plan.employee_id, plan.title, text, now, finished)
         if done is None:
             session.add(JobRun(job_id=plan.key, run_on=today, status="sent" if text else "skipped"))
         try:

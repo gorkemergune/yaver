@@ -24,6 +24,7 @@ from app.jobs.content import Voice, build_briefing, build_checkin, build_followu
 from app.jobs.exam_prep import draft_exam_prep
 from app.jobs.weekly_plan import draft_week
 from app.llm.router import get_router
+from app.office.notebook import record_shift
 from app.office.rituals import day_report, meeting, standup_reports, standup_section
 from app.office.shifts import OverBudgetError, run_shift
 from app.office.state import Office
@@ -109,6 +110,16 @@ async def run_job(
         except OverBudgetError:
             return None
         message_id = await _post(session, text, job_id, team, now, context) if text else None
+        if office is not None:  # the job in its employee's inbox (the task board shows it)
+            finished = max(now, dt.datetime.now(dt.UTC))
+            await record_shift(
+                session,
+                employee,
+                SHIFT_TASKS[job_id],
+                preview(text) if text else None,
+                now,
+                finished,
+            )
         if done is None:
             session.add(
                 JobRun(

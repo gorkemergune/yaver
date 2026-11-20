@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.change_log import ChangeRecorder
-from app.db.models import Employee, EmployeeNote
+from app.db.models import Employee, EmployeeNote, EmployeeTask
+from app.db.models.enums import EmployeeTaskStatus, TaskOrigin
 from app.office.budget import day_start
 
 
@@ -56,3 +57,28 @@ def note_event(note: EmployeeNote) -> dict[str, Any]:
         "content": note.content,
         "created_at": note.created_at,
     }
+
+
+async def record_shift(
+    session: AsyncSession,
+    employee_id: str,
+    title: str,
+    result: str | None,
+    started: dt.datetime,
+    finished: dt.datetime,
+) -> EmployeeTask | None:
+    """A scheduled job in the employee's inbox (source "shift"), done, with what it wrote."""
+    if await session.get(Employee, employee_id) is None:
+        return None
+    task = EmployeeTask(
+        employee_id=employee_id,
+        source=TaskOrigin.SHIFT,
+        instruction=title,
+        status=EmployeeTaskStatus.DONE,
+        result=result,
+        started_at=started,
+        finished_at=finished,
+        created_at=started,
+    )
+    session.add(task)
+    return task

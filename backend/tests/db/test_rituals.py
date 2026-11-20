@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import Settings
@@ -106,6 +107,10 @@ async def test_standup_meets_everyone_and_joins_the_briefing(
     assert meetings["academic"]["meeting_with"] == "yaver"
     assert meetings["academic"]["task"] == "Sabah standup'ı"
     assert all(state.activity is Activity.BREAK for state in office._states.values())
+    inbox = (await session.scalars(select(EmployeeTask))).all()
+    assert [(t.employee_id, t.source.value, t.instruction) for t in inbox] == [
+        ("yaver", "shift", "Sabah standup'ı ve brifing")
+    ]
 
 
 async def test_briefing_without_the_office_has_no_standup(session: AsyncSession) -> None:
