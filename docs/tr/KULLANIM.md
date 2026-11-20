@@ -160,7 +160,7 @@ API her açılışta, son yedek 24 saatten eskiyse otomatik yedek alır (`backup
 | PDF "metin yok" diyor | Taranmış PDF: sayfaların fotoğrafını gönder. |
 | Notlarda arama hiçbir şey bulmuyor | Notun ders ve haftasıyla kaydedildiğinden emin ol. İlk aramada embedding modeli (~220 MB) bir kez iner, birkaç saniye sürer. |
 | Bildirim gelmiyor | Durum → Bildirimler → *Deneme bildirimi gönder*. iPhone'da uygulama ana ekrandan açılmış olmalı; `.env`'de VAPID anahtarları dolu olmalı. |
-| Telefonda mikrofon çalışmıyor | Tarayıcı mikrofonu yalnızca HTTPS'te verir: Tailscale (`tailscale serve`) ile aç. |
+| Telefonda mikrofon çalışmıyor | Tarayıcı mikrofonu yalnızca HTTPS'te verir: Tailscale (`tailscale serve`) ile aç, bkz. [KURULUM_WINDOWS.md](KURULUM_WINDOWS.md). |
 | Giriş ekranında parola kabul edilmiyor | Parola `.env`'deki `APP_PASSWORD`. 10 dk'da 5 yanlış denemeden sonra bir süre beklemek gerekir. |
 | Claude harcaması | Durum → aylık harcama. %80'de Sonnet yerine Haiku kullanılır, %100'de Claude kapanır (`CLAUDE_MONTHLY_BUDGET_USD`). |
 

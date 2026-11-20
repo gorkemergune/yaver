@@ -8,7 +8,7 @@
 
    > CLAUDE.md, ROADMAP.md ve TASKS.md'yi oku. TASKS.md'deki 0.1 İskelet bölümünden başla, her maddeyi ayrı commit olarak yap ve bitince işaretle.
 
-6. Faz 1'de: **Tailscale** (Windows + iPhone, aynı hesap) → `tailscale serve` ile HTTPS → iPhone Safari'de aç → Paylaş → "Ana Ekrana Ekle".
+6. Günlük kullanım (prod modu), **Tailscale** ile HTTPS, iPhone'da ana ekran uygulaması, bildirimler ve takvim aboneliği: [tr/KURULUM_WINDOWS.md](tr/KURULUM_WINDOWS.md).
 
 ## Performans notu
 Docker'da dosya izleme (hot reload) Windows klasörlerinde yavaş olabilir. Yavaşlık olursa repo'yu WSL içine (`\\wsl$\Ubuntu\home\...`) klonla.

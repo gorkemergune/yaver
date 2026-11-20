@@ -50,7 +50,7 @@ Add your own specialists in `config/agents.yaml`.
 | Study sheets | Phase 3 | Notes -> study sheets with sources |
 | Desktop companion | Phase 4 | Floating assistant on Windows / macOS, screen time and app limits |
 
-Daily use, example sentences and common problems (Turkish): [docs/tr/KULLANIM.md](docs/tr/KULLANIM.md).
+Daily use, example sentences and common problems (Turkish): [docs/tr/KULLANIM.md](docs/tr/KULLANIM.md). Production mode, Tailscale, the iPhone app and the calendar subscription (Turkish): [docs/tr/KURULUM_WINDOWS.md](docs/tr/KURULUM_WINDOWS.md).
 
 ## Architecture
 
