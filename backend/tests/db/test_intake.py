@@ -97,8 +97,10 @@ async def test_pdf_notes_are_suggested_then_saved(session: AsyncSession, tmp_pat
     fake.assert_done()
 
     await session.refresh(material)
-    assert material.week_no == 7
-    assert material.indexed_at is not None
+    saved = await session.get(CourseMaterial, 1)  # a new name: mypy narrowed the old one
+    assert saved is not None
+    assert saved.week_no == 7
+    assert saved.indexed_at is not None
     chunks = (await session.scalars(select(MaterialChunk))).all()
     assert chunks
     assert {c.week_no for c in chunks} == {7}
