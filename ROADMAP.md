@@ -28,9 +28,11 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 - Sol altta çalışan listesi, sağda detay paneli (Şu an, Defter, Mesai planı, Sohbet), altta "Yaver'e yaz" + mikrofon
 - Canlı SSE bağlantısı; Bugün/Hafta görünümleri Takvim sekmesine taşınır; gece/gündüz gerçek saate göre; mobilde yatay kaydırma
 
+**Durum: kod tamam (2026-11-21).** Ofis ana sekme; Bugün/Yarın/Hafta Takvim altında. Karar: backend durumları yürüyüşten kısa (devir ~1 sn, ofisi geçmek 10-20 sn), bu yüzden backend'in gönderdiği toplantı / masa ziyareti tamamlanır ve 4 / 2,5 sn sürer, sonra son duruma geçilir: ofis birkaç saniye geriden gelir ama olan her şeyi gösterir. Yürüyüş hızı prototipteki gibi (0,55 karo / 0,9 sn).
+
 **Bitti sayılır:**
-- [ ] Ekranda gerçek isteklerle çalışanlar masaya dönüp çalışıyor, delegasyonda toplantı odasına gidiyor
-- [ ] Yürüyen figürler hiçbir engel karesine girmiyor (tüm nokta çiftleri için test)
+- [x] Ekranda gerçek isteklerle çalışanlar masaya dönüp çalışıyor, delegasyonda toplantı odasına gidiyor — canlı deneme (test DB'sine bağlı geçici API, gerçek LLM): "Cuma 10:00 hackathon toplantısı ekle, bir de bugün spora gidemeyeceğim" → Yaver, Jarvis ve Karen toplantı odasına yürüyüp aynı masada oturdu (Yaver bize dönük, diğerleri karşısında), sonra masalarına / molaya döndü; panelden doğrudan sohbet defteri canlı güncelledi
+- [x] Yürüyen figürler hiçbir engel karesine girmiyor (tüm nokta çiftleri için test) — `web/src/office/geometry.test.ts`: 35 nokta, 1190 rota, 0 ihlal
 
 ### O3 — Yeni çalışanlar
 - Orion (startup), Lyra (reklam), Mira (içerik), Ece (sosyal çevre), Nova (kariyer), Arda (araştırma) + `office/shifts.py` mesai işleri

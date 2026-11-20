@@ -73,8 +73,10 @@ yaver/
   web/                       # React PWA (mobile-first)
     src/api/                 # tipler, istemci, TanStack Query kancaları, SSE chat
     src/chat/                # sohbet: model.ts (akış olayları → görünüm, saf + testli), useChat, bileşenler
-    src/plan/, src/status/   # Bugün/Yarın/Hafta (salt okunur), devamsızlık + harcama (O2'de Takvim sekmesine)
-    src/office/              # (O2) ofis sahnesi: scene/*.svg statik katmanlar, figürler, A*, panel
+    src/office/              # ana ekran: scene/*.svg + layout.json (scripts/office_scene.py üretir, elle düzenlenmez),
+                             #   geometry.ts (engeller, ızgara + A*, koltuklar, z-sırası), model.ts (SSE -> figür, saf + testli),
+                             #   useOffice (snapshot + SSE, yeniden bağlanma), OfficeScene, EmployeePanel
+    src/plan/, src/status/   # Takvim sekmesi (Bugün/Yarın/Hafta, salt okunur), devamsızlık + harcama
     src/i18n/tr.ts           # kullanıcıya görünen tüm metinler
   desktop/                   # Tauri (Faz 4)
   config/
