@@ -40,6 +40,8 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 - Tailscale ile telefondan erişim + HTTPS (`tailscale serve`)
 - Basit auth: tek kullanıcı parolası + httpOnly session cookie
 
+**Durum (2026-11-20):** zamanlayıcı, brifing, check-in, takip, haftalık plan ve sınav hazırlığı sohbette çalışıyor; Web Push (Chrome'da uçtan uca denendi) ve parola + oturum (web, masaüstü) kodda hazır. Kalan: Tailscale + HTTPS ve iPhone'da push denemesi (Görkem).
+
 **Bitti sayılır:**
 - [ ] Windows açılınca o günün brifingi geliyor ("Günaydın Görkem, bugün...")
 - [ ] Hackathon followup'ı her gün soruluyor, "kabul geldi" deyince kapanıyor ve event'e dönüşüyor
@@ -62,9 +64,13 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 - Çalışma kağıdı / özet / soru üretimi (`smart` tier), `study_sheets`'e kayıt, PDF/MD indir
 - Sınav öncesi otomatik "son hafta tekrar planı"
 
+**Durum: kod tamam (2026-11-20), gerçek ders materyaliyle denenmesi bekleniyor.** Embedding yerel (fastembed, çok dilli MiniLM); ayrıntı `DAY_REPORT.md` 5-8.
+
 **Bitti sayılır:**
-- [ ] EE211 syllabus'u yükleyince haftalar oluşuyor
-- [ ] "Bu haftanın devreler notlarından çalışma kağıdı" → kaynak gösteren bir kağıt geliyor
+- [x] EE211 syllabus'u yükleyince haftalar oluşuyor — canlı test (uydurma `examples/syllabus/ee211_syllabus.pdf`): Sonnet 14 haftayı tablo olarak önerdi, "evet" ile `syllabus_weeks` + aranabilir parçalar yazıldı
+- [x] "Bu haftanın devreler notlarından çalışma kağıdı" → kaynak gösteren bir kağıt geliyor — canlı test: kağıt yalnızca notlardan, her bilgi [n] ile, "Kaynaklar" (dosya + sayfa) kodla ekleniyor; web'de Markdown, .md indir, PDF olarak kaydet
+- [x] Not yükleme (PDF / fotoğraf) → ders + hafta (syllabus'tan öneri) → aranabilir; "bu hafta ne işlendi?" (`get_syllabus`)
+- [x] Sınava ~1 hafta kala tekrar planı önerisi (konular + notlar + boş saatler), "evet" ile görevlere
 
 ## Faz 4 — Masaüstü arkadaşı + ekran süresi
 - Tauri v2 uygulaması: hep üstte, sürüklenebilir yuvarlak logo; tıklayınca mini sohbet
@@ -86,7 +92,7 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 
 **Bitti sayılır:**
 - [ ] Logo masaüstünde duruyor, sohbet açılıyor — kod hazır, Görkem'in kurulu uygulamayla denemesi bekleniyor (`desktop/RAPOR.md` → Sabah denemen gerekenler)
-- [ ] Günlük ekran süresi raporu — panelde günlük özet var; backend'e gönderme + akşam check-in satırı ayrı iş
+- [x] Günlük ekran süresi raporu — masaüstü 10 dk'da bir ve kapanışta günlük özeti gönderiyor (backend kapalıyken yerelde bekliyor), Karen `get_screen_time` ile cevaplıyor, akşam check-in'de "bugün X saat ekran, Y dk VALORANT" satırı (2026-11-20)
 - [ ] Valorant limiti uygulanıyor — %80/%100 uyarısı var, kapatma yok
 
 ## Faz 5 — Open source cilası
