@@ -1,9 +1,11 @@
 import { lazy, Suspense, type ReactNode } from "react";
 
+import { useAuthStatus } from "./api/auth";
 import { useMonthUsage } from "./api/queries";
 import { ChatView } from "./chat/ChatView";
 import { Backdrop } from "./components/Backdrop";
 import { ConnectionStatus } from "./components/ConnectionStatus";
+import { LoginView } from "./components/LoginView";
 import {
   ArrowRightIcon,
   CalendarIcon,
@@ -33,6 +35,9 @@ const DesignPreview = lazy(() => import("./design/DesignPreview").then((m) => ({
 
 export function App() {
   const route = useRoute();
+  const auth = useAuthStatus();
+  if (auth.isPending) return <Backdrop />;
+  if (auth.data?.enabled && !auth.data.authenticated) return <LoginView />;
   if (route === "design-preview") {
     return (
       <Suspense fallback={null}>

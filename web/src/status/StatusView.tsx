@@ -1,3 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
+
+import { AUTH_KEY, logout, useAuthStatus } from "../api/auth";
 import { useAttendance, useMonthUsage, useTeam, useTeamActivity, useTermWeeks } from "../api/queries";
 import { AgentTag } from "../components/AgentTag";
 import { YaverAvatar } from "../components/Yaver";
@@ -16,6 +19,7 @@ export function StatusView() {
       <TeamCard />
       <AttendanceCard />
       <SpendCard />
+      <SessionCard />
     </div>
   );
 }
@@ -35,6 +39,32 @@ function Bar({ ratio, tone }: { ratio: number; tone: "ok" | "warn" | "bad" }) {
     <div className="h-2 overflow-hidden rounded-full bg-slate-900/10 dark:bg-white/10">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${String(Math.min(ratio, 1) * 100)}%` }} />
     </div>
+  );
+}
+
+/** Only with a password set: end this browser's login. */
+function SessionCard() {
+  const auth = useAuthStatus();
+  const client = useQueryClient();
+  if (!auth.data?.enabled) return null;
+  return (
+    <Card title={tr.login.session}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-600 dark:text-slate-300">{tr.login.sessionHint}</p>
+        <button
+          type="button"
+          onClick={() => {
+            void logout().then(() => {
+              client.setQueryData(AUTH_KEY, { enabled: true, authenticated: false });
+              client.removeQueries({ predicate: (query) => query.queryKey[0] !== AUTH_KEY[0] });
+            });
+          }}
+          className="rounded-full bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-500/20 dark:text-rose-300"
+        >
+          {tr.login.logout}
+        </button>
+      </div>
+    </Card>
   );
 }
 
