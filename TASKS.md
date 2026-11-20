@@ -58,3 +58,15 @@ Claude Code ile sırayla. Her madde ayrı commit. Bitince `[x]`.
 - [x] Ders programı fotoğrafı: onboarding akışı - önce özet tablo, onayla yaz, tek change_set, okunamayan hücreler "belirsiz", tahmin yok
 - [x] Diğer görseller (sınav duyurusu, etkinlik afişi): tarih/saat/yer çıkar, ilgili yavere öneri, onayla ekle
 - [x] Testler + gerçek ekran görüntüsüyle live test
+
+## 1.1 Proaktif asistan (Faz 1 başlangıcı)
+- [x] Scheduler altyapısı: APScheduler, DB jobstore, misfire + açılışta catch-up, günde bir kez (`job_runs`)
+- [x] Sabah brifingi sohbete (dersler, sınav geri sayımı, devamsızlık uyarısı, ajanda, spor, görevler)
+- [x] Akşam check-in (21:00, `CHECKIN_TIME`): dersler katıldı sayılır, spor/görevler sorulur, "✓ Hepsi tamam" / "Düzenle"; cevapsızsa sabah bir kez hatırlatılır
+- [x] Followup kontrolü (daily / every_n_days / on_date)
+- [x] Pazar akşamı haftalık plan taslağı (smart tier), "evet" ile görevlere
+- [x] Sesli mesaj (web): Groq Whisper, bas-konuş
+- [ ] Web Push + iPhone (Görkem)
+- [ ] Tailscale + HTTPS (Görkem)
+- [ ] Basit auth (Görkem)
+- [ ] Spor kaydı aracı (`log_workout`)
