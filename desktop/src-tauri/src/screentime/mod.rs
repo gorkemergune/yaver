@@ -1,9 +1,11 @@
 //! Screen time: samples the foreground app every 5 s into a local SQLite file, sums up
-//! the day per app and warns when an app limit reaches 80 % / 100 %. Local only for now.
+//! the day per app and warns when an app limit reaches 80 % / 100 %. Daily summaries go
+//! to the backend every 10 minutes and on exit (`sync.rs`).
 
 pub mod foreground;
 pub mod limits;
 pub mod store;
+pub mod sync;
 
 use crate::{notice, AppState};
 use chrono::{DateTime, Local, NaiveTime, TimeZone};

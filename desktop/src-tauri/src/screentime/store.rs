@@ -1,5 +1,5 @@
-//! Local SQLite store for screen time. Nothing here leaves the machine (backend
-//! integration is a later step). Times are UTC unix seconds.
+//! Local SQLite store for screen time. Daily summaries go to the backend (`sync.rs`);
+//! the sessions themselves stay here. Times are UTC unix seconds.
 //!
 //! Samples are folded into sessions: consecutive samples of the same app (and idle
 //! state) extend one row instead of adding 17k rows a day.
@@ -30,7 +30,12 @@ CREATE TABLE IF NOT EXISTS limit_alerts (
     at          INTEGER NOT NULL,
     PRIMARY KEY (day, limit_name, level)
 );
-PRAGMA user_version = 1;
+-- Small key/value state; `synced_until`: last successful backend sync (unix seconds).
+CREATE TABLE IF NOT EXISTS sync_state (
+    key         TEXT    PRIMARY KEY,
+    value       INTEGER NOT NULL
+);
+PRAGMA user_version = 2;
 ";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,6 +170,29 @@ impl Store {
             params![day, limit_name, level, at],
         )?;
         Ok(inserted == 1)
+    }
+
+    /// Unix seconds of the last successful backend sync; 0 = never.
+    pub fn synced_until(&self) -> rusqlite::Result<i64> {
+        use rusqlite::OptionalExtension;
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT value FROM sync_state WHERE key = 'synced_until'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?
+            .unwrap_or(0))
+    }
+
+    pub fn set_synced_until(&self, at: i64) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO sync_state (key, value) VALUES ('synced_until', ?1)
+             ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            params![at],
+        )?;
+        Ok(())
     }
 
     #[cfg(test)]

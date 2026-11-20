@@ -105,6 +105,12 @@ impl AppState {
         }
     }
 
+    /// Daily screen-time summaries (see `screentime::sync`).
+    pub async fn send_screen_time(&self, body: &Value) -> Result<Value, api::ApiError> {
+        let base = self.api_url();
+        self.api.screen_time(&base, body).await
+    }
+
     /// `YAVER_API_URL` wins over the saved address, which wins over the default.
     fn api_url(&self) -> String {
         env_api_url().unwrap_or_else(|| {
@@ -269,6 +275,7 @@ pub fn run() {
                 Ok(screen) => {
                     app.manage(screen);
                     screentime::start(app.handle().clone());
+                    screentime::sync::start(app.handle().clone());
                 }
                 Err(err) => log::error!("screen time disabled, database error: {err}"),
             }
@@ -302,6 +309,12 @@ pub fn run() {
             notice::dismiss_notice,
             notice::open_notice
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Yaver desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Yaver desktop")
+        .run(|app, event| {
+            // Quit from the tray, Windows logoff/shutdown: send today's screen time once more.
+            if let tauri::RunEvent::Exit = event {
+                screentime::sync::final_sync(app);
+            }
+        });
 }

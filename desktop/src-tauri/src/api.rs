@@ -128,6 +128,12 @@ impl Client {
         }
     }
 
+    /// `POST /api/screen-time`: whole days, replaced on the backend (idempotent).
+    pub async fn screen_time(&self, base: &str, body: &Value) -> Result<Value, ApiError> {
+        let request = self.http.post(format!("{base}/api/screen-time")).json(body);
+        self.send(request, SHORT_TIMEOUT).await
+    }
+
     /// `GET /api/team`: names and label colors; also the "is the server there?" check.
     pub async fn team(&self, base: &str) -> Result<Value, ApiError> {
         let request = self.http.get(format!("{base}/api/team"));

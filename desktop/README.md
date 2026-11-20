@@ -4,7 +4,7 @@ A small Tauri v2 app for Windows (Phase 4). It shows a round Yaver logo that sta
 
 - **Logo:** a transparent, always-on-top, draggable round window. Press and move to drag it; a click opens or closes the chat. Its position is remembered.
 - **Mini chat:** talks to the existing backend through `POST /api/chat`. Replies get an agent label and color from `/api/team`, and replies with changes get a **Geri al** link (`POST /api/changes/{id}/undo`).
-- **Screen time (Windows):** samples the foreground app every 5 s into a **local** SQLite file. Nothing goes to the backend yet. The panel's clock tab shows today's total, per-app time and limits.
+- **Screen time (Windows):** samples the foreground app every 5 s into a **local** SQLite file. The panel's clock tab shows today's total, per-app time and limits. A daily summary per app (no window titles, no sessions) goes to the backend (`POST /api/screen-time`) every 10 minutes and on exit; while the backend is unreachable the days wait in the SQLite file and go out with the next successful sync. Karen answers "bugün ne kadar oynadım?" from it, and the evening check-in has a screen-time line.
 - **App limits:** set in `config.json`. You get a warning at 80 % and at 100 % of the daily limit, shown as a balloon next to the logo and as a Windows notification. **Apps are never closed** (that comes later, together with the "bargaining" flow).
 - **Tray icon:** opens the chat, brings the logo back, turns *Start at Windows login* on or off, and quits the app. The windows have no taskbar entry, so the tray is the only way to quit.
 
@@ -69,7 +69,7 @@ To find an app's exe name, open Task Manager → *Details*, or hover over the ap
 | What | Where |
 |---|---|
 | Settings | `%APPDATA%\com.yaver.desktop\config.json` |
-| Screen time | `%LOCALAPPDATA%\com.yaver.desktop\screen_time.sqlite3` (`screen_sessions`, `limit_alerts`) |
+| Screen time | `%LOCALAPPDATA%\com.yaver.desktop\screen_time.sqlite3` (`screen_sessions`, `limit_alerts`, `sync_state`) |
 | Logs | `%LOCALAPPDATA%\com.yaver.desktop\logs\Yaver.log` |
 | Autostart | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` → `Yaver` (only when turned on) |
 
