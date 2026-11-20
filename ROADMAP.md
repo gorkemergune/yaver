@@ -75,10 +75,19 @@ Her faz bitince kullanılabilir bir şey bırakır. Bir faz, "Bitti sayılır" m
 - Limit aşımı için "pazarlık": ajana gerekçe söylenir, loglanır, ertesi gün özetlenir
 - Windows'ta oturum açılışında otomatik başlatma
 
+**Durum: kısmen (2026-11-20, `desktop/`, ayrıntı `desktop/RAPOR.md`).** Yapılanlar:
+- [x] Tauri v2 uygulaması: şeffaf, hep üstte, sürüklenebilir logo (konum hatırlanıyor); tıklayınca mini sohbet (`POST /api/chat`, yaver etiketi + renk, Geri al)
+- [x] Windows ön plan örneklemesi 5 sn'de bir → yerel SQLite `screen_sessions` (boşta kalma kuralı, pencere başlığı tutulmaz)
+- [x] `app_limits` (config.json): %80 ve %100'de balon + Windows bildirimi, günde bir kez
+- [x] Windows oturum açılışında otomatik başlatma (varsayılan kapalı) + tepsi menüsü + tek instance
+- [ ] %100'de geri sayım → process kapatma, "pazarlık" akışı
+- [ ] Proaktif balon mesajları (balon penceresi hazır, içerik kaynağı yok)
+- [ ] macOS frontmost app
+
 **Bitti sayılır:**
-- [ ] Logo masaüstünde duruyor, sohbet açılıyor
-- [ ] Günlük ekran süresi raporu
-- [ ] Valorant limiti uygulanıyor
+- [ ] Logo masaüstünde duruyor, sohbet açılıyor — kod hazır, Görkem'in kurulu uygulamayla denemesi bekleniyor (`desktop/RAPOR.md` → Sabah denemen gerekenler)
+- [ ] Günlük ekran süresi raporu — panelde günlük özet var; backend'e gönderme + akşam check-in satırı ayrı iş
+- [ ] Valorant limiti uygulanıyor — %80/%100 uyarısı var, kapatma yok
 
 ## Faz 5 — Open source cilası
 - `examples/` ile demo verisi, tek komut kurulum, ekran görüntüleri / GIF
