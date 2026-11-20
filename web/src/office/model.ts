@@ -57,6 +57,7 @@ export interface Figure {
   path: Point[]; // the steps still to walk, one per tick
   cup: boolean;
   idleUntil: number; // ms; when an idle figure picks a new place
+  holdUntil: number; // ms; stays at its meeting / desk until then (see DWELL_MS)
 }
 
 export type Random = () => number;
@@ -72,14 +73,39 @@ function freeOf(prefix: string, count: number, taken: Set<string>, random: Rando
   return free.length ? (free[Math.floor(random() * free.length)] ?? null) : null;
 }
 
-/** Meeting room seats: a pair (`meeting_with` both ways or one way) shares the table, the
- *  coordinator on the near side facing us, the other across; a lone meeting takes any. */
-export function meetingSeats(staff: Staff, figures: Record<string, Figure>): Record<string, string> {
-  const meeting = Object.values(staff)
-    .filter((e) => e.activity === "meeting")
-    .sort((a, b) => Number(b.is_coordinator) - Number(a.is_coordinator) || a.id.localeCompare(b.id));
+/**
+ * Backend states are often shorter than the walk (a handover is ~1 s, crossing the office
+ * ~10 s). A figure that set out for a meeting or for its desk gets there and stays at least
+ * this long, then follows the latest state: what happened is always shown, a little late;
+ * nothing that did not happen is. A meeting may cut a walk to the desk short.
+ */
+export const DWELL_MS: Partial<Record<Act, number>> = { meeting: 4000, work: 2500 };
+
+/** Walking to, or still staying at, a place the backend sent it to. */
+export const isHeld = (f: Figure, now: number): boolean =>
+  (f.act === "meeting" || f.act === "work") && (f.path.length > 0 || f.holdUntil > now);
+
+const tableSeat = (spot: string | undefined): number | null => {
+  const m = /^meet:(\d+)$/.exec(spot ?? "");
+  const n = m ? Number(m[1]) : NaN;
+  return n < 2 * MEET_TABLE_SIDE ? n : null;
+};
+
+/** Meeting room seats: a pair (`meeting_with` either way) shares the table, the
+ *  coordinator on the near side facing us, the other across; a figure still on its way to
+ *  (or sitting out) an earlier meeting keeps its seat and the newcomer sits across. */
+export function meetingSeats(staff: Staff, figures: Record<string, Figure>, now = 0): Record<string, string> {
   const seats: Record<string, string> = {};
   const taken = new Set<string>();
+  for (const f of Object.values(figures)) {
+    if (staff[f.id] && f.act === "meeting" && isHeld(f, now)) {
+      seats[f.id] = f.spot;
+      taken.add(f.spot);
+    }
+  }
+  const meeting = Object.values(staff)
+    .filter((e) => e.activity === "meeting" && !seats[e.id])
+    .sort((a, b) => Number(b.is_coordinator) - Number(a.is_coordinator) || a.id.localeCompare(b.id));
   const pairs: [OfficeEmployee, OfficeEmployee][] = [];
   const paired = new Set<string>();
   for (const e of meeting) {
@@ -90,50 +116,47 @@ export function meetingSeats(staff: Staff, figures: Record<string, Figure>): Rec
       paired.add(e.id).add(partner.id);
     }
   }
-  const singles = meeting.filter((e) => !paired.has(e.id));
-  const tableSeat = (spot: string | undefined): number | null => {
-    const m = /^meet:(\d+)$/.exec(spot ?? "");
-    const n = m ? Number(m[1]) : NaN;
-    return n < 2 * MEET_TABLE_SIDE ? n : null;
+  const take = (id: string, seat: string): void => {
+    seats[id] = seat;
+    taken.add(seat);
   };
-  // keep pairs already seated across from each other
-  const open: [OfficeEmployee, OfficeEmployee][] = [];
+  const firstFree = (candidates: number[]): string | null => {
+    for (const i of candidates) if (!taken.has(`meet:${String(i)}`)) return `meet:${String(i)}`;
+    return null;
+  };
+  const all = Array.from({ length: MEET_COUNT }, (_, i) => i);
+  const side = (near: boolean): number[] =>
+    Array.from({ length: MEET_TABLE_SIDE }, (_, i) => (near ? i : i + MEET_TABLE_SIDE));
+  // pairs already seated across from each other stay; the others take the first free pair
+  const leftover: OfficeEmployee[] = [];
   for (const [a, b] of pairs) {
     const sa = tableSeat(figures[a.id]?.spot);
     const sb = tableSeat(figures[b.id]?.spot);
-    if (sa !== null && sb !== null && Math.abs(sa - sb) === MEET_TABLE_SIDE) {
-      const near = `meet:${String(sa)}`;
-      const far = `meet:${String(sb)}`;
-      seats[a.id] = near;
-      seats[b.id] = far;
-      taken.add(near).add(far);
-    } else open.push([a, b]);
-  }
-  for (const [a, b] of open) {
-    for (let j = 0; j < MEET_TABLE_SIDE; j++) {
-      const near = `meet:${String(j)}`;
-      const far = `meet:${String(j + MEET_TABLE_SIDE)}`;
-      if (taken.has(near) || taken.has(far)) continue;
-      seats[a.id] = near;
-      seats[b.id] = far;
-      taken.add(near).add(far);
-      break;
+    if (sa !== null && sb !== null && Math.abs(sa - sb) === MEET_TABLE_SIDE && !taken.has(`meet:${String(sa)}`) && !taken.has(`meet:${String(sb)}`)) {
+      take(a.id, `meet:${String(sa)}`);
+      take(b.id, `meet:${String(sb)}`);
+      continue;
     }
-  }
-  for (const e of [...singles, ...open.flat().filter((e) => !seats[e.id])]) {
-    const kept = figures[e.id]?.spot;
-    if (kept?.startsWith("meet:") && !taken.has(kept)) {
-      seats[e.id] = kept;
+    const j = side(true).find((n) => !taken.has(`meet:${String(n)}`) && !taken.has(`meet:${String(n + MEET_TABLE_SIDE)}`));
+    if (j === undefined) {
+      leftover.push(a, b);
     } else {
-      for (let i = 0; i < MEET_COUNT; i++) {
-        if (!taken.has(`meet:${String(i)}`)) {
-          seats[e.id] = `meet:${String(i)}`;
-          break;
-        }
-      }
+      take(a.id, `meet:${String(j)}`);
+      take(b.id, `meet:${String(j + MEET_TABLE_SIDE)}`);
     }
-    const seat = seats[e.id];
-    if (seat) taken.add(seat);
+  }
+  for (const e of [...meeting.filter((m) => !paired.has(m.id)), ...leftover]) {
+    const partnerSeat = tableSeat(e.meeting_with ? seats[e.meeting_with] : undefined);
+    let seat: string | null = null;
+    if (partnerSeat !== null) {
+      const nearPartner = partnerSeat < MEET_TABLE_SIDE;
+      const across = nearPartner ? partnerSeat + MEET_TABLE_SIDE : partnerSeat - MEET_TABLE_SIDE;
+      seat = firstFree([across, ...side(!nearPartner)]);
+    }
+    const kept = figures[e.id]?.spot;
+    if (!seat && kept?.startsWith("meet:") && !taken.has(kept)) seat = kept;
+    seat ??= firstFree(all);
+    if (seat) take(e.id, seat);
   }
   return seats;
 }
@@ -162,32 +185,46 @@ function idleTarget(e: OfficeEmployee, taken: Set<string>, random: Random): Targ
 }
 
 function go(f: Figure, target: Target): Figure {
-  if (f.spot === target.spot && !f.path.length) return { ...f, act: target.act, cup: target.act === "coffee" };
+  // already there, or already on the way: keep walking the same route
+  if (f.spot === target.spot) return { ...f, act: target.act, cup: f.path.length ? f.cup : target.act === "coffee" };
   const path = f.path.length ? routeFrom([f.x, f.y], null, target.spot) : routeFrom(null, f.spot, target.spot);
-  return { ...f, spot: target.spot, act: target.act, path, cup: f.act === "coffee" || target.act === "coffee" };
+  return { ...f, spot: target.spot, act: target.act, path, cup: f.act === "coffee" || target.act === "coffee", holdUntil: 0 };
 }
 
 function place(e: OfficeEmployee, target: Target, now: number, random: Random): Figure {
   const spot = SPOTS[target.spot];
   const [x, y] = spot ? spot.pt : [0, 0];
-  return { id: e.id, spot: target.spot, act: target.act, x, y, path: [], cup: target.act === "coffee", idleUntil: now + IDLE_MIN_MS + random() * IDLE_SPAN_MS };
+  return {
+    id: e.id,
+    spot: target.spot,
+    act: target.act,
+    x,
+    y,
+    path: [],
+    cup: target.act === "coffee",
+    idleUntil: now + IDLE_MIN_MS + random() * IDLE_SPAN_MS,
+    holdUntil: 0,
+  };
 }
 
 /**
  * Sends every figure where its employee's state says (new figures appear there without
- * walking). Idle figures keep their place until `idleUntil`, then pick another.
+ * walking). A held figure finishes its meeting / desk visit first (see DWELL_MS); idle
+ * figures keep their place until `idleUntil`, then pick another.
  */
 export function planFigures(figures: Record<string, Figure>, staff: Staff, now: number, random: Random = Math.random): Record<string, Figure> {
-  const seats = meetingSeats(staff, figures);
+  const seats = meetingSeats(staff, figures, now);
   const taken = new Set<string>(Object.values(seats));
   const next: Record<string, Figure> = {};
   // non-idle first: their places are fixed; idle figures avoid the spots they hold
   const ordered = Object.values(staff).sort((a, b) => Number(a.activity === "break") - Number(b.activity === "break"));
-  for (const f of Object.values(figures)) if (staff[f.id] && IDLE.includes(f.act)) taken.add(f.spot);
+  for (const f of Object.values(figures)) if (staff[f.id] && (IDLE.includes(f.act) || isHeld(f, now))) taken.add(f.spot);
   for (const e of ordered) {
     const f = figures[e.id];
+    const held = f && isHeld(f, now) && !(f.act === "work" && e.activity === "meeting");
     let target: Target;
-    if (e.activity === "working") target = { act: "work", spot: homeSpot(e) };
+    if (f && held) target = { act: f.act, spot: f.spot };
+    else if (e.activity === "working") target = { act: "work", spot: homeSpot(e) };
     else if (e.activity === "off") target = { act: "off", spot: homeSpot(e) };
     else if (e.activity === "meeting") target = { act: "meeting", spot: seats[e.id] ?? homeSpot(e) };
     else if (f && IDLE.includes(f.act) && f.idleUntil > now) target = { act: f.act, spot: f.spot };
@@ -209,8 +246,9 @@ export function planFigures(figures: Record<string, Figure>, staff: Staff, now: 
   return next;
 }
 
-/** One tick (0.9 s): every walking figure takes its next step. */
-export function stepFigures(figures: Record<string, Figure>): Record<string, Figure> {
+/** One tick (0.9 s): every walking figure takes its next step; arriving at a meeting or
+ *  its desk starts the stay (DWELL_MS). */
+export function stepFigures(figures: Record<string, Figure>, now: number): Record<string, Figure> {
   let changed = false;
   const next: Record<string, Figure> = {};
   for (const [id, f] of Object.entries(figures)) {
@@ -220,7 +258,15 @@ export function stepFigures(figures: Record<string, Figure>): Record<string, Fig
     }
     changed = true;
     const [p, ...rest] = f.path as [Point, ...Point[]];
-    next[id] = { ...f, x: p[0], y: p[1], path: rest, cup: rest.length ? f.cup : f.act === "coffee" };
+    const arrived = rest.length === 0;
+    next[id] = {
+      ...f,
+      x: p[0],
+      y: p[1],
+      path: rest,
+      cup: arrived ? f.act === "coffee" : f.cup,
+      holdUntil: arrived ? now + (DWELL_MS[f.act] ?? 0) : f.holdUntil,
+    };
   }
   return changed ? next : figures;
 }
@@ -295,6 +341,9 @@ export function feedLine(before: OfficeEmployee | undefined, after: EmployeeStat
   if (after.activity === "break" && (before?.activity === "working" || before?.activity === "meeting")) return f.done;
   return null;
 }
+
+/** Night in the office (sky, dimmer light): 19:00-07:00 local time. */
+export const isNight = (hour: number): boolean => hour >= 19 || hour < 7;
 
 /** Hair and skin for a figure: stable per employee (the prototype's palette). */
 const HAIR = ["#3a2a1e", "#1f1b2e", "#2b1d14", "#43232f", "#2a1a3a", "#5a3a22", "#251a12", "#2e2a26", "#1c1c1c", "#2a2140"];

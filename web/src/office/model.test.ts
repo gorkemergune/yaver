@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { EmployeeState, OfficeEmployee, OfficeEvent } from "../api/types";
 import { SPOTS, inMeetingRoom, need } from "./geometry";
-import { applyOfficeEvent, feedLine, figureView, planFigures, stepFigures, type Figure, type Staff } from "./model";
+import { DWELL_MS, applyOfficeEvent, feedLine, figureView, meetingSeats, planFigures, stepFigures, type Figure, type Staff } from "./model";
 
 function employee(id: string, desk: OfficeEmployee["desk"], extra: Partial<OfficeEmployee> = {}): OfficeEmployee {
   return {
@@ -55,12 +55,14 @@ function state(id: string, patch: Partial<EmployeeState>): OfficeEvent {
 /** A deterministic random: always the same pick. */
 const fixed = (value: number) => () => value;
 
-/** Walk every figure until it arrives. */
-function arrive(figures: Record<string, Figure>): Record<string, Figure> {
+/** Walk every figure until it arrives (arrival at `at` ms). */
+function arrive(figures: Record<string, Figure>, at = 0): Record<string, Figure> {
   let current = figures;
-  for (let i = 0; i < 200; i++) current = stepFigures(current);
+  for (let i = 0; i < 200; i++) current = stepFigures(current, at);
   return current;
 }
+
+const TICK = 900;
 
 describe("applyOfficeEvent", () => {
   it("a snapshot replaces everyone; not ready means an empty office", () => {
@@ -94,6 +96,10 @@ describe("figures follow the backend state", () => {
     const mid = figureView(need(walking.academic, "academic"), need(working.academic, "academic"), working);
     expect(mid).toMatchObject({ walking: true, atDesk: false, sitting: false, status: "Masasına dönüyor" });
     expect(mid.hasCup).toBe(true); // carries the coffee back
+
+    // the next ticks follow the same route (no new route while the target stays)
+    const replanned = planFigures(stepFigures(walking, 1900), working, 2000);
+    expect(replanned.academic?.path).toEqual(walking.academic?.path.slice(1));
 
     const seated = arrive(walking);
     expect([seated.academic?.x, seated.academic?.y]).toEqual(SPOTS["seat:back:0"]?.pt);
@@ -141,6 +147,54 @@ describe("figures follow the backend state", () => {
     expect(after.academic?.spot).toBe("seat:back:0");
     expect(after.yaver?.spot).toBe("seat:office");
     expect(after.yaver?.path.length).toBeGreaterThan(0); // walks back out of the meeting room
+  });
+
+  it("a meeting shorter than the walk is still shown, then the figure follows the latest state", () => {
+    let staff = applyOfficeEvent(STAFF, state("yaver", { activity: "meeting", meeting_with: "agenda" }));
+    staff = applyOfficeEvent(staff, state("agenda", { activity: "meeting", meeting_with: "yaver" }));
+    let figures = planFigures(planFigures({}, STAFF, 0, fixed(0.1)), staff, 0, fixed(0.1));
+    const seat = figures.agenda?.spot;
+    expect(seat).toMatch(/^meet:/);
+
+    // ~1 s later the backend handover is over: Deniz works, Yaver waits in its room
+    staff = applyOfficeEvent(staff, state("agenda", { activity: "working", task: "Takvime ekliyor", tool: "add_event" }));
+    staff = applyOfficeEvent(staff, state("yaver", { activity: "working", task: "Deniz çalışıyor, bekliyor" }));
+    let t = 0;
+    while ((figures.agenda?.path.length ?? 0) > 0) {
+      t += TICK;
+      figures = stepFigures(planFigures(figures, staff, t), t);
+      expect(figures.agenda?.spot).toBe(seat); // keeps walking to the meeting
+    }
+    expect(inMeetingRoom(need(figures.agenda, "agenda").x, need(figures.agenda, "agenda").y)).toBe(true);
+    // sits it out...
+    figures = planFigures(figures, staff, t + (DWELL_MS.meeting ?? 0) - 100);
+    expect(figures.agenda?.spot).toBe(seat);
+    // ...then goes to its desk to do the work the backend reported
+    figures = planFigures(figures, staff, t + (DWELL_MS.meeting ?? 0) + 100);
+    expect(figures.agenda?.spot).toBe("seat:front:2");
+    expect(figures.agenda?.act).toBe("work");
+  });
+
+  it("a meeting cuts a walk to the desk short", () => {
+    const working = applyOfficeEvent(STAFF, state("academic", { activity: "working" }));
+    const walking = planFigures(planFigures({}, STAFF, 0, fixed(0.1)), working, 0);
+    expect(walking.academic?.path.length).toBeGreaterThan(0);
+    const meeting = applyOfficeEvent(working, state("academic", { activity: "meeting", meeting_with: "yaver" }));
+    expect(planFigures(walking, meeting, TICK).academic?.spot).toMatch(/^meet:/);
+  });
+
+  it("the next meeting partner sits across from someone still in the room", () => {
+    // Yaver is still sitting out its meeting with Deniz at meet:0 / meet:3
+    const figures: Record<string, Figure> = {
+      yaver: { id: "yaver", spot: "meet:0", act: "meeting", x: 1.21, y: 6.24, path: [], cup: false, idleUntil: 0, holdUntil: 5000 },
+      agenda: { id: "agenda", spot: "meet:3", act: "meeting", x: 1.03, y: 8.19, path: [], cup: false, idleUntil: 0, holdUntil: 5000 },
+    };
+    let staff = applyOfficeEvent(STAFF, state("yaver", { activity: "meeting", meeting_with: "academic" }));
+    staff = applyOfficeEvent(staff, state("academic", { activity: "meeting", meeting_with: "yaver" }));
+    const seats = meetingSeats(staff, figures, 1000);
+    expect(seats.yaver).toBe("meet:0");
+    expect(seats.agenda).toBe("meet:3");
+    expect(seats.academic).toBe("meet:4"); // across from Yaver's side, next to Deniz
   });
 
   it("break: idle places only - never the meeting room or someone's desk", () => {
