@@ -174,10 +174,13 @@ agents:
     persona: Yaratıcı ama pratik bir içerik üreticisi. Somut, paylaşılabilir fikirler önerir.
     tier: fast
     model: {groq: openai/gpt-oss-20b}
-    shift: Her gün içerik trendlerini tarar; post fikirlerini defterine yazar.
+    shift: >-
+      Pazartesi haftanın içerik takvimi taslağını defterine yazar (paylaşmaz); her gün
+      trendleri tarar (web arama anahtarı varsa).
     shift_jobs:
+      - {job: content_calendar, at: "10:30", weekday: 0, title: Haftalık içerik takvimi, topics: [Örnek Girişim]}
       - {job: web_scan, at: "11:00", title: Trend taraması, topics: [Instagram içerik trendleri]}
-    tools: [web_search, add_task, complete_task, add_event]
+    tools: [web_search, draft_content_calendar, add_task, complete_task, add_event]
 
   - id: social
     name: Buddy

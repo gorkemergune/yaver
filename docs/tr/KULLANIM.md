@@ -88,6 +88,14 @@ Ataç düğmesi, sürükle-bırak ya da yapıştır (Ctrl+V). iPhone'da kamera d
 
 Görseller sadece Claude'a gider; Groq'a görsel gönderilmez. Fotoğraflardaki konum (EXIF) bilgisi silinir.
 
+### İçerik takvimi (Creator)
+
+Her Pazartesi 10:30'da Creator haftanın post taslaklarını defterine yazar (gün, platform,
+biçim, konu, taslak metin, neye dayandığı). İstediğin an da: "Creator, bu haftanın içerik
+takvimini çıkar". Bağlamı: `agents.yaml`'da işin `topics`'i (marka), bu markadan bahseden
+kalıcı bilgiler, Venture'ın son notları, yaklaşan etkinlikler. Web arama anahtarı varsa
+trendler de eklenir. **Hiçbir şey paylaşılmaz:** taslağı sen kopyalayıp paylaşırsın.
+
 ## 5. Ders notları ve çalışma kağıdı
 
 - "EE211'de Thevenin direnci nasıl bulunuyordu?" → Friday yüklediğin notlarda arar ve kaynağı gösterir: "(ee211_hafta7_notlar.pdf, s. 2)". Notlarda yoksa bunu söyler, ezberden cevap uydurmaz.

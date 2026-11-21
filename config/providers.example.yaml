@@ -71,6 +71,7 @@ routing:
     schedule_image: smart          # Sonnet: timetable photo / screenshot
     document_image: smart          # Sonnet: notes, tables, slides
     ads_image: smart               # Sonnet: Ads Manager table screenshot (Metrics)
+    content_calendar: smart        # Creator: weekly post drafts (one call a week)
     # Weekly jobs marked deep (Opus); nothing else may use the deep tier:
     ads_weekly_report: deep        # Metrics: week-over-week ad analysis + recommendations
     startup_weekly_review: deep    # Venture: weekly review of the startup repo

@@ -92,3 +92,47 @@ async def get_ad_report(args: AdReportArgs, ctx: ToolContext) -> ToolResult:
             {"report_id": r.id, "period": period_text(r.period_start, r.period_end)} for r in others
         ],
     }
+
+
+class ContentCalendarArgs(BaseModel):
+    topics: list[str] = Field(
+        default_factory=list,
+        description="brands / topics to plan for; empty = the ones in your shift plan",
+    )
+
+
+@tool(
+    "draft_content_calendar",
+    "Next week's social media post drafts (a table in your notebook; nothing is posted).",
+    ContentCalendarArgs,
+    mutates=True,
+)
+async def draft_content_calendar(args: ContentCalendarArgs, ctx: ToolContext) -> ToolResult:
+    from app.agent.team import load_team_config
+    from app.content import calendar
+
+    topics = [t.strip() for t in args.topics if t.strip()]
+    if not topics:
+        config = load_team_config()
+        member = next((a for a in config.agents if a.id == ctx.agent_id), None)
+        jobs = [j for j in (member.shift_jobs if member else []) if j.job == "content_calendar"]
+        topics = jobs[0].topics if jobs else []
+    if ctx.llm is None:
+        raise ToolError("no model to draft with")
+    result = await calendar.draft_calendar(
+        ctx.session,
+        ctx.llm,
+        employee_id=ctx.agent_id,
+        topics=topics,
+        now=ctx.now,
+        tz=ctx.tz,
+        search=search.get_web_search(),
+    )
+    if result is None:
+        raise ToolError("the calendar could not be drafted now (no model answered)")
+    note = await write_note(
+        ctx.session, ctx.agent_id, result.text, ctx.now, ctx.tz, recorder=ctx.recorder
+    )
+    if note is not None:
+        ctx.notes.append(note_event(note))
+    return {"draft": result.text, "posts": result.posts, "trends": result.trends, "posted": False}

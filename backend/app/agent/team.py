@@ -69,6 +69,7 @@ SHIFT_JOB_KINDS = (
     "followup_watch",  # follow-ups still waiting for an answer
     "deadline_watch",  # deadlines in the next days
     "github_watch",  # the startup repo (read only): week hand-ins, dated items, reminders
+    "content_calendar",  # Creator: next week's post drafts (one LLM call; nothing is posted)
 )
 
 
@@ -80,6 +81,7 @@ class ShiftJobConfig(_Strict):
         "followup_watch",
         "deadline_watch",
         "github_watch",
+        "content_calendar",
     ]
     at: str = Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")  # local time
     weekday: int | None = Field(None, ge=0, le=6)  # 0 = Monday; None = every day

@@ -66,13 +66,16 @@ yaver/
         budget.py            # çalışan başına günlük harcama
         shifts.py            # mesai işi sarmalayıcı: working -> break, bütçe aşılınca durur
         shift_jobs.py        # agents.yaml `shift_jobs` (web_scan, ads_report, social_reminders, followup_watch,
-                             #   deadline_watch, github_watch) -> "shift:<çalışan>:<iş>" zamanlayıcı işleri, sonuç deftere (LLM yok)
+                             #   deadline_watch, github_watch, content_calendar) -> "shift:<çalışan>:<iş>" zamanlayıcı işleri,
+                             #   sonuç deftere (LLM yok; tek istisna content_calendar: haftada bir `smart` çağrısı)
         rituals.py           # standup (brifingin içinde), gün sonu raporu, Pazar toplantısı (meeting bağlamı)
         board.py             # görev panosu: Bekliyor / Çalışıyor / Onay bekliyor / Bitti
         notebook.py          # write_note (çalışan yoksa yazmaz, durum notları günde bir), record_shift (gelen kutusu)
       integrations/          # web_search.py (Tavily/Brave, anahtar yoksa None), meta_ads.py (iskelet)
       startup/repo.py        # Venture + startup GitHub deposu (salt okunur): harita, hafta teslimleri, tarihli işler
                              #   -> takvim + takip (marker "[github:<key>]", tek change_set), hatırlatma / takibi kapatma
+      content/calendar.py    # Creator: haftalık içerik takvimi TASLAĞI (bağlam kodda: topics, hatıralar, Venture notları,
+                             #   etkinlikler, anahtar varsa trendler; gün adı -> tarih kodda). Paylaşan araç yok.
       ads/                   # reklam raporu dosyaları: parse.py (Meta CSV, kodda), intake.py (CSV/ekran
                              #   görüntüsü -> rapor), report.py (kayıt, önceki dönemle karşılaştırma, analiz)
         labels.py            # araç adı -> "Takvime bakıyor" gibi görev metni

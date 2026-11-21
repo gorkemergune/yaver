@@ -198,6 +198,7 @@ def test_every_new_employee_has_a_scheduled_shift_job() -> None:
         "shift:startup:github_watch",  # the startup repo, read only
         "shift:startup:web_scan",
         "shift:ads:ads_report",
+        "shift:content:content_calendar",  # Monday: next week's post drafts
         "shift:content:web_scan",
         "shift:social:social_reminders",
     ]

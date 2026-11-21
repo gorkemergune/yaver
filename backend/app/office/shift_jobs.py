@@ -10,6 +10,7 @@ import datetime as dt
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.agent.team import SHIFT_JOB_KINDS, ShiftJobConfig, TeamConfig, load_team_config
 from app.config import Settings, get_settings
+from app.content import calendar
 from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
 from app.db.models import Event, Followup, JobRun
 from app.db.models.enums import EventKind, FollowupStatus
@@ -24,6 +26,7 @@ from app.db.session import get_sessionmaker
 from app.integrations import github as gh
 from app.integrations import web_search as websearch
 from app.integrations.meta_ads import NO_CREDENTIALS, NOT_BUILT, ads_status
+from app.llm.router import get_router
 from app.office.notebook import note_event, record_shift, write_note
 from app.office.shifts import OverBudgetError, run_shift
 from app.office.state import Office
@@ -40,6 +43,7 @@ DEFAULT_TITLES = {
     "followup_watch": "Bekleyen dönüşlere bakıyor",
     "deadline_watch": "Yaklaşan teslimlere bakıyor",
     "github_watch": "Startup deposuna bakıyor",
+    "content_calendar": "İçerik takvimi hazırlıyor",
 }
 # Status notes (no data source yet) are written once a day, not on every run.
 STATUS_NOTES = frozenset({websearch.PENDING_NOTE, NO_CREDENTIALS, NOT_BUILT, gh.PENDING_NOTE})
@@ -77,6 +81,7 @@ class ShiftContext:
     search: websearch.WebSearch | None
     employee_id: str = ""
     github: gh.GitHub | None = None
+    llm: Any = None  # content_calendar only: the router (the other jobs use no model)
 
     @property
     def today(self) -> dt.date:
@@ -132,6 +137,22 @@ async def github_watch(ctx: ShiftContext) -> str | None:
             await client.aclose()
 
 
+async def content_calendar(ctx: ShiftContext) -> str | None:
+    llm = ctx.llm if ctx.llm is not None else get_router()
+    result = await calendar.draft_calendar(
+        ctx.session,
+        llm,
+        employee_id=ctx.employee_id,
+        topics=ctx.job.topics,
+        now=ctx.now,
+        tz=ctx.settings.tz,
+        search=ctx.search,
+    )
+    return (
+        result.text if result is not None else "İçerik takvimi bu hafta çıkarılamadı (model yok)."
+    )
+
+
 async def social_reminders(ctx: ShiftContext) -> str | None:
     social = [
         e
@@ -178,6 +199,7 @@ JOBS: dict[str, Callable[[ShiftContext], Awaitable[str | None]]] = {
     "followup_watch": followup_watch,
     "deadline_watch": deadline_watch,
     "github_watch": github_watch,
+    "content_calendar": content_calendar,
 }
 assert set(JOBS) == set(SHIFT_JOB_KINDS), "every kind agents.yaml accepts has a job"
 
@@ -193,6 +215,7 @@ async def run_shift_job(
     web: websearch.WebSearch | bool | None = True,
     force: bool = False,
     repo: gh.GitHub | None = None,
+    llm: Any = None,
 ) -> str | None:
     """The note written, or None (unknown key, already ran today, nothing to say, over
     budget - not recorded then, so it can run once the budget allows). `force`: run again
@@ -215,7 +238,7 @@ async def run_shift_job(
         if done is not None and not force:
             return None
         ctx = ShiftContext(
-            session, now, settings.tz, plan.job, settings, provider, plan.employee_id, repo
+            session, now, settings.tz, plan.job, settings, provider, plan.employee_id, repo, llm
         )
 
         async def work() -> str | None:
