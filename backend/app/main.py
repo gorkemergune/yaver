@@ -26,6 +26,7 @@ from app.api import (
 )
 from app.api.auth import require_auth
 from app.config import get_settings
+from app.core import log_filters
 from app.db.session import dispose_engine
 from app.jobs.scheduler import catch_up, start_scheduler
 from app.llm.check_models import log_startup_check
@@ -80,6 +81,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    log_filters.install()  # the calendar token stays out of the access log (QA O3)
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
 
     # `/health` for container healthchecks, `/api/health` for the web app (proxied under /api).
