@@ -216,3 +216,13 @@ cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy
 # frontend
 cd web && npm run check        # tsc + eslint + vitest
 ```
+
+**Her maddeden sonra testlere ek olarak çalışan uygulamayı doğrula** (dev'de api sıcak yeniden yüklenir; testler geçse de canlı süreç çökmüş olabilir):
+```bash
+docker compose ps api                                   # STATUS: (healthy)
+curl -s -o /dev/null -w "%{http_code}
+" http://localhost:8000/api/health/ready   # 200
+```
+`tests/test_smoke.py` uvicorn'un yüklediği `app.main:app` nesnesiyle `/health`'i çağırır ve `app/` altındaki her modülü içe aktarır.
+- Sınıf gövdesinde bir alan, aynı gövdede sonra kullanılan bir modül / içe aktarılan adla aynı adı taşımaz (`github: github.GitHub`, `date: date` → `AttributeError` / `MappedAnnotationError`, uygulama açılmaz). Modülü takma adla al (`from app.integrations import github as gh`).
+- Yeni `.env` alanı geçersiz ya da yer tutucu bir değerde uygulamayı düşürmez: uyarı loglar, entegrasyonu kapalı sayar.
