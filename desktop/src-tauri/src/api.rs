@@ -109,6 +109,16 @@ impl Client {
         timeout: Duration,
     ) -> Result<Value, ApiError> {
         let token = self.token.read().expect("token lock").clone();
+        self.send_as(request, timeout, token).await
+    }
+
+    /// Like `send`, with this token instead of the saved one (testing a key before saving).
+    async fn send_as(
+        &self,
+        request: reqwest::RequestBuilder,
+        timeout: Duration,
+        token: Option<String>,
+    ) -> Result<Value, ApiError> {
         let request = match token {
             Some(token) => request.bearer_auth(token),
             None => request,
@@ -186,6 +196,12 @@ impl Client {
         let request = self.http.get(format!("{base}/api/team"));
         self.send(request, SHORT_TIMEOUT).await
     }
+
+    /// `GET /api/team` with a given token (None: without any): "Bağlantıyı test et".
+    pub async fn team_as(&self, base: &str, token: Option<String>) -> Result<Value, ApiError> {
+        let request = self.http.get(format!("{base}/api/team"));
+        self.send_as(request, SHORT_TIMEOUT, token).await
+    }
 }
 
 /// FastAPI errors look like `{"detail": "..."}` or `{"detail": {"message": "..."}}`.
@@ -221,7 +237,10 @@ fn error_code(status: u16, body: &str) -> &'static str {
 /// A device key from the web app (Durum → Cihaz anahtarları): `yvk_` + 43 url-safe chars.
 pub fn is_device_key(key: &str) -> bool {
     key.strip_prefix("yvk_").is_some_and(|rest| {
-        rest.len() >= 20 && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        rest.len() >= 20
+            && rest
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     })
 }
 
@@ -236,7 +255,9 @@ mod key_tests {
 
     #[test]
     fn device_keys_are_recognised() {
-        assert!(is_device_key("yvk_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_xyz"));
+        assert!(is_device_key(
+            "yvk_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_xyz"
+        ));
         assert!(!is_device_key("AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"));
         assert!(!is_device_key("yvk_short"));
         assert!(!is_device_key("yvk_has spaces and more characters here"));
@@ -246,7 +267,10 @@ mod key_tests {
     fn a_revoked_key_has_its_own_code() {
         let body = r#"{"detail": {"code": "device_key_invalid"}}"#;
         assert_eq!(error_code(401, body), "device_key_invalid");
-        assert_eq!(error_code(401, r#"{"detail": {"code": "login_required"}}"#), "login_required");
+        assert_eq!(
+            error_code(401, r#"{"detail": {"code": "login_required"}}"#),
+            "login_required"
+        );
     }
 }
 

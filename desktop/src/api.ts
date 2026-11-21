@@ -15,6 +15,14 @@ export interface Settings {
   api_url_from_env: boolean;
   autostart: boolean;
   logged_in: boolean;
+  version: string;
+}
+
+/** "Bağlantıyı test et" (src-tauri/src/lib.rs: ConnectionReport). */
+export interface ConnectionReport {
+  names: string[];
+  with_key: boolean;
+  typed_key: boolean;
 }
 
 export interface Change {
@@ -61,6 +69,8 @@ export const api = {
   login: (password: string) => invoke<boolean>("login", { password }),
   /** A device key from the web app (Durum → Cihaz anahtarları); checked by the server first. */
   useDeviceKey: (key: string) => invoke<undefined>("use_device_key", { key }),
+  /** Reaches the server with `key` (typed, not saved) or the saved key. */
+  testConnection: (key: string | null) => invoke<ConnectionReport>("test_connection", { key }),
   logout: () => invoke<undefined>("logout"),
   hideChat: () => invoke<undefined>("hide_chat"),
   screenTime: () => invoke<ScreenSummary>("screen_time_today"),

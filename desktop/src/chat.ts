@@ -1,6 +1,6 @@
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { api, type ChatResponse, type Team } from "./api";
-import { conversationStore, errorMessage, helpers, speakerOf } from "./chat/model";
+import { conversationStore, errorMessage, helpers, needsKey, speakerOf } from "./chat/model";
 import { tr } from "./i18n/tr";
 import { startScreenView } from "./screen/view";
 
@@ -25,7 +25,7 @@ const ICONS = {
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
 
-const VIEWS = ["chat", "screen", "settings"] as const;
+const VIEWS = ["chat", "screen", "settings", "key"] as const;
 type View = (typeof VIEWS)[number];
 
 function isView(value: unknown): value is View {
@@ -200,8 +200,18 @@ async function submit(): Promise<void> {
     conversation.set(reply.conversation_id);
     fillReply(pending, reply);
   } catch (error) {
-    fillError(pending, error);
-    if (needsKey(error)) askForKey();
+    if (needsKey(error)) {
+      // not a red error: the message goes back to the input, the key screen says what to do
+      pending.remove();
+      messages.lastElementChild?.remove(); // the user's bubble
+      if (!messages.children.length) renderEmpty();
+      input.value = text;
+      autosize();
+      unsent = text;
+      askForKey(error);
+    } else {
+      fillError(pending, error);
+    }
   } finally {
     setBusy(false);
     input.focus();
@@ -238,7 +248,7 @@ const apiUrl = byId("api-url", HTMLInputElement);
 const apiUrlHint = byId("api-url-hint", HTMLElement);
 const apiUrlEnv = byId("api-url-env", HTMLElement);
 const saveUrl = byId("save-url", HTMLButtonElement);
-const testUrl = byId("test-url", HTMLButtonElement);
+const testConnection = byId("test-connection", HTMLButtonElement);
 const settingsStatus = byId("settings-status", HTMLElement);
 const loginForm = byId("login-form", HTMLFormElement);
 const password = byId("password", HTMLInputElement);
@@ -260,6 +270,7 @@ async function loadSettings(): Promise<void> {
   apiUrlHint.textContent = tr.settings.apiUrlHint(settings.default_api_url);
   apiUrlEnv.hidden = !settings.api_url_from_env;
   autostart.checked = settings.autostart;
+  byId("app-version", HTMLElement).textContent = tr.settings.version(settings.version);
   autostartStatus.textContent = "";
   logoutButton.hidden = !settings.logged_in;
   loginStatus.textContent = "";
@@ -285,7 +296,13 @@ loginForm.addEventListener("submit", (event) => {
       keyWanted = false;
       password.value = "";
       logoutButton.hidden = false;
-      setLoginStatus(tr.settings.loggedIn, "ok");
+      setLoginStatus(unsent ? tr.settings.resend : tr.settings.loggedIn, "ok");
+      if (unsent) {
+        unsent = null;
+        window.setTimeout(() => {
+          showView("chat");
+        }, 1200);
+      }
       void refreshTeam().catch(() => undefined);
     })
     .catch((error: unknown) => {
@@ -321,18 +338,22 @@ autostart.addEventListener("change", () => {
     });
 });
 
-function needsKey(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return code === "login_required" || code === "device_key_invalid";
-}
-
 /** The server wants a device key (first start, revoked key) until one is saved. */
 let keyWanted = false;
+/** A message the server refused for want of a key: back in the input until it is sent. */
+let unsent: string | null = null;
 
-/** Settings page, key field focused, with why. */
-function askForKey(): void {
+const keyKept = byId("key-kept", HTMLElement);
+const keyWhy = byId("key-why", HTMLElement);
+
+/** The key screen (not a red error): what a device key is, where to get one, a button to
+ *  the settings. */
+function askForKey(error?: unknown): void {
   keyWanted = true;
-  showView("settings");
+  const revoked = (error as { code?: string } | undefined)?.code === "device_key_invalid";
+  keyWhy.textContent = revoked ? tr.key.invalid : tr.key.why;
+  keyKept.hidden = !unsent;
+  showView("key");
 }
 
 async function refreshTeam(): Promise<Team> {
@@ -358,20 +379,35 @@ settingsForm.addEventListener("submit", (event) => {
     });
 });
 
-testUrl.addEventListener("click", () => {
-  testUrl.disabled = true;
-  setStatus(tr.settings.testing);
-  refreshTeam()
-    .then((loaded) => {
-      const names = [loaded.coordinator, ...loaded.agents].map((m) => m.name).join(", ");
-      setStatus(tr.settings.connected(names), "ok");
+// "Bağlantıyı test et": the address in use with the key typed in the field (before saving
+// it) or the saved one; the answer says which.
+testConnection.addEventListener("click", () => {
+  testConnection.disabled = true;
+  setLoginStatus(tr.settings.testing);
+  const typed = password.value.trim();
+  api
+    .testConnection(typed || null)
+    .then((report) => {
+      const names = report.names.join(", ");
+      if (report.typed_key) setLoginStatus(tr.settings.typedKeyOk, "ok");
+      else if (report.with_key) setLoginStatus(tr.settings.connectedWithKey(names), "ok");
+      else setLoginStatus(tr.settings.connectedNoKey(names), "ok");
+      if (!report.typed_key) void refreshTeam().catch(() => undefined);
     })
     .catch((error: unknown) => {
-      setStatus(errorMessage(error), "err");
+      const code = (error as { code?: string } | null)?.code;
+      setLoginStatus(code === "login_required" ? tr.settings.reachedNeedsKey : errorMessage(error), "err");
     })
     .finally(() => {
-      testUrl.disabled = false;
+      testConnection.disabled = false;
     });
+});
+
+byId("key-go", HTMLButtonElement).addEventListener("click", () => {
+  showView("settings");
+});
+byId("key-later", HTMLButtonElement).addEventListener("click", () => {
+  showView("chat");
 });
 
 // ---- start --------------------------------------------------------------------------
@@ -383,7 +419,13 @@ function init(): void {
   byId("api-url-label", HTMLElement).textContent = tr.settings.apiUrl;
   apiUrlEnv.textContent = tr.settings.apiUrlFromEnv;
   saveUrl.textContent = tr.settings.save;
-  testUrl.textContent = tr.settings.test;
+  testConnection.textContent = tr.settings.test;
+  byId("key-title", HTMLElement).textContent = tr.key.title;
+  keyWhy.textContent = tr.key.why;
+  keyKept.textContent = tr.key.kept;
+  byId("key-steps", HTMLOListElement).replaceChildren(...tr.key.steps.map((step) => el("li", undefined, step)));
+  byId("key-go", HTMLButtonElement).textContent = tr.key.go;
+  byId("key-later", HTMLButtonElement).textContent = tr.key.later;
   byId("password-label", HTMLElement).textContent = tr.settings.password;
   byId("password-hint", HTMLElement).textContent = tr.settings.passwordHint;
   loginButton.textContent = tr.settings.login;
@@ -395,7 +437,7 @@ function init(): void {
   // Names/colors are nice to have; the chat works without them. A server that wants a key
   // (first start, revoked key): the settings page asks for one.
   void refreshTeam().catch((error: unknown) => {
-    if (needsKey(error)) askForKey();
+    if (needsKey(error)) askForKey(error);
   });
   // A limit warning clicked: open on the screen-time view.
   void getCurrentWebviewWindow().listen<string>("show_view", (event) => {

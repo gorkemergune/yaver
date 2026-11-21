@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Team } from "../api";
 import { tr } from "../i18n/tr";
-import { conversationStore, errorMessage, fallbackColor, helpers, speakerOf } from "./model";
+import { conversationStore, errorMessage, fallbackColor, helpers, needsKey, speakerOf } from "./model";
 
 const team: Team = {
   coordinator: { id: "yaver", name: "Yaver", color: "#111111" },
@@ -98,5 +98,18 @@ describe("conversationStore", () => {
     expect(() => {
       store.set(1);
     }).not.toThrow();
+  });
+});
+
+describe("needsKey", () => {
+  it("a 401 of any kind is a missing / bad device key, not a red server error", () => {
+    expect(needsKey({ code: "login_required", status: 401 })).toBe(true);
+    expect(needsKey({ code: "device_key_invalid", status: 401 })).toBe(true);
+    // an older client (or a proxy) reporting a bare 401 as "http"
+    expect(needsKey({ code: "http", status: 401 })).toBe(true);
+    expect(errorMessage({ code: "http", status: 401 })).toBe(tr.errors.login_required);
+    expect(needsKey({ code: "http", status: 500 })).toBe(false);
+    expect(needsKey({ code: "unreachable" })).toBe(false);
+    expect(needsKey(new Error("x"))).toBe(false);
   });
 });

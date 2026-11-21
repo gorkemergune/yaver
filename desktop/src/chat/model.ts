@@ -52,9 +52,17 @@ function isApiError(value: unknown): value is ApiError {
   return typeof value === "object" && value !== null && typeof (value as ApiError).code === "string";
 }
 
+/** The server refused us for want of a (valid) device key - also a bare 401 ("http"),
+ *  whatever the body said: the chat then shows the key screen, not a red error. */
+export function needsKey(error: unknown): boolean {
+  if (!isApiError(error)) return false;
+  return error.code === "login_required" || error.code === "device_key_invalid" || (error.code === "http" && error.status === 401);
+}
+
 /** Rust command errors (`ApiError`) → one Turkish sentence. */
 export function errorMessage(error: unknown): string {
   if (!isApiError(error)) return tr.errors.unknown;
+  if (error.code === "http" && error.status === 401) return tr.errors.login_required;
   switch (error.code) {
     case "invalid_url":
     case "unreachable":

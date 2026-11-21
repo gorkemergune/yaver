@@ -15,8 +15,10 @@
 
 ## Masaüstü uygulaması
 
-- İlk açılışta (ya da anahtar iptal edildiyse) sohbet paneli kendiliğinden **⚙ Ayarlar**'da açılır: "Yaver'e bağlanmak için bu bilgisayara bir cihaz anahtarı gerekiyor."
+- **Sürüm 0.2.0 ya da üstü gerekir** (⚙ Ayarlar'ın en altında yazar). 0.1.0 (20 Kasım) cihaz anahtarını hiç bilmez; parola korumalı sunucuda her mesaja "Sunucu hatası (401)" der. Yeni kurulum dosyası: `desktop/src-tauri/target/release/bundle/nsis/Yaver_0.2.0_x64-setup.exe` (eskinin üstüne kurulur, ayarlar ve ekran süresi kalır).
+- İlk açılışta, bir mesaj 401 alınca ya da anahtar iptal edildiyse panel **"Cihaz anahtarı gerekli"** ekranını açar: nereden alınacağı adım adım, **Ayarlara git** düğmesi. Yazdığın mesaj kaybolmaz, yazı kutusunda bekler.
 - **Cihaz anahtarı** kutusuna yapıştır → **Kaydet**. Uygulama anahtarı önce sunucuya sorar; kabul edilirse saklar (`%APPDATA%\com.yaver.desktop\session.json`).
+- **Bağlantıyı test et**: kutuda bir anahtar varsa onu (kaydetmeden), yoksa kayıtlı anahtarı dener ve sonucu söyler: "Bağlandı, anahtar geçerli", "Sunucuya ulaşıldı ama cihaz anahtarı gerekiyor", "Sunucuya ulaşılamadı".
 - **Anahtarı unut** bu bilgisayardan siler; sunucudaki kaydı iptal etmek için web'deki **İptal et**'i kullan.
 
 ## iPhone Siri kısayolu

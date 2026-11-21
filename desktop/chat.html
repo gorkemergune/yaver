@@ -24,6 +24,20 @@
 
       <section class="view screen" id="view-screen" hidden></section>
 
+      <section class="view key" id="view-key" hidden aria-labelledby="key-title">
+        <div class="key-card">
+          <div class="key-icon" aria-hidden="true">🔑</div>
+          <h2 id="key-title"></h2>
+          <p id="key-why"></p>
+          <ol id="key-steps"></ol>
+          <p class="hint" id="key-kept" hidden></p>
+          <div class="row">
+            <button type="button" id="key-go"></button>
+            <button type="button" id="key-later" class="secondary"></button>
+          </div>
+        </div>
+      </section>
+
       <section class="view settings" id="view-settings" hidden>
         <form id="settings-form">
           <label for="api-url" id="api-url-label"></label>
@@ -32,7 +46,6 @@
           <p class="hint warn" id="api-url-env" hidden></p>
           <div class="row">
             <button type="submit" id="save-url"></button>
-            <button type="button" id="test-url" class="secondary"></button>
           </div>
           <p class="status" id="settings-status" role="status"></p>
         </form>
@@ -42,6 +55,7 @@
           <p class="hint" id="password-hint"></p>
           <div class="row">
             <button type="submit" id="login-button"></button>
+            <button type="button" id="test-connection" class="secondary"></button>
             <button type="button" id="logout-button" class="secondary" hidden></button>
           </div>
           <p class="status" id="login-status" role="status"></p>
@@ -52,6 +66,7 @@
         </div>
         <p class="hint" id="autostart-hint"></p>
         <p class="status" id="autostart-status" role="status"></p>
+        <p class="hint version" id="app-version"></p>
       </section>
     </main>
     <script type="module" src="/src/chat.ts"></script>

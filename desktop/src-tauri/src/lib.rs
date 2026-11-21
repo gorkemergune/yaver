@@ -172,6 +172,8 @@ struct Settings {
     autostart: bool,
     /// A login token is saved (the server may still have ended it).
     logged_in: bool,
+    /// This app's version (an old install was behind the 401 of 21 November).
+    version: String,
 }
 
 #[tauri::command]
@@ -182,7 +184,58 @@ fn get_settings(app: AppHandle, state: State<'_, AppState>) -> Settings {
         api_url_from_env: env_api_url().is_some(),
         autostart: autostart::is_enabled(&app),
         logged_in: state.api.has_token(),
+        version: app.package_info().version.to_string(),
     }
+}
+
+/// "Bağlantıyı test et": reaches the server with the key typed in the field (not saved
+/// yet) or, without one, the saved key; says who answered and whether a key was used.
+#[derive(Serialize, Debug, PartialEq)]
+struct ConnectionReport {
+    names: Vec<String>,
+    /// A key went with the request (typed or saved).
+    with_key: bool,
+    /// The key tested is the one typed in the field, not the saved one.
+    typed_key: bool,
+}
+
+#[tauri::command]
+async fn test_connection(
+    state: State<'_, AppState>,
+    key: Option<String>,
+) -> Result<ConnectionReport, api::ApiError> {
+    let typed = key.map(|k| k.trim().to_owned()).filter(|k| !k.is_empty());
+    if let Some(k) = &typed {
+        if !api::is_device_key(k) {
+            return Err(api::ApiError::new("invalid_key"));
+        }
+    }
+    let typed_key = typed.is_some();
+    let token = typed.or_else(|| state.api.token());
+    let with_key = token.is_some();
+    let base = state.api_url();
+    let team = state.api.team_as(&base, token).await?;
+    Ok(ConnectionReport {
+        names: team_names(&team),
+        with_key,
+        typed_key,
+    })
+}
+
+/// "Yaver, Scholar, Chrono…" from `GET /api/team`.
+fn team_names(team: &Value) -> Vec<String> {
+    let coordinator = team.pointer("/coordinator/name").and_then(Value::as_str);
+    let agents = team
+        .get("agents")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|a| a.get("name").and_then(Value::as_str));
+    coordinator
+        .into_iter()
+        .chain(agents)
+        .map(str::to_owned)
+        .collect()
 }
 
 /// Logs in to a server with `APP_PASSWORD`; `false` = the server has no password.
@@ -238,7 +291,7 @@ fn ask_for_a_key_if_needed(app: AppHandle) {
                 if let Err(err) = windows::show_chat(&app) {
                     log::warn!("could not open the chat: {err}");
                 }
-                let _ = app.emit_to(windows::CHAT, "show_view", "settings");
+                let _ = app.emit_to(windows::CHAT, "show_view", "key");
             }
             _ => {}
         }
@@ -385,6 +438,7 @@ pub fn run() {
             get_team,
             login,
             use_device_key,
+            test_connection,
             logout,
             open_config_folder,
             screentime::screen_time_today,
@@ -400,4 +454,19 @@ pub fn run() {
                 screentime::sync::final_sync(app);
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn team_names_lists_the_coordinator_first() {
+        let team = serde_json::json!({
+            "coordinator": {"id": "yaver", "name": "Yaver"},
+            "agents": [{"id": "academic", "name": "Scholar"}, {"id": "agenda", "name": "Chrono"}],
+        });
+        assert_eq!(team_names(&team), ["Yaver", "Scholar", "Chrono"]);
+        assert!(team_names(&serde_json::json!({})).is_empty());
+    }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "yaver-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Yaver desktop companion: floating logo + mini chat"
 edition = "2021"
 rust-version = "1.82"
