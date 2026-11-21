@@ -974,3 +974,28 @@ def test_weekday_does_not_pull_a_date_into_another_year() -> None:
 
 def test_impossible_date_with_weekday() -> None:
     assert_unresolved(res("31 Kasım Pazartesi"), Reason.INVALID_DATE)
+
+
+@pytest.mark.parametrize(
+    ("text", "day", "hhmm"),
+    [
+        ("8 ocakta 13.30da", "2027-01-08", "13:30"),
+        ("yarın 9.45te", "2026-11-24", "09:45"),
+        ("cuma saat 10.00", "2026-11-27", "10:00"),
+    ],
+)
+def test_a_dot_between_hour_and_minutes(text: str, day: str, hhmm: str) -> None:
+    """Live: "ee211 finali 8 ocakta 13.30da" was unresolved and Scholar asked again."""
+    result = res(text, dt.date(2026, 11, 23))
+
+    assert result.status is Status.RESOLVED
+    assert result.span is not None
+    assert result.span.start.isoformat() == day
+    assert result.time is not None
+    assert result.time.strftime("%H:%M") == hhmm
+
+
+def test_a_dotted_date_is_not_a_time() -> None:
+    result = res("8.12'de")
+
+    assert result.time is None

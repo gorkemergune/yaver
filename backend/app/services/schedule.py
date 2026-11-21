@@ -24,7 +24,7 @@ Rules (all calendar math happens in APP_TIMEZONE; the DB only holds UTC instants
 
 import datetime as dt
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import combinations
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -63,6 +63,7 @@ class PlanItem:
     all_day: bool = False
     location: str | None = None
     course_id: int | None = None
+    course_code: str | None = None
     moved_from: dt.datetime | None = None  # original start of a moved block occurrence
     note: str | None = None  # override reason
     continues_from_previous_day: bool = False
@@ -344,6 +345,11 @@ def compute_day_plan(day: dt.date, tz: ZoneInfo, sources: PlanSources) -> DayPla
         if _overlaps(item.start, item.end, window):
             items.append(item)
 
+    codes = {course.id: course.code for course in sources.courses}
+    items = [
+        replace(item, course_code=codes[item.course_id]) if item.course_id in codes else item
+        for item in items
+    ]
     items.sort(key=_sort_key)
     cancelled.sort(key=lambda c: c.start)
 

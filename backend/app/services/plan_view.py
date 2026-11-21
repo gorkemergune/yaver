@@ -18,6 +18,8 @@ def item_to_dict(item: PlanItem, day: dt.date) -> dict[str, Any]:
         "kind": item.kind,
         "title": item.title,
     }
+    if item.course_code and item.course_code not in item.title:
+        data["course"] = item.course_code  # "Devre Teorisi" is the user's "ee211"
     if item.all_day:
         data["all_day"] = True
     else:

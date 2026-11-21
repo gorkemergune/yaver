@@ -284,6 +284,11 @@ _TIME_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     ("colon", re.compile(r"(?<![\d.:/])(?:saat\s+)?(?P<h>\d{1,2}):(?P<mi>\d{2})[a-z]*(?![\d:])")),
+    # "13.30da", "9.45te": a dot only with minutes a date can't have (no month 30 / 45 / 00)
+    (
+        "dot",
+        re.compile(r"(?<![\d.:/])(?:saat\s+)?(?P<h>\d{1,2})\.(?P<mi>00|15|30|45)[a-z]*(?![\d.:])"),
+    ),
     ("saat", re.compile(r"(?<![a-z0-9])saat\s+(?P<h>\d{1,2})[a-z]*(?![\d:])")),
     ("locative", re.compile(r"(?<![\d.:/-])(?P<h>\d{1,2})[dt][ae](?![a-z0-9])")),  # 14'te
 )
@@ -851,7 +856,7 @@ def _extract_time(parsed: _Parsed) -> None:
                     minute=int(groups.get("mi") or 0),
                     end_hour=int(end_hour) if end_hour else None,
                     end_minute=int(groups.get("mi2") or 0),
-                    literal=":" in match.group(0) or kind == "colon",
+                    literal=":" in match.group(0) or kind in ("colon", "dot"),
                 )
             )
         parsed.phrase = pattern.sub(" ", parsed.phrase)
