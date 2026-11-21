@@ -16,10 +16,10 @@ Venture, startup'ın GitHub deposuna her sabah 08:15'te bakar (`agents.yaml` →
    `GITHUB_STARTUP_REPO` tam olarak `sahip/depo` olmalı (github.com adresini yapıştırmak da olur).
    Geçersiz ya da yer tutucu bir değer uygulamayı durdurmaz; entegrasyon "bekliyor" kalır ve
    api logunda uyarı görünür.
-3. `docker compose up -d api` (ayarlar açılışta okunur).
+3. `.\scripts\live.ps1 up -d` (ayarlar açılışta okunur; `.env` değişikliği için `restart` yetmez).
 4. Sabahı beklemeden denemek için (giriş açıksa bir cihaz anahtarıyla):
    ```
-   curl -X POST -H "Authorization: Bearer yvk_..." http://localhost:8000/api/jobs/shift:startup:github_watch/run
+   curl -X POST -H "Authorization: Bearer yvk_..." http://localhost:8080/api/jobs/shift:startup:github_watch/run
    ```
    Sonuç Venture'ın defterine düşer (Ofis → Venture).
 

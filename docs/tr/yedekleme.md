@@ -1,8 +1,12 @@
 # Yedekleme ve geri yükleme
 
-> ⚠️ **`docker compose down -v` verini siler.** `-v` bayrağı `pgdata` volume'ünü, yani ders
-> programın, sohbet geçmişin ve harcama kayıtlarınla birlikte veritabanını kalıcı olarak siler.
-> Durdurmak için `docker compose down` (bayraksız) ya da `docker compose stop` yeterli.
+> Gerçek veri **canlı** kurulumda (`yaver-live`, volume `yaver_pgdata`); aşağıdaki komutlar
+> varsayılan olarak onu yedekler. Geliştirme veritabanı için `-Stack dev` (bash: `STACK=dev`).
+> Kurulumlar: [canli-ve-gelistirme.md](canli-ve-gelistirme.md).
+>
+> ⚠️ Canlının veritabanı volume'ü "external"dır: `docker compose down -v` onu silemez ve
+> `.\scripts\live.ps1` `down -v`'yi reddeder. Yine de `docker volume rm yaver_pgdata` yazma.
+> Geliştirme stack'inde `docker compose down -v` geliştirme veritabanını siler (gerçeğe dokunmaz).
 
 ## Otomatik yedek
 
@@ -33,15 +37,18 @@ scripts/backup.sh list
 
 ```powershell
 .\scripts\backup.ps1 restore backups\yaver-20261120-030000.sql.gz            # -> yaver_restore
-docker compose exec db psql -U yaver -d yaver_restore -c "select count(*) from recurring_blocks"
+docker exec yaver-live-db-1 psql -U yaver -d yaver_restore -c "select count(*) from recurring_blocks"
 ```
 
 Canlı veritabanının üzerine (tablolar yedektekiyle değiştirilir):
 
 ```powershell
-docker compose stop api
+.\scripts\live.ps1 stop api
 .\scripts\backup.ps1 restore backups\yaver-20261120-030000.sql.gz yaver -Yes
-docker compose start api
+.\scripts\live.ps1 start api
 ```
+
+Deploy'dan hemen önceki hâle dönmek için `.\scripts\rollback-live.ps1 -RestoreBackup` daha kolay
+(yedek `backups\predeploy\` altında).
 
 Script canlı veritabanına `-Yes` (bash'te `--yes`) olmadan yazmayı reddeder.

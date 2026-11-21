@@ -4,39 +4,35 @@ Yaver bilgisayarında Docker'da çalışır. Telefonundan **Tailscale** üzerind
 
 İlk kurulum (Docker Desktop, `.env`, ilk sohbet) için README'deki *Quick start* bölümüne bak. Bu belge ondan sonrasını anlatır:
 
-1. Günlük kullanım için prod modu
+1. Günlük kullanım: canlı kurulum
 2. Parola
 3. Tailscale ile HTTPS adresi
 4. iPhone'da uygulama (PWA) ve bildirimler
 5. Takvim aboneliği (ICS)
 
-## 1. Günlük kullanım: prod modu (önerilen)
+## 1. Günlük kullanım: canlı kurulum
 
-İki çalışma şekli var. İkisi de **aynı veritabanını** kullanır; aralarında geçince kayıtların kaybolmaz.
+İki ayrı kurulum var (ayrıntı ve geçiş: [canli-ve-gelistirme.md](canli-ve-gelistirme.md)):
 
-| | Geliştirme (`docker compose up -d`) | Prod (`docker compose -f docker-compose.yml up -d`) |
+| | **Canlı** (`yaver-live`) | **Geliştirme** (`yaver-dev`, `docker compose up -d`) |
 |---|---|---|
-| Web | Vite dev sunucusu, kod değişince anında yenilenir | nginx, derlenmiş ve küçültülmüş dosyalar |
-| Telefonda açılış | Yavaş (yüzlerce küçük dosya, Tailscale üzerinden) | Hızlı (birkaç dosya, önbellekli) |
-| Bilgisayar yeniden başlayınca | Container'lar **kendiliğinden açılmaz** | Açılır (`restart: unless-stopped`) |
-| API / DB portları (8000, 5432) | Bilgisayara açık | Kapalı, yalnızca 8080 (web) açık |
-| `pytest`, `ruff`, `mypy` | Çalışır | Çalışmaz (prod imajında geliştirme araçları yok) |
+| Adres | http://localhost:8080 (Tailscale de buraya) | http://localhost:8180 |
+| Veritabanı | Gerçek veri (`yaver_pgdata`) | Ayrı test veritabanı |
+| Web | nginx, derlenmiş dosyalar, telefonda hızlı | Vite dev sunucusu, kod değişince yenilenir |
+| Bilgisayar yeniden başlayınca | Kendiliğinden açılır | Açılmaz |
+| Güncelleme | `.\scripts\deploy-live.ps1` (test + yedek + geçiş) | Kaydettiğin an |
 
-**Öneri:** Her gün kullanırken prod modunda çalış. Kod üzerinde çalışırken geliştirme moduna geç, bitince prod'a dön.
-
-Prod'a geçmek için:
+Her gün canlıyı kullan. Kodu güncelledikten sonra (`git pull` ya da yeni commit'ler):
 
 ```powershell
 cd C:\Users\PC\Desktop\yaver
-docker compose -f docker-compose.yml up -d --build
-docker compose -f docker-compose.yml exec api alembic upgrade head   # yeni şema değişikliği varsa
-.\scripts\smoke.ps1 -NoChat                                          # hepsi OK olmalı
+.\scripts\deploy-live.ps1          # main'in son commit'i: test eder, yedekler, geçer; olmazsa eskide kalır
+.\scripts\live.ps1 status
+.\scripts\smoke.ps1 -NoChat        # hepsi OK olmalı
 ```
 
-- `--build` ilk seferde birkaç dakika sürer. Sonraki seferlerde yalnızca değişen kısım derlenir.
-- Açıldıktan sonraki birkaç saniye `/api` 502 dönebilir; API ayağa kalkınca düzelir.
-- Geliştirme moduna dönmek için `docker compose up -d` yeter (override dosyası otomatik yüklenir).
-- Kodu güncelledikten sonra (`git pull` ya da yeni commit'ler) prod komutunu `--build` ile tekrar çalıştır. Yoksa eski sürüm çalışmaya devam eder.
+**Yepyeni bir kurulumda** (henüz `yaver_pgdata` volume'ü yoksa) ilk deploy'u
+`.\scripts\deploy-live.ps1 -NewDatabase` ile çalıştır; boş veritabanını o oluşturur.
 
 Docker Desktop → Settings → General → **Start Docker Desktop when you sign in** açık olsun. Böylece bilgisayar açılınca Yaver de gelir.
 
@@ -45,7 +41,7 @@ Docker Desktop → Settings → General → **Start Docker Desktop when you sign
 Tailscale'e bağlı her cihaz adresi açabilir. Bu yüzden önce parola koy.
 
 1. `.env` dosyasında `APP_PASSWORD=` satırına gerçek bir parola yaz. `change-me` "parola yok" sayılır.
-2. API'yi yeniden başlat: `docker compose -f docker-compose.yml up -d` (geliştirme modundaysan `docker compose up -d`).
+2. Canlıyı yeniden başlat: `.\scripts\live.ps1 up -d` (`.env` değişikliği için `restart` yetmez).
 3. `http://localhost:8080`'i aç; giriş ekranı çıkmalı.
 
 Oturum açık kalır ve 30 gün kullanılmazsa kapanır (`SESSION_DAYS`). Masaüstü uygulaması ve iPhone Siri kısayolu süresi dolmayan bir **cihaz anahtarıyla** bağlanır: web'de Durum → Cihaz anahtarları → "Cihaz anahtarı oluştur", masaüstünde ⚙ → Cihaz anahtarı (adımlar: `cihaz-anahtari.md`).
@@ -109,9 +105,9 @@ Bilmen gerekenler:
 | Belirti | Çözüm |
 |---|---|
 | Telefonda adres açılmıyor | iPhone'da Tailscale bağlı mı? Bilgisayar açık ve uyanık mı (uyku modu bağlantıyı keser)? `tailscale serve status` adres gösteriyor mu? |
-| `Blocked request. This host ... is not allowed` | Eski bir Vite ayarı kalmış. `git pull`'dan sonra `docker compose up -d web` çalıştır. |
-| Birkaç saniye `502 Bad Gateway` | API yeniden başlıyor; bekle. Sürerse `docker compose logs api --tail 50`. |
+| `Blocked request. This host ... is not allowed` | Geliştirme sunucusunu (8180) telefondan açıyorsun; telefonda canlıyı (8080) kullan. |
+| Birkaç saniye `502 Bad Gateway` | API yeniden başlıyor (deploy sırasında 20-40 sn); bekle. Sürerse `.\scripts\live.ps1 logs --tail 50 api`. |
 | Her açılışta parola soruyor | Ana ekran uygulamasından mı açıyorsun? Safari ile ana ekran uygulamasının oturumları ayrıdır. |
 | Bildirim düğmesi yok ya da hata veriyor | Uygulamayı ana ekrandan aç (iOS 16.4+). Ayarlar → Bildirimler → Yaver açık mı? |
 | Takvim güncellenmiyor | Tailscale bağlıyken bekle (bir saate kadar). Ayarlar → Takvim → Hesaplar → abonelik → adres doğru mu? |
-| Değişikliklerim prod'da görünmüyor | `docker compose -f docker-compose.yml up -d --build` (`--build` şart). |
+| Değişikliklerim canlıda görünmüyor | Commit'lendi ve `main`'de mi? Sonra `.\scripts\deploy-live.ps1`. `.\scripts\live.ps1 status` hangi commit'in çalıştığını gösterir. |
