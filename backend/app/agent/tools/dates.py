@@ -1,3 +1,4 @@
+import datetime as dt
 import re
 from typing import Literal
 
@@ -6,7 +7,7 @@ from pydantic import BaseModel, Field
 from app.agent.context import ToolContext
 from app.agent.tools import ToolResult, tool
 from app.agent.tools.matching import current_term
-from app.core.time_resolver import WEEKDAY_NAMES_TR, Status, normalize, resolve
+from app.core.time_resolver import WEEKDAY_NAMES_TR, PartOfDay, Status, normalize, resolve
 
 
 class ResolveDateArgs(BaseModel):
@@ -49,7 +50,21 @@ async def _resolve_one(expression: str, args: ResolveDateArgs, ctx: ToolContext)
     data = result.to_dict()
     if result.span is not None:
         data["weekday"] = WEEKDAY_NAMES_TR[result.span.start.weekday()]
+    if result.part_of_day is not None and result.time is None:
+        # "yarın sabah kahvaltı": an event needs an hour, the user gave a part of the day
+        data["default_start_time"] = DEFAULT_TIMES[result.part_of_day].strftime("%H:%M")
+        data["note"] = "no hour given: add_event uses default_start_time, nothing to ask"
     return data
+
+
+# The hour an event gets when only the part of the day was said.
+DEFAULT_TIMES = {
+    PartOfDay.MORNING: dt.time(9, 0),
+    PartOfDay.NOON: dt.time(12, 0),
+    PartOfDay.AFTERNOON: dt.time(15, 0),
+    PartOfDay.EVENING: dt.time(19, 0),
+    PartOfDay.NIGHT: dt.time(21, 0),
+}
 
 
 async def _resolve_list(days: list[str], args: ResolveDateArgs, ctx: ToolContext) -> ToolResult:

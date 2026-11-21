@@ -11,10 +11,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.tools import run_tool
 from app.db.models import Conversation, Event
 from app.db.models.enums import EventKind
 from app.llm.types import LLMRequest
 from tests.agent_fakes import NOW, ScriptedLLM, call, coordinator, route_as, say
+from tests.db.test_agent_tools import context
 
 BREAKFAST = "yarın sabah Medipoldeki kahvaltıya gidicem"
 ADDED = "Yarın 09:00'a Medipol kahvaltısını ekledim."
@@ -157,6 +159,50 @@ async def test_an_answer_to_the_question_still_goes_to_who_asked(session: AsyncS
     llm.assert_done()
 
 
+async def test_a_yaver_outside_its_area_hands_it_to_the_right_one(session: AsyncSession) -> None:
+    llm = ScriptedLLM()
+    llm.add("intent", route_as(("class", BREAKFAST)))  # a wrong guess of the classifier
+    llm.add("academic", call("handoff", reason="ders değil, etkinlik", area="event"))
+    adds_breakfast(llm)
+    llm.add("yaver", say(f"Chrono: {ADDED}"))
+
+    reply = await coordinator(llm).handle(session, BREAKFAST, now=NOW)
+
+    await breakfast(session)
+    # Scholar's handoff is no message of its own
+    assert [r["agent_id"] for r in reply.agents] == ["agenda"]
+    llm.assert_done()
+
+
+async def test_named_yaver_hands_back_and_the_coordinator_routes_it(
+    session: AsyncSession,
+) -> None:
+    text = f"Scholar, {BREAKFAST}"
+    llm = ScriptedLLM()
+    llm.add("academic", call("handoff", reason="ders değil", area="event"))
+    llm.add("intent", route_as(("event", BREAKFAST)))
+    adds_breakfast(llm)
+    llm.add("yaver", say(f"Chrono: {ADDED}"))
+
+    reply = await coordinator(llm).handle(session, text, now=NOW)
+
+    await breakfast(session)
+    assert reply.speaker == "yaver"
+    llm.assert_done()
+
+
+async def test_any_yaver_can_add_a_plain_event_itself(session: AsyncSession) -> None:
+    """Scholar got the breakfast as the answer to its question: it adds it, no handoff."""
+    text = "Scholar, yarın sabah 9da medipol kahvaltısı ekle"
+    llm = ScriptedLLM()
+    adds_breakfast(llm, who="academic")
+
+    reply = await coordinator(llm).handle(session, text, now=NOW)
+
+    await breakfast(session)
+    assert reply.speaker == "academic"
+
+
 async def test_no_model_for_the_intents_falls_back_to_the_coordinator(
     session: AsyncSession,
 ) -> None:
@@ -169,3 +215,16 @@ async def test_no_model_for_the_intents_falls_back_to_the_coordinator(
 
     await breakfast(session)
     llm.assert_done()
+
+
+async def test_a_part_of_the_day_gets_a_default_hour(session: AsyncSession) -> None:
+    ctx = context(session, "agenda")
+    morning = await run_tool(
+        "resolve_date", {"expression": "yarın sabah", "direction": "future"}, ctx
+    )
+    exact = await run_tool(
+        "resolve_date", {"expression": "yarın 14'te", "direction": "future"}, ctx
+    )
+
+    assert (morning["start"], morning["default_start_time"]) == ("2026-11-24", "09:00")
+    assert "default_start_time" not in exact

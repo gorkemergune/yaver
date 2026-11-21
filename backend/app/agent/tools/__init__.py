@@ -152,6 +152,7 @@ def _load_tool_modules() -> None:
         memory,
         notes,
         planning,
+        routing,
         schedule,
         screen,
         setup,
