@@ -29,7 +29,39 @@ router = APIRouter(tags=["chat"])
 
 @lru_cache
 def get_coordinator() -> Coordinator:
-    return Coordinator(get_router(), get_team(), get_settings(), get_office())
+    return Coordinator(
+        get_router(), get_team(), get_settings(), get_office(), after_message=review_plan_after
+    )
+
+
+_background: set[asyncio.Task[Any]] = set()
+
+
+def adds_an_exam(reply: ChatReply) -> bool:
+    return any(
+        c["entity"] == "events" and c["op"] == "create" and c["data"].get("kind") == "exam"
+        for c in reply.changes
+    )
+
+
+def review_plan_after(reply: ChatReply) -> None:
+    """An exam added in the chat: its review plan is drafted in the background and comes as
+    a message of its own; the answer does not wait for it."""
+    if not adds_an_exam(reply):
+        return
+    task = asyncio.create_task(_review_plan())
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+
+
+async def _review_plan() -> None:
+    from app.jobs.runner import run_job
+
+    try:
+        await asyncio.sleep(1)  # after the answer has reached the client
+        await run_job("exam_prep", force=True, record=False, office=get_office())
+    except Exception:
+        logger.exception("Review plan after a new exam failed")
 
 
 def get_session_factory() -> async_sessionmaker[AsyncSession]:

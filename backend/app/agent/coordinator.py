@@ -6,7 +6,7 @@ import datetime as dt
 import logging
 import re
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -188,12 +188,20 @@ async def unsent_attachments(session: AsyncSession, ids: Sequence[int]) -> list[
 
 class Coordinator:
     def __init__(
-        self, llm: LLMClient, team: Team, settings: Settings, office: Office | None = None
+        self,
+        llm: LLMClient,
+        team: Team,
+        settings: Settings,
+        office: Office | None = None,
+        after_message: Callable[[ChatReply], None] | None = None,
     ) -> None:
         self.llm = llm
         self.team = team
         self.settings = settings
         self.office = office  # None: nothing is shown in the office (tests, scripts)
+        # called once the message is saved: long follow-up work (an exam's review plan)
+        # runs in the background instead of keeping the answer waiting
+        self.after_message = after_message
         self.max_steps = 6
 
     def addressed_member(self, text: str) -> tuple[Member, str] | None:
@@ -247,6 +255,11 @@ class Coordinator:
         await activity.close()
         if office is not None:
             office.publish_notes(activity.notes)
+        if self.after_message is not None:
+            try:
+                self.after_message(reply)
+            except Exception:  # the answer is saved; follow-up work never breaks it
+                logger.exception("after_message failed")
         return reply
 
     async def _handle(

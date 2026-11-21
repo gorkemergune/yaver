@@ -73,6 +73,11 @@ class AddEventArgs(BaseModel):
     location: str | None = None
     course: str | None = Field(None, description="course code/name for exams, quizzes")
     notes: str | None = None
+    topics: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        description="exam / quiz topics the user named (linked list, stack...)",
+    )
 
 
 @tool(
@@ -93,11 +98,33 @@ async def add_event(args: AddEventArgs, ctx: ToolContext) -> ToolResult:
         all_day=all_day,
         location=args.location,
         course_id=course.id if course else None,
-        notes=args.notes,
+        notes=with_topics(args.notes, args.topics),
     )
     ctx.session.add(event)
     await ctx.recorder.created(event)
-    return {"created": describe_event(event, ctx)}
+    result: dict[str, Any] = {"created": describe_event(event, ctx)}
+    if event.kind is EventKind.EXAM:
+        from app.jobs import exam_prep
+
+        days = (args.date - ctx.today).days
+        if exam_prep.MIN_LEAD_DAYS <= days <= exam_prep.LEAD_DAYS:
+            result["review_plan"] = "drafted now, it comes as a separate chat message in a moment"
+        elif days > exam_prep.LEAD_DAYS:
+            result["review_plan"] = "proposed in the chat a week before the exam"
+    return result
+
+
+TOPICS = "Konular: "
+
+
+def with_topics(notes: str | None, topics: list[str]) -> str | None:
+    """The topics go into the event's notes ("Konular: linked list, stack, queue"), where
+    the review plan (app.jobs.exam_prep) reads them when there is no syllabus."""
+    clean = [t.strip() for t in topics if t.strip()]
+    if not clean:
+        return notes
+    line = TOPICS + ", ".join(clean)
+    return f"{notes.strip()}\n{line}" if notes and notes.strip() else line
 
 
 class UpdateEventArgs(BaseModel):

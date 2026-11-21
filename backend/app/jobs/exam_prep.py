@@ -29,6 +29,14 @@ TOPIC_CHARS = 110
 NO_SYLLABUS_DAYS = 2  # without topics: two review sessions + the last-day review
 
 
+def topics_of(notes: str | None) -> list[str]:
+    """The topics add_event wrote into the exam's notes ("Konular: a, b")."""
+    for line in (notes or "").splitlines():
+        if line.startswith("Konular: "):
+            return [t.strip() for t in line.removeprefix("Konular: ").split(",") if t.strip()]
+    return []
+
+
 @dataclass(slots=True)
 class Slot:
     start: dt.datetime
@@ -155,7 +163,10 @@ async def plan_exam(
         if exam_day - dt.timedelta(days=n) > today
     ]
     study_days, review_day = days[:-1], days[-1:] if days else []
-    if not weeks:  # no syllabus: a couple of sessions, not a task every day
+    told = topics_of(exam.notes) if not weeks else []  # the topics the user named
+    if told:  # one session per topic group, as many days as there are topics
+        study_days = study_days[-min(len(told), len(study_days)) :] if study_days else []
+    elif not weeks:  # no syllabus: a couple of sessions, not a task every day
         study_days = study_days[-NO_SYLLABUS_DAYS:]
     why = f"{exam.title}, {day_name(exam_day)}"
     entries: list[dict[str, str | None]] = []
@@ -164,7 +175,11 @@ async def plan_exam(
     for index, week in enumerate(weeks):
         if groups:
             groups[index * len(groups) // max(len(weeks), 1)].append(week)
-    for day, group in zip(study_days, groups, strict=True):
+    told_groups: list[list[str]] = [[] for _ in study_days]
+    for index, topic in enumerate(told):
+        if told_groups:
+            told_groups[index * len(told_groups) // len(told)].append(topic)
+    for day, group, told_group in zip(study_days, groups, told_groups, strict=True):
         if weeks and not group:
             continue
         slot = await free_slot(session, day, tz, taken)
@@ -172,6 +187,8 @@ async def plan_exam(
         what = (
             "; ".join(f"h{w.week_no} {w.topics}" for w in group)
             if group
+            else ", ".join(told_group)
+            if told_group
             else "notları gözden geçir"
         )
         entries.append(
@@ -187,13 +204,16 @@ async def plan_exam(
         when = f" {slot.label()}" if slot else ""
         entries.append(
             {
-                "title": f"{code} genel tekrar{when}: özet + soru çözümü",
+                "title": _short(
+                    f"{code} genel tekrar{when}: "
+                    + (f"{', '.join(told)} + soru çözümü" if told else "özet + soru çözümü")
+                ),
                 "date": day.isoformat(),
                 "why": why,
                 "week_start": week_start(day).isoformat(),
             }
         )
-    topics = [f"{w.week_no}. hafta: {w.topics}" for w in weeks]
+    topics = [f"{w.week_no}. hafta: {w.topics}" for w in weeks] or told
     return entries, topics, notes
 
 
@@ -231,7 +251,9 @@ async def draft_exam_prep(
             f"{voice.label('academic', 'Sınav hazırlığı')} 📚 {exam.title}: {days_left} gün "
             f"kaldı ({day_name(exam_day)}{hour})."
         ]
-        if topics:
+        if topics and topics_of(exam.notes) == topics:
+            lines.append("Konular (senin söylediğin): " + ", ".join(topics))
+        elif topics:
             lines.append("Konular (syllabus): " + "; ".join(topics))
         else:
             lines.append("Syllabus yok; konuları bilmiyorum, tekrar günlerini ayırdım.")

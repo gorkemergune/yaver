@@ -81,6 +81,7 @@ async def run_job(
     llm: Any = None,
     force: bool = False,
     office: Office | None = None,
+    record: bool = True,
 ) -> int | None:
     """The id of the message written, or None (already ran today / nothing to say /
     the employee's daily budget is used up: not recorded, so it can run after all).
@@ -120,7 +121,7 @@ async def run_job(
                 now,
                 finished,
             )
-        if done is None:
+        if done is None and record:  # record=False: an extra run (the daily one still runs)
             session.add(
                 JobRun(
                     job_id=job_id,
