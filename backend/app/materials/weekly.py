@@ -260,6 +260,55 @@ async def covered_weeks(
     return [w for w in teaching if after < w.week_no < exam_week] or list(teaching)
 
 
+async def syllabus_files(session: AsyncSession, course_id: int) -> list[str]:
+    """The file(s) the course's weekly plan was read from, to cite ("CSE221 ... Syllabus.pdf")."""
+    rows = await session.scalars(
+        select(CourseMaterial.title)
+        .join(SyllabusWeek, SyllabusWeek.material_id == CourseMaterial.id)
+        .where(SyllabusWeek.course_id == course_id)
+        .distinct()
+    )
+    return sorted(rows.all())
+
+
+async def week_material_ids(session: AsyncSession, course_id: int, week: int) -> list[int]:
+    """Materials mapped to the week: book / lab sections, shared-notes tabs, sheets, notes
+    saved for that week (a tab of weeks 4-5 has no single week_no on its passages)."""
+    ids: set[int | None] = set(
+        (
+            await session.scalars(
+                select(MaterialSection.material_id).where(
+                    MaterialSection.course_id == course_id, MaterialSection.week_nos.overlap([week])
+                )
+            )
+        ).all()
+    )
+    ids |= set(
+        (
+            await session.scalars(
+                select(SourceItem.material_id)
+                .join(CourseSource, CourseSource.id == SourceItem.source_id)
+                .where(
+                    CourseSource.course_id == course_id,
+                    SourceItem.removed_at.is_(None),
+                    SourceItem.week_nos.overlap([week]),
+                    SourceItem.material_id.is_not(None),
+                )
+            )
+        ).all()
+    )
+    ids |= set(
+        (
+            await session.scalars(
+                select(CourseMaterial.id).where(
+                    CourseMaterial.course_id == course_id, CourseMaterial.week_no == week
+                )
+            )
+        ).all()
+    )
+    return sorted(i for i in ids if i is not None)
+
+
 async def term_week(session: AsyncSession, day: dt.date, tz: ZoneInfo) -> int | None:
     return (await week_facts(session, day, tz)).week_no
 

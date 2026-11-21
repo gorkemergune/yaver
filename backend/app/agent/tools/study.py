@@ -14,6 +14,7 @@ from app.agent.tools.matching import require_course
 from app.db.models import SyllabusWeek
 from app.db.models.study import StudySheet
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
+from app.materials.weekly import week_material_ids
 from app.rag.store import Hit, search
 
 PURPOSE = "study_sheet"  # smart tier
@@ -126,9 +127,13 @@ async def generate_study_sheet(args: GenerateStudySheetArgs, ctx: ToolContext) -
 
 
 async def _sources(ctx: ToolContext, course_id: int, week: int | None, query: str) -> list[Hit]:
-    """The week's own notes first, then the passages closest to the topic."""
+    """The week's own materials first (mapped sections, notes tabs, sheets), then the
+    passages closest to the topic."""
     found: list[Hit] = []
     if week is not None:
+        mapped = await week_material_ids(ctx.session, course_id, week)
+        if mapped:
+            found += await search(ctx.session, query, material_ids=mapped, limit=8)
         found += await search(ctx.session, query, course_id=course_id, week_no=week, limit=8)
     found += await search(ctx.session, query, course_id=course_id, limit=8)
     unique: dict[tuple[int, int, str], Hit] = {}

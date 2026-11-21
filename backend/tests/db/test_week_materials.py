@@ -5,6 +5,7 @@ user's topics matched to the syllabus weeks; the Sunday plan lists each course's
 
 import datetime as dt
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -19,7 +20,7 @@ from app.db.models import (
 )
 from app.db.models.enums import EventKind
 from app.jobs.weekly_plan import draft_week
-from app.materials.weekly import WeekRef, match_topics
+from app.materials.weekly import WeekRef, match_topics, week_material_ids
 from tests.agent_fakes import NOW, ScriptedLLM, call
 from tests.db.test_agent_tools import IST, context, tool
 
@@ -181,3 +182,18 @@ async def test_the_sunday_plan_lists_each_courses_week(session: AsyncSession) ->
     ) in message
     facts = llm.requests[0][1].messages[0].content
     assert "Course week: CSE 221 (9. hafta): Decoders, MUX/DEMUX" in facts
+
+
+async def test_a_weeks_materials_include_tabs_of_several_weeks(session: AsyncSession) -> None:
+    course = await cse221(session)
+    titles = {
+        m.title
+        for m in (
+            await session.scalars(
+                select(CourseMaterial).where(
+                    CourseMaterial.id.in_(await week_material_ids(session, course.id, 4))
+                )
+            )
+        ).all()
+    }
+    assert titles == {"Digital Design.pdf", "CSE 221 notları: Map"}

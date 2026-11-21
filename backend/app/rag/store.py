@@ -67,6 +67,7 @@ async def search(
     week_no: int | None = None,
     limit: int = 5,
     embedder: Embedder | None = None,
+    material_ids: list[int] | None = None,
 ) -> list[Hit]:
     [vector] = await embed([query], embedder)
     distance = MaterialChunk.embedding.cosine_distance(vector)
@@ -81,6 +82,8 @@ async def search(
         statement = statement.where(MaterialChunk.course_id == course_id)
     if week_no is not None:
         statement = statement.where(MaterialChunk.week_no == week_no)
+    if material_ids is not None:
+        statement = statement.where(MaterialChunk.material_id.in_(material_ids))
     rows = (await session.execute(statement)).all()
     return [
         Hit(

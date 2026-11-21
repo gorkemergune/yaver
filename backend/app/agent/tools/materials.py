@@ -19,6 +19,7 @@ from app.materials.weekly import (
     course_weeks,
     covered_weeks,
     match_topics,
+    syllabus_files,
     term_week,
     topics_of,
 )
@@ -99,6 +100,7 @@ async def get_syllabus(args: GetSyllabusArgs, ctx: ToolContext) -> ToolResult:
     result: dict[str, Any] = {
         "course": course.code,
         "current_term_week": current,
+        "syllabus_file": ", ".join(await syllabus_files(ctx.session, course.id)) or None,
         "weeks": [r.as_dict(materials=detailed) for r in refs],
     }
     if not refs:
@@ -176,6 +178,7 @@ async def get_exam_scope(args: GetExamScopeArgs, ctx: ToolContext) -> ToolResult
             else "syllabus weeks since the previous exam"
         ),
         "topics_not_in_syllabus": match.missing if match else [],
+        "syllabus_file": ", ".join(await syllabus_files(ctx.session, course.id)) or None,
         "weeks": weeks,
         "note": "cite readings and sections with their pages; never add a section not listed",
     }
