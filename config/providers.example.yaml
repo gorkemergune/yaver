@@ -70,6 +70,7 @@ routing:
     image_read: fallback           # Haiku: what is it, dates of a notice / poster
     schedule_image: smart          # Sonnet: timetable photo / screenshot
     document_image: smart          # Sonnet: notes, tables, slides
+    ads_image: smart               # Sonnet: Ads Manager table screenshot (Metrics)
     # Weekly jobs marked deep (Opus); nothing else may use the deep tier:
     ads_weekly_report: deep        # Metrics: week-over-week ad analysis + recommendations
     startup_weekly_review: deep    # Venture: weekly review of the startup repo

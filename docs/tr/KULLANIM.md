@@ -68,7 +68,7 @@ Saat yazmadığında: 8-11 arası sabah, 1-7 arası öğleden sonra sayılır ("
 
 Her cevabın altındaki değişiklik kartında **Geri al** var. O mesajda yapılan her şeyi (birden fazla yaver çalıştıysa hepsini) tek seferde geri alır. Sohbetten de olur: "geri al", "son değişikliği geri al".
 
-## 4. Görsel ve PDF göndermek
+## 4. Görsel, PDF ve CSV göndermek
 
 Ataç düğmesi, sürükle-bırak ya da yapıştır (Ctrl+V). iPhone'da kamera da açılır.
 
@@ -76,6 +76,15 @@ Ataç düğmesi, sürükle-bırak ya da yapıştır (Ctrl+V). iPhone'da kamera d
 - **Sınav duyurusu, afiş:** tarihleri okunur ve kodda çözülür. Okunamayan kısımlar "Belirsiz" diye listelenir, tahmin edilmez.
 - **Syllabus (PDF):** haftalık konular tablo olarak gelir; "evet" dersen kaydedilir, ders yoksa oluşturulur.
 - **Ders notu (PDF veya sayfa fotoğrafı):** Friday hangi ders ve hafta olduğunu sorar ya da syllabus'tan önerir ("EE211 7. hafta notu olarak kaydedeyim mi?"). Kaydedildikten sonra aranabilir. Taranmış PDF'te metin yoksa sayfaların fotoğrafını gönder.
+
+- **Reklam raporu (Meta Ads Manager CSV'si ya da tablonun ekran görüntüsü):** doğrudan
+  Metrics'e gider. Kampanya / reklam seti / reklam başına harcama, gösterim, tıklama, CTR,
+  CPC, sonuç ve sonuç başı maliyet kaydedilir, önceki dönemle karşılaştırılır (kodda).
+  Özet + 3 öneriyi Opus yazar (haftalık derin iş, `DEEP_MONTHLY_BUDGET_USD`), Metrics'in
+  defterine de düşer. Aynı dosyayı ikinci kez atarsan yeniden kaydedilmez. "Geri al"
+  raporu, satırlarını ve defter notunu birlikte siler. Sonra "geçen haftaki reklamlar
+  nasıldı?" diye sorabilirsin. Örnek dosyalar: `examples/meta-ads/`. Ads Manager'da:
+  Kampanyalar → tarih aralığı → Dışa aktar → Tablo verilerini dışa aktar → CSV.
 
 Görseller sadece Claude'a gider; Groq'a görsel gönderilmez. Fotoğraflardaki konum (EXIF) bilgisi silinir.
 

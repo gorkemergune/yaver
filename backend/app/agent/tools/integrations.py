@@ -5,10 +5,12 @@ now: the tool says the integration is pending and the employee notes it in its n
 from typing import Any
 
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.agent.context import ToolContext
 from app.agent.tools import ToolError, ToolResult, tool
 from app.config import get_settings
+from app.db.models import AdReport
 from app.integrations import web_search as search
 from app.integrations.meta_ads import ads_status
 from app.office.notebook import note_event, write_note
@@ -45,13 +47,48 @@ async def web_search(args: WebSearchArgs, ctx: ToolContext) -> ToolResult:
     return {"query": args.query, "results": found}
 
 
+NO_REPORTS = (
+    "Henüz reklam raporu yok: Ads Manager'dan CSV dışa aktarıp ya da tablonun ekran "
+    "görüntüsünü sohbete atabilirsin."
+)
+
+
 class AdReportArgs(BaseModel):
-    days: int = Field(7, ge=1, le=90, description="the last N days")
+    report_id: int | None = Field(None, description="a report number; default: the latest")
 
 
 @tool(
-    "get_ad_report", "Ad performance from the Meta (Instagram/Facebook) ad account.", AdReportArgs
+    "get_ad_report",
+    "Meta (Instagram/Facebook) ad reports the user sent as a CSV or screenshot: metrics per "
+    "campaign, the change against the previous period and the analysis.",
+    AdReportArgs,
 )
 async def get_ad_report(args: AdReportArgs, ctx: ToolContext) -> ToolResult:
-    status = ads_status(get_settings())
-    return await _pending(ctx, "meta_ads", status.note)
+    # app.ads.report builds its analysis tool schema with this package: import it lazily
+    from app.ads.report import period_text, report_block
+
+    if args.report_id is not None:
+        report = await ctx.session.get(AdReport, args.report_id)
+        if report is None:
+            raise ToolError(f"no ad report #{args.report_id}")
+    else:
+        report = await ctx.session.scalar(
+            select(AdReport)
+            .order_by(AdReport.period_end.desc().nulls_last(), AdReport.id.desc())
+            .limit(1)
+        )
+    if report is None:
+        status = ads_status(get_settings())
+        return {"status": "no_reports", "message": NO_REPORTS, "account": status.note}
+    others = (
+        await ctx.session.scalars(
+            select(AdReport).where(AdReport.id != report.id).order_by(AdReport.id.desc()).limit(5)
+        )
+    ).all()
+    return {
+        "report_id": report.id,
+        "report": await report_block(ctx, report, created=None),
+        "other_reports": [
+            {"report_id": r.id, "period": period_text(r.period_start, r.period_end)} for r in others
+        ],
+    }

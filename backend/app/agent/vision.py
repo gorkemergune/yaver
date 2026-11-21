@@ -14,12 +14,15 @@ Anything unreadable or unresolvable is listed as "Belirsiz", never guessed.
 """
 
 import datetime as dt
+import hashlib
 import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
+from app.ads.intake import ADS_IMAGE_PROMPT, AdsImage, import_report, parsed_from_image
+from app.ads.intake import IMAGE_PURPOSE as ADS_IMAGE_PURPOSE
 from app.agent.context import ToolContext
 from app.agent.intake import pending_material
 from app.agent.tools import HHMM_PATTERN, json_schema
@@ -59,7 +62,7 @@ class ImageEvent(BaseModel):
 
 
 class ImageReading(BaseModel):
-    kind: Literal["schedule", "event", "document", "other"]
+    kind: Literal["schedule", "event", "document", "ad_report", "other"]
     summary: str = Field(description="one Turkish sentence: what the image shows")
     events: list[ImageEvent] = Field(default_factory=list)
     unclear: list[str] = Field(default_factory=list)
@@ -74,6 +77,7 @@ class DocumentText(BaseModel):
     unclear: list[str] = Field(default_factory=list)
 
 
+ADS_IMAGE_TOOL = ToolSpec("ads_table", "Return the ad table's rows.", json_schema(AdsImage))
 READ_TOOL = ToolSpec("image_contents", "Report what the image contains.", json_schema(ImageReading))
 DOCUMENT_TOOL = ToolSpec("document_text", "Return the image's text.", json_schema(DocumentText))
 
@@ -83,7 +87,8 @@ READ_PROMPT = (
     "kind: schedule = a weekly class timetable (ders programı); event = an announcement, "
     "poster, invitation or notice with one or more dated things (exam, quiz, make-up class, "
     "meeting, deadline, hackathon, event); document = notes, a slide, a table or other text "
-    "worth reading in full; other = anything else.\n"
+    "worth reading in full; ad_report = a screenshot of an ads dashboard table (Meta Ads "
+    "Manager / Instagram ads) with campaigns, spend and clicks; other = anything else.\n"
     "For event: one entry per dated thing. date_text is the date exactly as written; never "
     "compute or complete a date (no year or weekday that is not there). A missing year is "
     "normal and NOT unclear: the date is resolved later. Times HH:MM 24h.\n"
@@ -133,7 +138,26 @@ async def _read_one(ctx: ToolContext, number: int, item: ImageInput) -> str:
         return await _events(ctx, number, item, reading, response)
     if reading.kind == "document":
         return await _document(ctx, number, item)
+    if reading.kind == "ad_report":
+        return await _ad_report(ctx, number, item)
     return f"[Görsel {number}: {reading.summary}]"
+
+
+async def _ad_report(ctx: ToolContext, number: int, item: ImageInput) -> str:
+    response = await _ask(ctx, ADS_IMAGE_PROMPT, ADS_IMAGE_TOOL, item.image, ADS_IMAGE_PURPOSE)
+    table = AdsImage.model_validate(_arguments(response, ADS_IMAGE_TOOL.name))
+    parsed = parsed_from_image(table)
+    if not parsed.rows:
+        header = f"[Görsel {number}: reklam tablosu ama satırlar okunamadı]"
+        return _with_unclear(header, parsed.unclear)
+    return await import_report(
+        ctx,
+        parsed,
+        source="image",
+        attachment_id=item.attachment_id,
+        sha256=hashlib.sha256(item.image.data).hexdigest(),
+        label=f"{number} (ekran görüntüsü)",
+    )
 
 
 async def _schedule(ctx: ToolContext, number: int, item: ImageInput) -> str:

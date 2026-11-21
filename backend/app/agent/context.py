@@ -34,6 +34,8 @@ class ToolContext:
     asks: list[Any] = field(default_factory=list)
     # Notebook notes written this turn: announced to the office once committed.
     notes: list[dict[str, Any]] = field(default_factory=list)
+    # Ad reports saved from this message's files (CSV / screenshot): Metrics analyses them.
+    ad_reports: list[int] = field(default_factory=list)
 
     @property
     def today(self) -> dt.date:

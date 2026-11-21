@@ -1,6 +1,7 @@
 """ORM models. Import every model module here so Alembic autogenerate sees it."""
 
 from app.db.models.academic import Course, Holiday, Term
+from app.db.models.ads import AdMetric, AdReport
 from app.db.models.audit import ChangeLog, LlmUsage
 from app.db.models.auth import AuthSession, DeviceKey
 from app.db.models.conversation import Attachment, Conversation, Message
@@ -23,6 +24,8 @@ from app.db.models.study import StudySheet
 from app.db.models.weeks import WeekLabel
 
 __all__ = [
+    "AdMetric",
+    "AdReport",
     "AppSecret",
     "Attachment",
     "Attendance",

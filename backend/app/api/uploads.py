@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ads.intake import CSV_MIME
+from app.ads.parse import looks_like_csv
 from app.config import Settings, get_settings
 from app.db.models import Attachment
 from app.db.session import get_session
@@ -42,10 +44,10 @@ def safe_name(name: str | None, fallback: str) -> str:
     return base[:200] or fallback
 
 
-def store_pdf(raw: bytes, upload_dir: Path, now: dt.datetime) -> str:
-    """uploads/YYYY/MM/<sha256>.pdf (same layout as images); returns the relative path."""
+def store_pdf(raw: bytes, upload_dir: Path, now: dt.datetime, extension: str = "pdf") -> str:
+    """uploads/YYYY/MM/<sha256>.<ext> (same layout as images); returns the relative path."""
     digest = hashlib.sha256(raw).hexdigest()
-    relative = f"{now:%Y/%m}/{digest}.pdf"
+    relative = f"{now:%Y/%m}/{digest}.{extension}"
     target = upload_dir / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.exists():
@@ -55,7 +57,9 @@ def store_pdf(raw: bytes, upload_dir: Path, now: dt.datetime) -> str:
 
 @router.post("/uploads")
 async def upload_images(
-    files: Annotated[list[UploadFile], File(description="images (JPEG, PNG, HEIC, WebP...), PDFs")],
+    files: Annotated[
+        list[UploadFile], File(description="images (JPEG, PNG, HEIC, WebP...), PDFs, CSVs")
+    ],
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
@@ -83,6 +87,24 @@ async def upload_images(
             )
             session.add(pdf)
             stored.append(pdf)
+            continue
+        if looks_like_csv(upload.filename, raw):  # an ad report export (Metrics)
+            if len(raw) > max_bytes:
+                raise HTTPException(413, detail={"code": "too_large", "file": upload.filename})
+            csv_path = await asyncio.to_thread(
+                store_pdf, raw, settings.upload_dir, dt.datetime.now(dt.UTC), "csv"
+            )
+            table = Attachment(
+                path=csv_path,
+                mime=CSV_MIME,
+                width=0,
+                height=0,
+                size_bytes=len(raw),
+                sha256=hashlib.sha256(raw).hexdigest(),
+                filename=safe_name(upload.filename, "reklam.csv"),
+            )
+            session.add(table)
+            stored.append(table)
             continue
         try:
             image = await asyncio.to_thread(

@@ -14,6 +14,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ads.intake import CSV_MIME, AdFileInput, read_ad_files
+from app.ads.report import analyze
 from app.agent.context import ToolContext
 from app.agent.documents import DocumentInput, read_documents
 from app.agent.loop import AgentRun, Emit, LLMClient, OnTool, run_agent
@@ -39,7 +41,7 @@ from app.core.time_resolver import (
     format_calendar_context,
     normalize,
 )
-from app.db.models import Attachment, Conversation, Followup, Memory, Message
+from app.db.models import AdReport, Attachment, Conversation, Followup, Memory, Message
 from app.db.models.enums import ConversationMode, FollowupStatus, MessageRole, TaskOrigin
 from app.llm.types import ChatMessage, ImagePart, LLMRequest
 from app.office.activity import MessageActivity
@@ -52,6 +54,9 @@ _ADDRESS = re.compile(r"^\s*([^\s,:;!?]+)\s*[,:;!]\s*(.+)$", re.DOTALL)
 
 logger = logging.getLogger(__name__)
 PDF_MIME = "application/pdf"
+AD_REPORT_TOOL = "get_ad_report"  # whoever has it analyses ad report files
+ANALYZE_ADS = "analyze_ads"  # office label while the analysis runs (no model tool)
+AD_REPORT_TASK = "Reklam raporunu analiz et"
 # After a long block read from an image / PDF the model drifts to English without this.
 CONTEXT_REMINDER = "(Bu blokları kod okudu. Cevabın Türkçe olsun.)"
 
@@ -300,6 +305,11 @@ class Coordinator:
 
         # A direct chat goes to its employee; in the main chat a name addresses one.
         addressed = (forced, text) if forced is not None else self.addressed_member(text)
+        # An ad report file (CSV / screenshot) goes to the ad analyst, unless someone else
+        # was named
+        analyst = self._ad_analyst()
+        if ctx.ad_reports and addressed is None and analyst is not None:
+            addressed = (analyst, text)
         final_member: Member = self.team.coordinator
         final_messages = [*history, ChatMessage("user", model_text)]
         final_delegate: Any = None
@@ -378,11 +388,16 @@ class Coordinator:
         elif addressed is not None:
             member, rest = addressed
             final_member = member
+            await activity.begin(member.id, rest or AD_REPORT_TASK, source=TaskOrigin.USER)
+            if ctx.ad_reports and member is analyst:
+                # the analysis is code + one deep-tier call, not a tool the model may skip
+                await activity.tool(member.id, ANALYZE_ADS)
+                analyses = await self._analyze_ads(ctx, member.id)
+                image_context = f"{image_context}\n\n{analyses}".strip()
             final_messages = [
                 *history,
                 ChatMessage("user", with_image_context(rest, image_context)),
             ]
-            await activity.begin(member.id, rest, source=TaskOrigin.USER)
             final = await run_agent(
                 self.llm,
                 member,
@@ -560,6 +575,21 @@ class Coordinator:
             ],
         )
 
+    def _ad_analyst(self) -> Member | None:
+        """The employee with the ad report tool (Metrics), if the team has one."""
+        return next(
+            (a for a in self.team.agents if any(t.name == AD_REPORT_TOOL for t in a.tools)),
+            None,
+        )
+
+    async def _analyze_ads(self, ctx: ToolContext, agent_id: str) -> str:
+        blocks = []
+        for report_id in ctx.ad_reports:
+            report = await ctx.session.get(AdReport, report_id)
+            if report is not None:
+                blocks.append(f"[Rapor #{report.id}] " + await analyze(ctx, report, agent_id))
+        return "\n\n".join(blocks)
+
     def _member(self, agent_id: str) -> Member | None:
         if agent_id == self.team.coordinator.id:
             return self.team.coordinator
@@ -696,9 +726,13 @@ class Coordinator:
         def data(attachment: Attachment) -> bytes:
             return resolve_stored(self.settings.upload_dir, attachment.path).read_bytes()
 
-        images = [a for a in attachments if a.mime != PDF_MIME]
+        images = [a for a in attachments if a.mime not in (PDF_MIME, CSV_MIME)]
         pdfs = [a for a in attachments if a.mime == PDF_MIME]
+        csvs = [a for a in attachments if a.mime == CSV_MIME]
         blocks = []
+        if csvs:
+            files = [AdFileInput(a.id, a.filename or "reklam.csv", data(a), a.sha256) for a in csvs]
+            blocks.append(await read_ad_files(ctx, files))
         if images:
             inputs = [ImageInput(a.id, ImagePart(a.mime, data(a))) for a in images]
             blocks.append(await read_images(ctx, inputs))

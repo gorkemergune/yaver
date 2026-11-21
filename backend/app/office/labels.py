@@ -2,6 +2,8 @@
 
 TOOL_LABELS: dict[str, str] = {
     "resolve_date": "Tarihi hesaplıyor",
+    "get_ad_report": "Reklam raporlarına bakıyor",
+    "analyze_ads": "Reklam raporunu analiz ediyor",
     "get_day_plan": "Günün planına bakıyor",
     "get_week_plan": "Haftanın planına bakıyor",
     "add_recurring_block": "Haftalık programa ekliyor",

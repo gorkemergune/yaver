@@ -71,6 +71,8 @@ yaver/
         board.py             # görev panosu: Bekliyor / Çalışıyor / Onay bekliyor / Bitti
         notebook.py          # write_note (çalışan yoksa yazmaz, durum notları günde bir), record_shift (gelen kutusu)
       integrations/          # web_search.py (Tavily/Brave, anahtar yoksa None), meta_ads.py (iskelet)
+      ads/                   # reklam raporu dosyaları: parse.py (Meta CSV, kodda), intake.py (CSV/ekran
+                             #   görüntüsü -> rapor), report.py (kayıt, önceki dönemle karşılaştırma, analiz)
         labels.py            # araç adı -> "Takvime bakıyor" gibi görev metni
       jobs/                  # scheduler işleri
       rag/                   # ingest, chunk, embed, retrieve
@@ -113,6 +115,7 @@ yaver/
 - `employee_tasks` — gelen kutusu: source (user|yaver|shift), requested_by, instruction, status (running|done|failed), result, conversation_id, change_set_id
 - `change_log` — change_set_id, entity, entity_id, op, before_json, after_json
 - `llm_usage` — provider, model, tier, purpose, in/out/cached tokens, cost_usd
+- `ad_reports` (dosya başına: kaynak csv|image, dönem, para birimi, `file_sha256`, özet + 3 öneri) + `ad_metrics` (kampanya / reklam seti / reklam başına harcama, gösterim, erişim, tıklama, CTR, CPC, sonuç, sonuç başı maliyet)
 - `push_subscriptions` — Web Push
 - `screen_sessions`, `app_limits` (Faz 4)
 
@@ -163,6 +166,7 @@ Kurallar:
 - Yaver etiket rengi `agents.yaml`'da (`color`); yoksa varsayılan palet.
 - İlk kurulum: `conversations.mode = onboarding` olan konuşma kurulum asistanına (`prompts/onboarding.md.j2`) gider; `finish_onboarding` normal sohbete çevirir. Yapıştırılan ders programı `propose_schedule` ile öneriye (`schedule_proposals`) dönüşür, tablo gösterilir, ancak kullanıcı onaylayınca `apply_schedule` tek change_set ile yazar. Uzun metin `routing.purposes.schedule_parse` (smart) ile ayrıştırılır.
 - Görseller: önce `POST /api/uploads` (yeniden kodlanır: EXIF/konum yok, HEIC→JPEG, uzun kenar `IMAGE_MAX_EDGE`), sonra mesaj `attachment_ids` ile. `agent/vision.py` görseli ekipten önce kodda okur; sadece Claude okur (vision olmayan sağlayıcıyı router atlar, Groq'a görsel gitmez). Ekip sonucu `[Görsel N ... -> öneri #N]` metni olarak görür; `messages.context`'te saklanır, geçmişle tekrar gider. Ders programı/etkinlik önerisi aynı mesajda uygulanamaz (`apply_proposal` ve `add_event`/`add_recurring_block` kodda engellenir), kullanıcı "evet" deyince uygulanır. Duyuru tarihleri modelden "yazıldığı gibi" alınır, kodda çözülür; gün adı tutmayan / tek gün olmayan tarih "belirsiz".
+- Reklam raporları: `POST /api/uploads` CSV'yi olduğu gibi saklar (`text/csv`). Meta Ads Manager CSV'si kodda ayrıştırılır (`ads/parse.py`: TR/EN başlıklar, `;`/`,`, `1.234,50`; eksik CTR/CPC/sonuç başı maliyet hesaplanır); tablo ekran görüntüsü `image_contents` kind=`ad_report` -> `ads_image` (Sonnet) ile aynı satırlara döner, dönem "yazıldığı gibi" alınıp kodda çözülür. Rapor hemen yazılır (mesajın change_set'i; aynı dosya `file_sha256` ile tekrar yazılmaz), önceki dönemle karşılaştırma kodda. Mesaj kodda `get_ad_report` aracı olan çalışana (Metrics) gider; analiz modelin atlayabileceği bir araç değil, kodda tek çağrı: `ads_weekly_report` (deep, Opus) özet + tam 3 öneri (tek dizgeye yazılırsa kodda bölünür, olmazsa bir kez yeniden sorulur), rapora ve deftere yazılır; Metrics bloğu aktarır. `get_ad_report` kayıtlı raporları okur.
 - PDF'ler: `POST /api/uploads` olduğu gibi saklar (`attachments.filename` atıf için). `agent/documents.py` metni kodda çıkarır (pypdf), `document_classify` (fast) ne olduğunu söyler; syllabus `syllabus_parse` (Sonnet) ile `öneri #N` (kind=syllabus) olur, "evet" ile `syllabus_weeks` + `course_materials` + `material_chunks` yazılır. Embedding yerel (fastembed, çok dilli MiniLM, 384 boyut, `MODEL_CACHE_DIR`); model ~128 token okuduğu için parçalar ~500 karakter. `search_materials` / `get_syllabus` akademik çalışanda (academic); cevapta kaynak "(dosya, s. N)".
 - Bekleyen soru (`agent/pending.py`, `conversations.pending_action`): bir araç sonucu açık soru bırakırsa (`log_attendance` başka gün önerir, `candidates` döner, öneri tablosu gösterilir) her seçenek o işi bitiren araç çağrısı olarak saklanır. Kullanıcının kısa cevabı ("evet", "çarşamba", "2.si", "lab olan") kodda bir seçeneğe eşlenirse araç kodda çalışır, soran yaver sonucu araçsız tek turda bildirir. Eşlenmeyen kısa cevap soran yavere kendi sorusuyla birlikte gider; "hayır", soru ya da uzun mesaj normal akışa (koordinatör) gider. Her mesaj durumu yeniler; zamanlayıcı mesajı eskisini siler, 24 saatte düşer.
 - Dil: son cevap İngilizce görünürse (`looks_english`) bir kez Türkçeye çevrilir (`language_fix`), akışta metin değiştirilir.

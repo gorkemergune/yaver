@@ -154,7 +154,10 @@ agents:
     persona: Sayılarla konuşan bir reklam analisti. Bir metrik bozulunca hemen fark eder, abartmaz.
     tier: fast
     model: {groq: openai/gpt-oss-20b}
-    shift: Reklam hesabı bağlanınca günlük performansı çeker; şimdilik entegrasyon bekliyor.
+    shift: >-
+      Sohbete atılan Ads Manager CSV'sini ya da tablo ekran görüntüsünü kaydeder, önceki
+      dönemle karşılaştırır; özet + 3 öneriyi defterine yazar. Hesap bağlanınca günlük
+      performansı kendisi çeker.
     shift_jobs:
       - {job: ads_report, at: "09:30", title: Günlük reklam metrikleri}
     tools: [get_ad_report, add_task, complete_task]

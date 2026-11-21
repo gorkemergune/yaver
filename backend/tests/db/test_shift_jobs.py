@@ -123,20 +123,27 @@ def test_provider_choice_from_settings() -> None:
     assert getattr(search.web_search_from(chosen), "name", None) == "brave"
 
 
-async def test_pending_without_the_employee_row_does_not_fail(session: AsyncSession) -> None:
+async def test_pending_without_the_employee_row_does_not_fail(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """No office yet (employees not synced): the tool still answers, nothing is noted."""
-    result = await tool(context(session, agent_id="ads"), "get_ad_report", days=7)
+    monkeypatch.setattr(search, "get_web_search", lambda: None)
+    result = await tool(context(session, agent_id="content"), "web_search", query="trendler")
     assert result["status"] == "integration_pending"
     await session.commit()
-    assert await notes_of(session, "ads") == []
+    assert await notes_of(session, "content") == []
 
 
-async def test_ad_report_is_a_pending_skeleton(session: AsyncSession, office: Office) -> None:
+async def test_ad_report_without_files_says_how_to_send_one(
+    session: AsyncSession, office: Office
+) -> None:
+    """The account API is still a skeleton; reports come from files (tests/db/test_ads.py)."""
     from pydantic import SecretStr
 
-    result = await tool(context(session, agent_id="ads"), "get_ad_report", days=7)
-    assert result["status"] == "integration_pending"
-    assert result["integration"] == "meta_ads"
+    result = await tool(context(session, agent_id="ads"), "get_ad_report")
+    assert result["status"] == "no_reports"
+    assert "CSV" in result["message"]
+    assert result["account"] == NO_CREDENTIALS
     assert ads_status(SETTINGS).note == NO_CREDENTIALS
     keyed = Settings(_env_file=None, meta_access_token=SecretStr("x"), meta_ad_account_id="1")
     assert ads_status(keyed).note == NOT_BUILT
