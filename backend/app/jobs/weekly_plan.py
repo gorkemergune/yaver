@@ -16,6 +16,7 @@ from app.db.models import Course, Event, Followup, Proposal, Task
 from app.db.models.enums import EventKind, FollowupStatus, ProposalKind, TaskStatus
 from app.jobs.content import day_name
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
+from app.materials.weekly import next_week_lines
 from app.services.attendance import course_summary
 from app.services.schedule import get_day_plan
 
@@ -42,6 +43,9 @@ PROMPT = (
     "before them), catching up on missed classes, chasing follow-ups, the open tasks.\n"
     "- Put a task on a light day; a date must be one of the week's days listed; no date = "
     "something for the whole week.\n"
+    "- 'Course week' lines give each course's syllabus topics and readings / sections / lab "
+    "sheets for the week: add a short reading task for a course with readings or a lab "
+    "(name the section as written: 'MATH 221: 4.1 oku'); never invent sections.\n"
     "- Turkish, short titles; address the student as 'sen'."
 )
 
@@ -98,6 +102,7 @@ async def week_facts(session: AsyncSession, monday: dt.date, tz: ZoneInfo) -> st
         )
     ).all()
     lines += [f"Already planned task: {t.title}" for t in open_tasks]
+    lines += [f"Course week: {line}" for line in await next_week_lines(session, monday, tz)]
     return "\n".join(lines)
 
 
@@ -153,8 +158,15 @@ async def draft_week(
     )
     session.add(proposal)
     await session.flush()
+    courses = await next_week_lines(session, monday, tz)
+    course_part = (
+        "📚 Derslerde bu hafta:\n" + "\n".join(f"- {line}" for line in courses) + "\n\n"
+        if courses
+        else ""
+    )
     message = (
         f"Haftalık plan taslağı 🗓 ({day_name(monday)} haftası)\n\n{draft.summary}\n\n"
+        f"{course_part}"
         f'{tasks_table(entries)}\n\nUygun mu? "Evet" dersen görevlere yazarım; '
         "değiştirmek istediğini söylemen yeter."
     )

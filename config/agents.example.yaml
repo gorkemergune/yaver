@@ -64,7 +64,8 @@ agents:
       - add_course_alias
       - set_week_label           # "bu haftanın adı Hackathon Haftası olsun"
       - search_materials         # uploaded notes / syllabi, with file + page
-      - get_syllabus             # weekly topics ("bu hafta ne işlendi?")
+      - get_syllabus             # weeks: topics, readings, lab; one week with its sections / notes / sheets
+      - get_exam_scope           # "sınav için ne çalışmalıyım?": the next exam's weeks, sections, pages
       - save_material            # uploaded notes -> course + week, searchable
       - generate_study_sheet     # writes with the smart tier, sources from search_materials
     briefing_section: Dersler

@@ -70,10 +70,12 @@ async def test_review_plan_a_week_before_the_exam(
     text = message.content
     assert "· Sınav hazırlığı 📚 MATH221 Ara Sınav: 7 gün kaldı (27 Kasım Cuma 10:00)." in text
     # weeks 1-7: the exam is in week 9, "Ara sınav" (week 8) is not a topic
-    assert "Konular (syllabus): 1. hafta: Vektörler;" in text
-    assert "7. hafta: Lineer dönüşümler" in text
-    assert "Ara sınav" not in text.split("Konular (syllabus):")[1].split("\n")[0]
-    assert "Notların: math221_hafta5.pdf" in text
+    assert "Konular ve okunacaklar (syllabus):\n- 1. hafta: Vektörler" in text
+    assert "- 7. hafta: Lineer dönüşümler" in text
+    block = text.split("Konular ve okunacaklar (syllabus):")[1].split("Notların")[0]
+    assert "Ara sınav" not in block
+    assert "5. hafta: " in text
+    assert "notlar: math221_hafta5.pdf" in text  # on its week's line, not listed twice
     assert (
         "| 23 Kasım Pazartesi | MATH221 tekrar 17:00-18:30: h4 Lineer denklem sistemleri; h5"
         in text

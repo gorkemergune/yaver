@@ -16,8 +16,8 @@ from app.db.models import Course, CourseMaterial, Event, Proposal, SyllabusWeek
 from app.db.models.enums import EventKind, ProposalKind
 from app.jobs.content import Voice, day_name
 from app.jobs.weekly_plan import tasks_table
+from app.materials.weekly import course_weeks, covered_weeks, match_topics, topics_of
 from app.services.schedule import get_day_plan
-from app.services.weeks import week_facts
 
 LEAD_DAYS = 7  # proposed this many days before (or later, if the exam was added late)
 MIN_LEAD_DAYS = 2  # closer than this: no plan any more
@@ -28,14 +28,6 @@ EVENING = dt.time(17, 0)  # free time after this is preferred (classes are done)
 SOURCE = "[sınav hazırlığı event #{id}]"
 TOPIC_CHARS = 110
 NO_SYLLABUS_DAYS = 2  # without topics: two review sessions + the last-day review
-
-
-def topics_of(notes: str | None) -> list[str]:
-    """The topics add_event wrote into the exam's notes ("Konular: a, b")."""
-    for line in (notes or "").splitlines():
-        if line.startswith("Konular: "):
-            return [t.strip() for t in line.removeprefix("Konular: ").split(",") if t.strip()]
-    return []
 
 
 @dataclass(slots=True)
@@ -93,46 +85,6 @@ async def free_slot(
     return chosen
 
 
-def is_final(exam: Event) -> bool:
-    return "final" in exam.title.lower()
-
-
-async def covered_weeks(
-    session: AsyncSession, exam: Event, course: Course, tz: ZoneInfo
-) -> list[SyllabusWeek]:
-    """Syllabus weeks the exam covers: after the course's previous exam, up to the exam's
-    own week (exam weeks themselves left out); a final covers everything."""
-    weeks = (
-        await session.scalars(
-            select(SyllabusWeek)
-            .where(SyllabusWeek.course_id == course.id)
-            .order_by(SyllabusWeek.week_no)
-        )
-    ).all()
-    teaching = [
-        w for w in weeks if "sınav" not in w.topics.lower() and "exam" not in w.topics.lower()
-    ]
-    exam_week = (await week_facts(session, exam.start_at.astimezone(tz).date(), tz)).week_no
-    if is_final(exam) or exam_week is None:
-        return list(teaching)
-    previous = await session.scalar(
-        select(Event)
-        .where(
-            Event.course_id == course.id,
-            Event.kind == EventKind.EXAM,
-            Event.start_at < exam.start_at,
-        )
-        .order_by(Event.start_at.desc())
-        .limit(1)
-    )
-    after = 0
-    if previous is not None:
-        after = (
-            await week_facts(session, previous.start_at.astimezone(tz).date(), tz)
-        ).week_no or 0
-    return [w for w in teaching if after < w.week_no < exam_week] or list(teaching)
-
-
 def _short(text: str) -> str:
     return text if len(text) <= TOPIC_CHARS else text[: TOPIC_CHARS - 1].rstrip() + "…"
 
@@ -144,6 +96,12 @@ async def plan_exam(
     course = await session.get(Course, exam.course_id) if exam.course_id else None
     code = course.code if course else exam.title.split()[0]
     weeks = await covered_weeks(session, exam, course, tz) if course else []
+    refs = await course_weeks(session, course, [w.week_no for w in weeks]) if course else []
+    named = topics_of(exam.notes)
+    match = match_topics(named, refs) if named and refs else None
+    if match is not None and match.complete:  # every topic named is in the syllabus
+        weeks = [w for w in weeks if w.week_no in match.weeks]
+        refs = [r for r in refs if r.week_no in match.weeks]
     notes: list[str] = []
     if course:
         materials = (
@@ -156,7 +114,14 @@ async def plan_exam(
             )
         ).all()
         wanted = {w.week_no for w in weeks}
-        notes = [m.title for m in materials if m.week_no is None or m.week_no in wanted]
+        listed = {n.split(" (")[0] for r in refs for n in r.notes} | {
+            s for r in refs for s in r.sheets
+        }
+        notes = [
+            m.title
+            for m in materials
+            if (m.week_no is None or m.week_no in wanted) and m.title not in listed
+        ]
     exam_day = exam.start_at.astimezone(tz).date()
     days = [
         exam_day - dt.timedelta(days=n)
@@ -214,7 +179,12 @@ async def plan_exam(
                 "week_start": week_start(day).isoformat(),
             }
         )
-    topics = [f"{w.week_no}. hafta: {w.topics}" for w in weeks] or told
+    by_week = {r.week_no: r.to_read() for r in refs}
+    topics = [
+        f"{w.week_no}. hafta: {w.topics}"
+        + (f" — {by_week[w.week_no]}" if by_week.get(w.week_no) else "")
+        for w in weeks
+    ] or told
     return entries, topics, notes
 
 
@@ -252,10 +222,13 @@ async def draft_exam_prep(
             f"{voice.label('academic', 'Sınav hazırlığı')} 📚 {exam.title}: {days_left} gün "
             f"kaldı ({day_name(exam_day)}{hour})."
         ]
-        if topics and topics_of(exam.notes) == topics:
+        named = topics_of(exam.notes)
+        if topics and named == topics:
             lines.append("Konular (senin söylediğin): " + ", ".join(topics))
         elif topics:
-            lines.append("Konular (syllabus): " + "; ".join(topics))
+            source = "senin söylediklerin, syllabus'ta" if named else "syllabus"
+            lines.append(f"Konular ve okunacaklar ({source}):")
+            lines += [f"- {t}" for t in topics]
         else:
             lines.append("Syllabus yok; konuları bilmiyorum, tekrar günlerini ayırdım.")
         if notes:

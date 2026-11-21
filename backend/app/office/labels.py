@@ -31,6 +31,7 @@ TOOL_LABELS: dict[str, str] = {
     "get_notes": "Deftere bakıyor",
     "search_materials": "Ders notlarında arıyor",
     "get_syllabus": "Syllabus'a bakıyor",
+    "get_exam_scope": "Sınav konularını çıkarıyor",
     "save_material": "Ders notunu dosyalıyor",
     "generate_study_sheet": "Çalışma kağıdı yazıyor",
     "get_screen_time": "Ekran süresine bakıyor",
