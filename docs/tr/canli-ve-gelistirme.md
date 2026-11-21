@@ -72,7 +72,7 @@ Deploy betiği bunu kontrol eder ve eski stack çalışıyorsa başlamaz.
 ### 4. Kontrol et
 
 - Tarayıcıda http://localhost:8080 → giriş, Ofis, Sohbet, Takvim. Verilerin yerinde olmalı.
-- Telefonda Tailscale adresi (aynı 8080'e gider), masaüstü uygulaması, Siri kısayolu: değişen bir
+- Telefonda Tailscale adresi (aynı 8080'e gider; geliştirmeyi telefonda denemek: [telefon.md](telefon.md)), masaüstü uygulaması, Siri kısayolu: değişen bir
   şey yok, aynı adres ve aynı cihaz anahtarları.
 - `.\scripts\live.ps1 status` → `current: <etiket>`.
 - `.\scripts\smoke.ps1 -NoChat` → `all checks passed`.

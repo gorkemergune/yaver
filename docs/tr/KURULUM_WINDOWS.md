@@ -2,7 +2,7 @@
 
 Yaver bilgisayarında Docker'da çalışır. Telefonundan **Tailscale** üzerinden, HTTPS ile açarsın. Uygulama internete açılmaz, yalnızca senin cihazların görür.
 
-İlk kurulum (Docker Desktop, `.env`, ilk sohbet) için README'deki *Quick start* bölümüne bak. Bu belge ondan sonrasını anlatır:
+İlk kurulum (Docker Desktop, `.env`, ilk sohbet) için README'deki *Quick start* bölümüne bak. Bu belge ondan sonrasını anlatır. Telefonda canlı / geliştirme ayrımı ve adım adım **test kontrol listesi**: [telefon.md](telefon.md).
 
 1. Günlük kullanım: canlı kurulum
 2. Parola
@@ -67,7 +67,7 @@ Notlar:
 - İlk açılışta sertifika alınırken birkaç saniye beklenebilir.
 - **`tailscale funnel` kullanma.** Funnel adresi herkese, internete açar; `serve` yalnızca senin cihazlarına açar.
 - `tailscale serve` HTTPS'i kendisi sağlar ve isteği `http://localhost:8080`'e iletir. Windows güvenlik duvarında ek kural gerekmez.
-- Geliştirme modunda da çalışır (Vite `*.ts.net` adreslerini kabul eder, sıcak yenileme de bağlanır). Yine de telefonda açılış yavaştır.
+- Telefon her gün **canlıyı** (8080) açar. Geliştirmeyi (8180) telefonda denemek istersen ayrı bir HTTPS portuyla aç (`tailscale serve --bg --https=8443 http://127.0.0.1:8180`), iş bitince yalnız onu kapat (`tailscale serve --https=8443 off`); `tailscale serve reset` canlıyı da kapatır. Ayrıntı: [telefon.md §3](telefon.md#3-geliştirme-telefonda-denemek-isteğe-bağlı).
 
 ## 4. iPhone'da uygulama ve bildirimler
 
@@ -105,7 +105,7 @@ Bilmen gerekenler:
 | Belirti | Çözüm |
 |---|---|
 | Telefonda adres açılmıyor | iPhone'da Tailscale bağlı mı? Bilgisayar açık ve uyanık mı (uyku modu bağlantıyı keser)? `tailscale serve status` adres gösteriyor mu? |
-| `Blocked request. This host ... is not allowed` | Geliştirme sunucusunu (8180) telefondan açıyorsun; telefonda canlıyı (8080) kullan. |
+| `Blocked request. This host ... is not allowed` | Geliştirmeyi (8443 → 8180) kısa adla açıyorsun; tam `https://...ts.net:8443` adresini kullan. Her gün için canlı adresi (443 → 8080) kullan. |
 | Birkaç saniye `502 Bad Gateway` | API yeniden başlıyor (deploy sırasında 20-40 sn); bekle. Sürerse `.\scripts\live.ps1 logs --tail 50 api`. |
 | Her açılışta parola soruyor | Ana ekran uygulamasından mı açıyorsun? Safari ile ana ekran uygulamasının oturumları ayrıdır. |
 | Bildirim düğmesi yok ya da hata veriyor | Uygulamayı ana ekrandan aç (iOS 16.4+). Ayarlar → Bildirimler → Yaver açık mı? |

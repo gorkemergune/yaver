@@ -98,7 +98,7 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 - Tailscale ile telefondan erişim + HTTPS (`tailscale serve`)
 - Basit auth: tek kullanıcı parolası + httpOnly session cookie
 
-**Durum (2026-11-20):** zamanlayıcı, brifing, check-in, takip, haftalık plan ve sınav hazırlığı sohbette çalışıyor; Web Push (Chrome'da uçtan uca denendi) ve parola + oturum (web, masaüstü) kodda hazır. Kalan: Tailscale + HTTPS ve iPhone'da push denemesi (Görkem).
+**Durum (2026-11-20):** zamanlayıcı, brifing, check-in, takip, haftalık plan ve sınav hazırlığı sohbette çalışıyor; Web Push (Chrome'da uçtan uca denendi) ve parola + oturum (web, masaüstü) kodda hazır. Kalan: Tailscale + HTTPS ve iPhone'da push denemesi (Görkem). Rehber ve telefon kontrol listesi (canlı / geliştirme ayrımıyla): `docs/tr/telefon.md` (2026-11-21).
 
 **Bitti sayılır:**
 - [ ] Windows açılınca o günün brifingi geliyor ("Günaydın Görkem, bugün...")
