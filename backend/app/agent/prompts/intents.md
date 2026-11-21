@@ -14,7 +14,7 @@ Split the message into its separate requests (usually one; "X, ayrıca Y" is two
 - startup: the user's startup, its product, repo, competitors.
 - career: internships, jobs, CV, job applications.
 - social: friends, birthdays, gifts, social plans with people.
-- memory: a lasting fact about the user's life to remember, with no date ("cuma günleri Medipol'deyim").
+- memory: a lasting fact about the user's life to remember, with no date and no hours ("cuma günleri Medipol'deyim"). With weekly hours it is a weekly block, not a memory: "her cuma 9-17 Medipol'de çalışıyorum" is an event (work), a class schedule is class.
 - question: a question about the plan or the past ("yarın ne var?", "bu hafta neler var"), or anything asked of the assistant.
 - undo: undoing the last change ("geri al").
 - answer: ONLY when an open question is shown below and this part answers it (a choice, a date, a course name, "evet"). A new request is never an answer, even right after a question.

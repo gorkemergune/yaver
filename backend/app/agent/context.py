@@ -30,6 +30,7 @@ class ToolContext:
     actions: list[dict[str, object]] = field(default_factory=list)
     # Every tool call (reads too) with its arguments, for debugging and prompt tuning.
     trace: list[dict[str, object]] = field(default_factory=list)
+    intents: list[tuple[str, str | None]] = field(default_factory=list)  # routing
     # Open questions tool results left this turn (app.agent.pending.PendingAction).
     asks: list[Any] = field(default_factory=list)
     # Notebook notes written this turn: announced to the office once committed.

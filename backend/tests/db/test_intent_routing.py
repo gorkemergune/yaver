@@ -228,3 +228,66 @@ async def test_a_part_of_the_day_gets_a_default_hour(session: AsyncSession) -> N
 
     assert (morning["start"], morning["default_start_time"]) == ("2026-11-24", "09:00")
     assert "default_start_time" not in exact
+
+
+async def test_handing_back_its_own_area_is_refused(session: AsyncSession) -> None:
+    """Live: Chrono handed a task back ("market alışverişi yapmam lazım"); nobody did it."""
+    ctx = context(session, "agenda")
+
+    own = await run_tool("handoff", {"reason": "benim işim değil", "area": "task"}, ctx)
+    other = await run_tool("handoff", {"reason": "sınav", "area": "exam"}, ctx)
+
+    assert own["error"].startswith("'task' is your own area")
+    assert other == {"handed_off": True, "area": "exam"}
+
+
+async def test_a_reply_in_the_askers_area_stays_with_the_asker(session: AsyncSession) -> None:
+    conversation = Conversation(
+        title="x",
+        pending_action={
+            "agent_id": "academic",
+            "request": "pazartesi DSA sınavı var",
+            "question": "DSA hangi ders: CSE 211 mi, CSE 221 mi?",
+            "created_at": NOW.isoformat(),
+        },
+    )
+    session.add(conversation)
+    await session.commit()
+    llm = ScriptedLLM()
+    llm.add("intent", route_as(("course_note", "cse 211")))  # not "answer", but Scholar's
+    llm.add("academic", say("CSE 211 sınavı saat kaçta?"))
+
+    reply = await coordinator(llm).handle(
+        session, "cse 211", conversation_id=conversation.id, now=NOW
+    )
+
+    assert reply.speaker == "academic"
+    llm.assert_done()
+
+
+async def test_a_handed_back_part_joins_the_targets_own_part(session: AsyncSession) -> None:
+    """Live: Scholar handed "bugün linear iptal" to Chrono, Chrono ran at once and then its
+    own part (the meeting) was skipped as already done."""
+    text = "bugün linear iptal, yarın 14te iceberg toplantısı var"
+    llm = ScriptedLLM()
+    llm.add(
+        "intent",
+        route_as(("class", "bugün linear iptal"), ("event", "yarın 14te iceberg toplantısı var")),
+    )
+    llm.add("academic", call("handoff", reason="takvim", area="event"))
+    got: list[str] = []
+
+    def agenda(request: LLMRequest) -> Any:
+        got.append(request.messages[0].content)
+        return say("İkisini de yaptım.")
+
+    llm.add("agenda", agenda)
+    llm.add("yaver", say("Chrono: ikisini de yaptı."))
+
+    reply = await coordinator(llm).handle(session, text, now=NOW)
+
+    assert got == [
+        f"bugün linear iptal\nyarın 14te iceberg toplantısı var\nKullanıcının mesajı: {text}"
+    ]
+    assert [r["agent_id"] for r in reply.agents] == ["agenda"]
+    llm.assert_done()

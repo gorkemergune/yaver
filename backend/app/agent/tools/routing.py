@@ -7,8 +7,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.agent.context import ToolContext
-from app.agent.intents import AREAS
-from app.agent.tools import ToolResult, tool
+from app.agent.intent_map import AREAS, OWNERS
+from app.agent.tools import ToolError, ToolResult, tool
 
 Area = Literal[AREAS]  # type: ignore[valid-type]
 
@@ -29,4 +29,7 @@ class HandoffArgs(BaseModel):
     HandoffArgs,
 )
 async def handoff(args: HandoffArgs, ctx: ToolContext) -> ToolResult:
+    if OWNERS.get(args.area) == ctx.agent_id:
+        # live: Chrono handed "market alışverişi yapmam lazım" (a task) back, nobody did it
+        raise ToolError(f"'{args.area}' is your own area: do it yourself with your tools now")
     return {"handed_off": True, "area": args.area}

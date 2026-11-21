@@ -60,6 +60,8 @@ ANALYZE_ADS = "analyze_ads"  # office label while the analysis runs (no model to
 AD_REPORT_TASK = "Reklam raporunu analiz et"
 # After a long block read from an image / PDF the model drifts to English without this.
 CONTEXT_REMINDER = "(Bu blokları kod okudu. Cevabın Türkçe olsun.)"
+# after a part, the whole message as context (a yaver never acts on it: agent.md rule 6)
+CONTEXT_PREFIX = "\nKullanıcının mesajı: "
 
 
 @dataclass(slots=True)
@@ -83,6 +85,8 @@ class ChatReply:
     changes: list[dict[str, Any]] = field(default_factory=list)  # for the change card
     trace: list[dict[str, Any]] = field(default_factory=list)
     llm_calls: list[LLMCall] = field(default_factory=list)
+    # (intent, owner) per part, as the code routed it (empty: not classified)
+    intents: list[tuple[str, str | None]] = field(default_factory=list)
 
     @property
     def cost_usd(self) -> Decimal:
@@ -150,6 +154,25 @@ def looks_english(text: str) -> bool:
     turkish = sum(1 for w in re.findall(r"[a-z]+", normalize(text)) if w in _TURKISH)
     turkish += sum(1 for ch in text if ch in "ğüşıöçĞÜŞİÖÇ")
     return english >= 3 and english > turkish
+
+
+OWN_PART_HINTS = {
+    "memory": "a lasting fact: call remember yourself; only with weekly hours ('her cuma "
+    "9-17') it is a weekly block: delegate it (agenda area)",
+    "question": "a question: answer it yourself with get_day_plan / get_week_plan",
+    "undo": "call undo yourself",
+}
+
+
+def own_parts_note(classified: "list[intents.Routed] | None") -> str:
+    """The parts the code left to the coordinator, with what to do (live: "bu dönem cuma
+    günleri medipoldeyim" is a memory, the coordinator delegated it as a weekly block)."""
+    lines = [
+        f'- "{p.text}": {OWN_PART_HINTS[p.intent]}'
+        for p in classified or []
+        if p.owner is None and p.intent in OWN_PART_HINTS
+    ]
+    return "Bu mesajda senin işin (kod ayırdı):\n" + "\n".join(lines) if lines else ""
 
 
 def worked(ctx: ToolContext) -> bool:
@@ -350,7 +373,12 @@ class Coordinator:
                 # sabah Medipoldeki kahvaltıya gidicem" went to Scholar, who had asked about
                 # a class, and Scholar did nothing). The intent decides, not the length.
                 classified = await self._classify(text, waiting.question)
-                if classified is not None and not any(r.intent == "answer" for r in classified):
+                if classified is not None and not any(
+                    # an answer, or something for the one who asked: it keeps the question
+                    # (live: "cse 211" to "DSA hangi ders?" came back as course_note)
+                    r.intent == "answer" or r.owner == waiting.agent_id
+                    for r in classified
+                ):
                     binding = Binding("other")
             logger.info(
                 "Open question of %s, answer %r -> %s", waiting.agent_id, text, binding.kind
@@ -362,6 +390,8 @@ class Coordinator:
                 answering = None  # the coordinator sees its own question in the history
 
         delegated: dict[str, dict[str, Any]] = {}
+        # parts of this message the code is about to hand out, by owner (coordinate())
+        queued: dict[str, list[str]] = {}
 
         async def delegate(arguments: dict[str, Any]) -> dict[str, Any]:
             agent = self.team.get(str(arguments.get("agent_id", "")))
@@ -398,6 +428,11 @@ class Coordinator:
                 instructions.pop(agent.id, None)
                 target = intents.owner_of(str(sub.handoff.get("area", "")), self._team_ids())
                 if target is not None and target != agent.id and target not in delegated:
+                    if target in queued:
+                        # it gets its own part of this message next: both in one go (live:
+                        # run first, it then skipped its own part as "already done")
+                        queued[target].insert(0, instruction.split(CONTEXT_PREFIX)[0])
+                        return {**delegated[agent.id], "note": "handed over with the rest"}
                     return await delegate({"agent_id": target, "instruction": instruction})
                 return {
                     **delegated[agent.id],
@@ -424,16 +459,20 @@ class Coordinator:
             if classified is None and not attachments:
                 classified = await self._classify(text)
             messages = list(final_messages)
-            owned: dict[str, list[str]] = {}
+            queued.clear()
             for part in classified or []:
                 if part.owner is not None and part.owner not in delegated:
-                    owned.setdefault(part.owner, []).append(part.text)
+                    queued.setdefault(part.owner, []).append(part.text)
             calls: list[ToolCall] = []
             results: list[ChatMessage] = []
-            for number, (owner, parts) in enumerate(owned.items(), start=1):
+            number = 0
+            while queued:
+                owner = next(iter(queued))
+                parts = queued.pop(owner)
+                number += 1
                 instruction = "\n".join(dict.fromkeys(parts))
                 if len(classified or []) > 1:
-                    instruction += f"\nKullanıcının mesajı: {text}"
+                    instruction += f"{CONTEXT_PREFIX}{text}"
                 arguments = {"agent_id": owner, "instruction": instruction}
                 result = await delegate(arguments)
                 call_id = f"route_{number}"
@@ -452,12 +491,13 @@ class Coordinator:
                 # as if the coordinator had delegated itself: now it only writes the answer
                 messages += [ChatMessage("assistant", "", tool_calls=calls), *results]
             holder["delegate"] = delegate
+            ctx.intents = [(p.intent, p.owner) for p in classified or []]
             return await run_agent(
                 self.llm,
                 self.team.coordinator,
                 messages,
                 ctx,
-                system_suffix=suffix,
+                system_suffix=f"{suffix}\n{own_parts_note(classified)}".rstrip(),
                 max_steps=self.max_steps,
                 delegate=delegate,
                 delegate_spec=self.team.delegate_spec(),
@@ -630,6 +670,7 @@ class Coordinator:
         changes = await describe_changes(session, ctx.recorder.entries)
 
         return ChatReply(
+            intents=ctx.intents,
             conversation_id=conversation.id,
             reply=reply_text,
             speaker=final.agent_id,
