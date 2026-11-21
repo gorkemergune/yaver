@@ -1,4 +1,8 @@
 # secrets & personal data
+# personal course materials (syllabi, books, lab sheets, notes): never committed
+syllabus/
+materials/
+*.syllabus.pdf
 .env
 .env.*
 !.env.example
