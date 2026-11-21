@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { planFigures, stepFigures, type Figure, type Staff } from "./model";
 
-export const TICK_MS = 900; // one step per tick; the CSS transition has the same length
+// One step (0.55 tiles, the prototype's) per tick, twice the prototype's pace; the CSS
+// transition (office.css) has the same length.
+export const TICK_MS = 450;
 
 /** Figures that follow `staff`: every tick re-plans (a new state = a new route) and takes
  *  one step, so a change shows within a tick. */

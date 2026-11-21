@@ -65,7 +65,7 @@
   border: 0;
   background: none;
   cursor: pointer;
-  transition: left 0.9s linear, top 0.9s linear;
+  transition: left 0.45s linear, top 0.45s linear; /* = TICK_MS */
 }
 .yhq-agent:focus-visible {
   outline: 2px solid #a99cff;

@@ -58,8 +58,8 @@ export interface Figure {
   cup: boolean;
   idleUntil: number; // ms; when an idle figure picks a new place
   holdUntil: number; // ms; stays at its meeting / desk until then (see DWELL_MS)
-  // the meeting it is in: the host's id (a standup, a handover); nobody leaves while
-  // someone of the same meeting is still on the way, and the last to arrive restarts the stay
+  // the meeting it is in: the host's id (a standup, a handover); when someone of the same
+  // meeting arrives, those already there stay DWELL_MS.meeting from then (sit together)
   group?: string | null;
 }
 
@@ -77,16 +77,16 @@ function freeOf(prefix: string, count: number, taken: Set<string>, random: Rando
 }
 
 /**
- * Backend states are often shorter than the walk (a handover is ~1 s, crossing the office
- * ~10 s). A figure that set out for a meeting or for its desk gets there and stays at least
- * this long, then follows the latest state: what happened is always shown, a little late;
- * nothing that did not happen is. A meeting may cut a walk to the desk short.
+ * The office follows the backend at most a few seconds late: a walking figure turns to its
+ * new place as soon as the state changes (a handover shorter than the walk may end before
+ * it reaches the meeting room). Only after arriving at a meeting or its desk does it stay
+ * this long, so a short visit is still readable.
  */
-export const DWELL_MS: Partial<Record<Act, number>> = { meeting: 4000, work: 2500 };
+export const DWELL_MS: Partial<Record<Act, number>> = { meeting: 3000, work: 2000 };
 
-/** Walking to, or still staying at, a place the backend sent it to. */
+/** Staying at a meeting / desk it has reached (walking there never holds it). */
 export const isHeld = (f: Figure, now: number): boolean =>
-  (f.act === "meeting" || f.act === "work") && (f.path.length > 0 || f.holdUntil > now);
+  (f.act === "meeting" || f.act === "work") && !f.path.length && f.holdUntil > now;
 
 const tableSeat = (spot: string | undefined): number | null => {
   const m = /^meet:(\d+)$/.exec(spot ?? "");
@@ -97,16 +97,11 @@ const tableSeat = (spot: string | undefined): number | null => {
 /** Meeting room seats: a pair (`meeting_with` either way) shares the table, the
  *  coordinator on the near side facing us, the other across; a figure still on its way to
  *  (or sitting out) an earlier meeting keeps its seat and the newcomer sits across. */
-export function meetingSeats(
-  staff: Staff,
-  figures: Record<string, Figure>,
-  now = 0,
-  waiting: ReadonlySet<string> = new Set(),
-): Record<string, string> {
+export function meetingSeats(staff: Staff, figures: Record<string, Figure>, now = 0): Record<string, string> {
   const seats: Record<string, string> = {};
   const taken = new Set<string>();
   for (const f of Object.values(figures)) {
-    if (staff[f.id] && f.act === "meeting" && (isHeld(f, now) || waiting.has(f.id))) {
+    if (staff[f.id] && f.act === "meeting" && isHeld(f, now)) {
       seats[f.id] = f.spot;
       taken.add(f.spot);
     }
@@ -221,25 +216,17 @@ function place(e: OfficeEmployee, target: Target, now: number, random: Random): 
  * figures keep their place until `idleUntil`, then pick another.
  */
 export function planFigures(figures: Record<string, Figure>, staff: Staff, now: number, random: Random = Math.random): Record<string, Figure> {
-  // meetings someone is still walking to: the others in it wait (see Figure.group)
-  const gathering = new Set<string>();
-  for (const f of Object.values(figures)) if (f.act === "meeting" && f.path.length && f.group) gathering.add(f.group);
-  const waiting = new Set(
-    Object.values(figures)
-      .filter((f) => f.act === "meeting" && !!f.group && gathering.has(f.group))
-      .map((f) => f.id),
-  );
-  const seats = meetingSeats(staff, figures, now, waiting);
+  const seats = meetingSeats(staff, figures, now);
   const taken = new Set<string>(Object.values(seats));
   const next: Record<string, Figure> = {};
   // non-idle first: their places are fixed; idle figures avoid the spots they hold
   const ordered = Object.values(staff).sort((a, b) => Number(a.activity === "break") - Number(b.activity === "break"));
   for (const f of Object.values(figures)) {
-    if (staff[f.id] && (IDLE.includes(f.act) || isHeld(f, now) || waiting.has(f.id))) taken.add(f.spot);
+    if (staff[f.id] && (IDLE.includes(f.act) || isHeld(f, now))) taken.add(f.spot);
   }
   for (const e of ordered) {
     const f = figures[e.id];
-    const held = f && (isHeld(f, now) || waiting.has(f.id)) && !(f.act === "work" && e.activity === "meeting");
+    const held = f && isHeld(f, now) && !(f.act === "work" && e.activity === "meeting");
     let target: Target;
     if (f && held) target = { act: f.act, spot: f.spot };
     else if (e.activity === "working") target = { act: "work", spot: homeSpot(e) };
@@ -265,7 +252,7 @@ export function planFigures(figures: Record<string, Figure>, staff: Staff, now: 
   return next;
 }
 
-/** One tick (0.9 s): every walking figure takes its next step; arriving at a meeting or
+/** One tick (TICK_MS): every walking figure takes its next step; arriving at a meeting or
  *  its desk starts the stay (DWELL_MS). */
 export function stepFigures(figures: Record<string, Figure>, now: number): Record<string, Figure> {
   let changed = false;

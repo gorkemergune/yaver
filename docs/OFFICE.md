@@ -52,7 +52,7 @@ Mevcut 3 yaver eşlemesi: academic → Atlas, agenda → Deniz, discipline → K
 
 - Yeni ana ekran: **Ofis** (Takvim / Görev panosu / Raporlar sekmeleri kalır; mevcut Bugün/Hafta görünümleri Takvim'e taşınır).
 - Sahne: prototipteki gibi SVG katmanları. Statik katmanlar `scripts/office_scene.py` ile üretilip `web/src/office/scene/*.svg` olarak gelir (koordinatlar ve çizim sırası prototipte doğrulandı). Dinamik katman: çalışan figürleri (React).
-- Hareket: prototipteki ızgara + A* yol bulma (engeller listesi prototipte), 0.55 karo adım, 0.9 sn geçiş. Oturma noktaları, yaklaşma noktaları ve z-sırası kuralları prototipten aynen alınır.
+- Hareket: prototipteki ızgara + A* yol bulma (engeller listesi prototipte), 0.55 karo adım, 0.45 sn geçiş (prototipin 2 katı hız). Yürürken yeni durum gelirse figür hemen yeni hedefe döner; vardığı toplantıda 3 sn, masasında 2 sn kalır: ofis backend'in en fazla ~5 sn gerisinde. Oturma noktaları, yaklaşma noktaları ve z-sırası kuralları prototipten aynen alınır.
 - Sol altta küçük çalışan listesi (isim kendi renginde + durum), sağda detay paneli (Şu an, Defter, Mesai planı, Sohbet), altta "Yaver'e yaz" + mikrofon.
 - Gece/gündüz gerçek saate göre. Mobilde sahne yatay kaydırılır, panel alta iner.
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { EmployeeState, OfficeEmployee, OfficeEvent } from "../api/types";
 import { SPOTS, inMeetingRoom, need } from "./geometry";
 import { DWELL_MS, applyOfficeEvent, feedLine, figureView, meetingSeats, planFigures, stepFigures, type Figure, type Staff } from "./model";
+import { TICK_MS } from "./useFigures";
 
 function employee(id: string, desk: OfficeEmployee["desk"], extra: Partial<OfficeEmployee> = {}): OfficeEmployee {
   return {
@@ -62,7 +63,7 @@ function arrive(figures: Record<string, Figure>, at = 0): Record<string, Figure>
   return current;
 }
 
-const TICK = 900;
+const TICK = TICK_MS;
 
 describe("applyOfficeEvent", () => {
   it("a snapshot replaces everyone; not ready means an empty office", () => {
@@ -150,30 +151,37 @@ describe("figures follow the backend state", () => {
     expect(after.yaver?.path.length).toBeGreaterThan(0); // walks back out of the meeting room
   });
 
-  it("a meeting shorter than the walk is still shown, then the figure follows the latest state", () => {
+  it("a walking figure turns to its new place as soon as the state changes", () => {
     let staff = applyOfficeEvent(STAFF, state("yaver", { activity: "meeting", meeting_with: "agenda" }));
     staff = applyOfficeEvent(staff, state("agenda", { activity: "meeting", meeting_with: "yaver" }));
     let figures = planFigures(planFigures({}, STAFF, 0, fixed(0.1)), staff, 0, fixed(0.1));
-    const seat = figures.agenda?.spot;
-    expect(seat).toMatch(/^meet:/);
+    expect(figures.agenda?.spot).toMatch(/^meet:/);
+    figures = stepFigures(figures, TICK);
+    expect(figures.agenda?.path.length).toBeGreaterThan(0); // on the way
 
-    // ~1 s later the backend handover is over: Deniz works, Yaver waits in its room
+    // the handover is over before it got there: it heads for its desk at once
     staff = applyOfficeEvent(staff, state("agenda", { activity: "working", task: "Takvime ekliyor", tool: "add_event" }));
-    staff = applyOfficeEvent(staff, state("yaver", { activity: "working", task: "Deniz çalışıyor, bekliyor" }));
+    figures = planFigures(figures, staff, 2 * TICK);
+    expect(figures.agenda?.spot).toBe("seat:front:2");
+    expect(figures.agenda?.act).toBe("work");
+  });
+
+  it("after arriving it stays a little, so the office lags the backend by under 5 s", () => {
+    let staff = applyOfficeEvent(STAFF, state("agenda", { activity: "meeting", meeting_with: "yaver" }));
+    let figures = planFigures(planFigures({}, STAFF, 0, fixed(0.1)), staff, 0, fixed(0.1));
     let t = 0;
     while ((figures.agenda?.path.length ?? 0) > 0) {
       t += TICK;
       figures = stepFigures(planFigures(figures, staff, t), t);
-      expect(figures.agenda?.spot).toBe(seat); // keeps walking to the meeting
     }
     expect(inMeetingRoom(need(figures.agenda, "agenda").x, need(figures.agenda, "agenda").y)).toBe(true);
-    // sits it out...
-    figures = planFigures(figures, staff, t + (DWELL_MS.meeting ?? 0) - 100);
-    expect(figures.agenda?.spot).toBe(seat);
-    // ...then goes to its desk to do the work the backend reported
-    figures = planFigures(figures, staff, t + (DWELL_MS.meeting ?? 0) + 100);
-    expect(figures.agenda?.spot).toBe("seat:front:2");
-    expect(figures.agenda?.act).toBe("work");
+    // the backend moves on right after the arrival
+    staff = applyOfficeEvent(staff, state("agenda", { activity: "working", task: "Takvime ekliyor" }));
+    const dwell = DWELL_MS.meeting ?? 0;
+    expect(planFigures(figures, staff, t + dwell - 100).agenda?.spot).toMatch(/^meet:/);
+    const after = planFigures(figures, staff, t + dwell + 100);
+    expect(after.agenda?.spot).toBe("seat:front:2");
+    expect(dwell + TICK).toBeLessThanOrEqual(5000);
   });
 
   it("a meeting cuts a walk to the desk short", () => {
@@ -218,32 +226,30 @@ describe("figures follow the backend state", () => {
     }
   });
 
-  it("standup: nobody leaves before the last one arrives, then they stay together", () => {
+  it("standup: those in the room stay until the last one sits, then leave within seconds", () => {
     const ids = ["yaver", "academic", "agenda"];
     const desks: Record<string, OfficeEmployee["desk"]> = { yaver: { row: "office", col: 0 }, academic: { row: "back", col: 0 }, agenda: { row: "front", col: 2 } };
-    let staff: Staff = Object.fromEntries(
+    const meeting: Staff = Object.fromEntries(
       ids.map((id) => [id, employee(id, desks[id] ?? { row: "back", col: 1 }, { activity: "meeting", meeting_with: id === "yaver" ? null : "yaver" })]),
     );
-    let figures = planFigures(planFigures({}, STAFF, 0, fixed(0.1)), staff, 0, fixed(0.1));
-    // the backend meeting is over at once (a few seconds of LLM calls)
-    staff = Object.fromEntries(ids.map((id) => [id, { ...need(staff[id], id), activity: "break" as const, meeting_with: null }]));
+    let figures = planFigures(planFigures({}, STAFF, 0, fixed(0.1)), meeting, 0, fixed(0.1));
+    // the meeting lasts until everyone is in
     let t = 0;
     let lastArrival = 0;
     while (Object.values(figures).some((f) => f.path.length)) {
       t += TICK;
       const before = figures;
-      figures = stepFigures(planFigures(figures, staff, t, fixed(0.1)), t);
-      for (const f of Object.values(figures)) {
-        if (need(before[f.id], f.id).path.length && !f.path.length) lastArrival = t;
-        // while anyone walks in, those already there keep their seats
-        expect(f.act).toBe("meeting");
-      }
+      figures = stepFigures(planFigures(figures, meeting, t, fixed(0.1)), t);
+      for (const f of Object.values(figures)) if (need(before[f.id], f.id).path.length && !f.path.length) lastArrival = t;
     }
-    // after the last arrival everyone stays the full meeting time, then leaves
-    const together = planFigures(figures, staff, lastArrival + (DWELL_MS.meeting ?? 0) - 100, fixed(0.1));
+    // then it ends: everyone still sits together until the last arrival's stay is over...
+    const over: Staff = Object.fromEntries(ids.map((id) => [id, { ...need(meeting[id], id), activity: "break" as const, meeting_with: null }]));
+    const dwell = DWELL_MS.meeting ?? 0;
+    const together = planFigures(figures, over, lastArrival + dwell - 100, fixed(0.1));
     expect(Object.values(together).every((f) => f.act === "meeting" && f.spot.startsWith("meet:"))).toBe(true);
-    const after = planFigures(together, staff, lastArrival + (DWELL_MS.meeting ?? 0) + 100, fixed(0.1));
-    expect(Object.values(after).some((f) => f.act !== "meeting")).toBe(true);
+    // ...and nobody is kept longer than that
+    const after = planFigures(together, over, lastArrival + dwell + 100, fixed(0.1));
+    expect(Object.values(after).every((f) => f.act !== "meeting")).toBe(true);
   });
 
   it("break: idle places only - never the meeting room or someone's desk", () => {

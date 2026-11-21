@@ -28,7 +28,7 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 - Sol altta çalışan listesi, sağda detay paneli (Şu an, Defter, Mesai planı, Sohbet), altta "Yaver'e yaz" + mikrofon
 - Canlı SSE bağlantısı; Bugün/Hafta görünümleri Takvim sekmesine taşınır; gece/gündüz gerçek saate göre; mobilde yatay kaydırma
 
-**Durum: kod tamam (2026-11-21).** Ofis ana sekme; Bugün/Yarın/Hafta Takvim altında. Karar: backend durumları yürüyüşten kısa (devir ~1 sn, ofisi geçmek 10-20 sn), bu yüzden backend'in gönderdiği toplantı / masa ziyareti tamamlanır ve 4 / 2,5 sn sürer, sonra son duruma geçilir: ofis birkaç saniye geriden gelir ama olan her şeyi gösterir. Yürüyüş hızı prototipteki gibi (0,55 karo / 0,9 sn).
+**Durum: kod tamam (2026-11-21).** Ofis ana sekme; Bugün/Yarın/Hafta Takvim altında. Karar: backend durumları yürüyüşten kısa (devir ~1 sn, ofisi geçmek 10-20 sn), bu yüzden backend'in gönderdiği toplantı / masa ziyareti tamamlanır ve 4 / 2,5 sn sürer, sonra son duruma geçilir: ofis birkaç saniye geriden gelir ama olan her şeyi gösterir. Güncelleme (2026-11-21): hız 2 katı (0,55 karo / 0,45 sn), yürürken yeni durum gelince figür hemen döner, varışta 3 / 2 sn kalır: gecikme en fazla ~5 sn; çok kısa bir devirde odaya hiç varılmayabilir.
 
 **Bitti sayılır:**
 - [x] Ekranda gerçek isteklerle çalışanlar masaya dönüp çalışıyor, delegasyonda toplantı odasına gidiyor — canlı deneme (test DB'sine bağlı geçici API, gerçek LLM): "Cuma 10:00 hackathon toplantısı ekle, bir de bugün spora gidemeyeceğim" → Yaver, Jarvis ve Karen toplantı odasına yürüyüp aynı masada oturdu (Yaver bize dönük, diğerleri karşısında), sonra masalarına / molaya döndü; panelden doğrudan sohbet defteri canlı güncelledi
