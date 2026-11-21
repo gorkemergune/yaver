@@ -1,157 +1,177 @@
-# Gece raporu — 20/21 Kasım 2026 (O2 + O3 + O4)
+# Gece raporu — 21/22 Kasım 2026 (masaüstü 401 + ders materyalleri)
 
-Üç faz da kodda tamam. 13 commit var, **push yok**. `down -v`, volume silme yok; `.env`'e dokunulmadı.
+Dal: `feat/night-materials` (worktree `C:\Users\PC\Desktop\yaver-qa`). **Push yok.**
 
-Gerçek DB'de migration gerekmedi, bu yüzden yedek de alınmadı. Yeni tablo yok; yalnızca dev API yeniden yüklenince çalışan listesi `agents.yaml`'dan senkronlandı.
+**Canlıya dokunulmadı.** `yaver-live`, gerçek DB ve deploy yok. `import-materials-live.ps1` canlıda çalıştırılmadı. `.env`'e dokunulmadı.
 
-Her maddeden sonra kontroller (container'da `ruff`, `ruff format`, `mypy`, `pytest`; web'de `npm run check`) yeşildi. Son durum:
-- **Backend:** 835 test.
-- **Web:** 55 test.
+Gece 23:43'te **elektrik kesildi**:
+- 2. maddenin kodu yazılmıştı ama commit'lenmemişti. Kontrolleri geçirip commit'ledim.
+- Açılışta dev stack ana klasörden (`yaver`) kalkmıştı. Materyal kodu ve `/materials` bağlantısı worktree'de olduğu için `yaver-dev`'i yeniden worktree'den başlattım.
 
-LLM harcaması **≈ $0.03** (sınır $1). Hepsi test DB'sindeki canlı denemelerde:
-- O2 canlı akış: 2 mesaj ve panel sohbeti, ~$0.006
-- 10 kişilik yönlendirme seti: 2 tur, ~$0.014
-- Standup: 2 tur, gün sonu raporu: 1 kez. Bu kayıtların bir kısmını test DB sıfırlaması sildi; token sayısından tahminim ~$0.01.
+Her maddeden sonra kontroller yeşildi: ruff, format, mypy, pytest (son 1125), smoke, LLM'siz e2e (22/22), dev `health/ready` 200.
+
+**LLM harcaması ≈ $1.10 (sınır $3).**
+- Dev DB'de $1.08:
+  - izlenceler + eşleme $0.22
+  - CSE 221 notları $0.71 (bunun $0.35'i düzeltmeden önce çöken ilk okumada boşa gitti, aşağıda)
+  - 6 çalışma kağıdı ~$0.13
+- Test DB'de canlı soru seti $0.02.
 
 ## Özet
 
-| Faz | Madde | Durum | Commit'ler |
+| # | Madde | Durum | Commit |
 |---|---|---|---|
-| O2 | Sahne betiği → katman başına SVG + `layout.json`, gökyüzü CSS değişkeni | ✅ | `abec393` |
-| O2 | Geometri (engeller, ızgara, A*, koltuklar, z-sırası) + SSE → figür modeli | ✅ | `9c9a44b` |
-| O2 | Canlı bağlantı (snapshot + SSE, yeniden bağlanma, 40 sn sessizlik bekçisi) | ✅ | `4dbd299`, `6298e43` |
-| O2 | Ofis ana sekme, Takvim altında Bugün/Yarın/Hafta, liste, panel, Yaver'e yaz + mikrofon | ✅ | `4dbd299` |
-| O2 | A* testi (tüm nokta çiftleri) + SSE → figür birim testleri | ✅ | `9c9a44b`, `b24dcf8` |
-| O2 | Headless ekran görüntüleri (masaüstü + 390 px), düzeltmeler | ✅ | `4dbd299` |
-| O2 | Ek: çalışanla doğrudan sohbet ana sohbetin yerine geçiyordu (O1 hatası) | ✅ | `efdd894` |
-| O3 | 6 yeni çalışan (örnek + senin yerel `agents.yaml`'ın) | ✅ | `ee7bc95` |
-| O3 | `web_search` (Tavily/Brave) + Lyra için Meta iskeleti, anahtar yoksa "bekliyor" notu | ✅ | `ee7bc95` |
-| O3 | Her yeni çalışana mesai işi, $0.20 günlük bütçe | ✅ | `ee7bc95`, `64c60fa` |
-| O3 | 10 kişilik yönlendirme testi (canlı set) | ⚠️ 8/9 | `a6f5095` |
-| O4 | 09:00 standup → brifing | ✅ (saat için aşağıya bak) | `d027254` |
-| O4 | Gün sonu raporu | ✅ (21:15, karar) | `d027254` |
-| O4 | Pazar haftalık toplantısı | ✅ (canlı denenmedi) | `d027254` |
-| O4 | Görev panosu sekmesi | ✅ | `d027254`, `839454e` |
-| O4 | Dev modda ritüel düğmeleri | ✅ | `839454e` |
+| 1 | Masaüstü 401 → "Cihaz anahtarı gerekli", ayarlarda anahtar + bağlantı testi, 0.2.0 kurulum | ✅ | `66ce3c3` |
+| 2 | Materyaller: sınıflandırma, haftalık plan, içindekiler → hafta, föyler, dev DB | ✅ (EE211 ⚠️) | `ccd601e`, `3e2f617` |
+| 3 | Paket + `scripts/import-materials-live.ps1` (çalıştırılmadı) | ✅ | `148ad7f` |
+| 4 | CSE 221 Google Sheets kaynağı + Scholar'ın günlük kontrolü | ✅ | `f98acb6` |
+| 5 | Haftalık konu analizi, Pazar planı, sınav planı, çalışma kağıtları | ✅ | `b47560b`, `da451a9` |
+| 6 | 15 soruluk canlı regresyon | ✅ 15/15 + 14/15 | `18d132a` |
 
-## O2 — Ofis sahnesi
+## 1. Masaüstü 401
 
-- **Sahne:** `scripts/office_scene.py` artık `web/src/office/scene/*.svg` ve `layout.json` yazıyor.
-  - 7 katmanın hepsi prototipteki SVG'lerle **birebir aynı**; yalnızca `xmlns` eklendi ve gökyüzü `var(--office-sky)` oldu.
-  - SVG'ler satır içi yerleştiriliyor; `<img>` içinde sayfanın CSS değişkeni çalışmazdı.
-- **Geometri:** `web/src/office/geometry.ts` prototipin sayılarının aynısı.
-  - Tek fark: koltuklar çalışan id'si yerine masa konumuna (`seat:back:0`) bağlı. Kimin nerede oturduğu `agents.yaml`'dan geliyor; kadroda olmayan masa boş kalıyor.
-- **A* testi:** 38 nokta, **1406 rota, 0 ihlal**.
-  - Prototipte 34 nokta / 1122 rota vardı. Bu gece eklenenler: yönetici odası + 10 masa ve standup için 3 ayakta yer.
-  - Kontrol: rotanın her 0.02 karoluk örneği hiçbir engelin içine girmiyor. Tek istisna, koltuğa giriş/çıkış bacağı (koltuk zaten bir engel karesinin içinde).
-- **SSE → figür:**
-  - `working` → kendi masası.
-  - `meeting` → toplantı odası; `meeting_with` ile aynı masada, Yaver bize dönük, karşısındaki arkadan görünüyor.
-  - `break` → kahve, koltuk ya da dinlenme (rastgele). Toplantı odasına ve başkasının masasına hiç gitmez.
-  - `needs_user` → kırmızı nokta.
-  - Bunların hepsi `model.test.ts`'te test edildi.
-- **karar (önemli):** backend durumları yürüyüşten çok kısa.
-  - Bir devir ~1 sn sürüyor; ofisi prototip hızında (0.55 karo / 0.9 sn) geçmek 10-20 sn.
-  - İlk canlı denemede kimse toplantı odasına varamadı (ekran görüntüsü: `o2-canli-ilk-deneme-sorun.png`).
-  - Çözüm: backend'in gönderdiği toplantıya ya da masaya figür mutlaka varıyor ve orada kalıyor (toplantı 4 sn, masa 2.5 sn), sonra en güncel duruma geçiyor.
-  - Toplantıda, grubun yürüyen bir üyesi varken gelenler kalkmıyor; son gelen oturunca herkesin süresi baştan başlıyor.
-  - Bedeli: ofis gerçeğin **10-30 sn gerisinden** geliyor. Olan her şey gösteriliyor, olmayan hiçbir şey gösterilmiyor. Yürüyüş hızını değiştirmedim; istersen hızlandırırım.
-- **Ek düzeltme (`6298e43`):** API öldüğünde Vite proxy'si SSE bağlantısını açık tutuyordu ve `: ping` yorumları EventSource'a hiç ulaşmıyordu, yani sayfa kopukluğu fark edemiyordu.
-  - Artık ping bir veri olayı; tarayıcı 40 sn hiçbir olay görmezse yeniden bağlanıyor.
-  - Canlı denendi: API'yi öldürüp başlattım, sayfa yeni API'ye kendisi bağlandı.
-- **Ek düzeltme (`efdd894`):** `/conversations/latest` ve zamanlayıcının mesaj yazdığı "en son sohbet", bir çalışanla açılan doğrudan sohbeti ana sohbet sanıyordu. Atlas'la konuşunca sabah brifingi oraya düşerdi.
-- **Görsel kontrol:** headless Chrome, CDP ile.
-  - Önce senaryolu bir sahte sunucuyla (yalnızca scratchpad'de, ürün kodunda yok) masaüstü + 390 px, açık/koyu.
-  - Sonra test DB'sine bağlı geçici API + gerçek LLM ile kare kare.
-  - Bulup düzelttiklerim:
-    - "Yaver'e yaz" kutusu dar ve ortalıydı.
-    - Telefonda liste sahneyle birlikte kayıyordu; artık sahnenin altında.
-    - Telefonda ipucu "sol alttaki liste" diyordu.
-    - Yürüyen figür her tick'te yeniden rota hesaplıyordu.
-  - Z-sırası prototipteki kurallarla uyumlu: ön sıra sandalye sırtlıkları ve toplantı odası camı figürlerin üstünde, Yaver masasının arkasında.
+- **Neden:** kurulu 0.1.0 (20 Kasım) giriş/cihaz anahtarı bilmiyordu. `Authorization` başlığı göndermiyordu, her 401'i "Sunucu hatası (401)" gösteriyordu.
+- **Şimdi:**
+  - 401'de "Cihaz anahtarı gerekli" ekranı çıkıyor: anahtarın nereden alınacağı ve "Ayarlara git". Yazılan mesaj kutuya geri dönüyor.
+  - Ayarlarda anahtar alanı ve "Bağlantıyı test et" var.
+- **Kurulum dosyası:** `desktop\src-tauri\target\release\bundle\nsis\Yaver_0.2.0_x64-setup.exe`
 
-## O3 — Yeni çalışanlar
+## 2. Ders materyalleri (`python -m app.materials.ingest`)
 
-- **Kadro (örnek dosya):** Nova (kariyer, arka 1), Orion (startup, arka 2), Lyra (reklam, arka 3), Arda (araştırma, arka 4), Mira (içerik, ön 0), Ece (sosyal, ön 1). Masalar ve renkler prototiptekiyle aynı.
-- **Senin `config/agents.yaml`'ın:** 6 kişi sona eklendi, mevcut 4'e dokunulmadı.
-  - Alanlar OFFICE.md'deki bağlamla (Medipol, Iceberg, Nexa Lab, TÜBİTAK) dolduruldu.
-  - Yedeği: `C:\Users\PC\AppData\Local\Temp\claude\57ae162538478f55\7574789c-9cac-401d-9351-6997b6dbce21\scratchpad\agents.local.backup.yaml` (geçici klasör).
-  - Gerçek DB'de ofis şu an 10 kişi.
-- **Web arama:** `web_search` aracı (`.env`: `WEB_SEARCH_PROVIDER=auto`, `TAVILY_API_KEY` ya da `BRAVE_API_KEY`).
-  - Anahtar yoksa araç `integration_pending` döner ve çalışanın defterine **günde bir kez** "Web arama anahtarı bekleniyor (…)" yazar. Kırmızı nokta çıkmaz.
-- **Lyra:** `get_ad_report` iskelet. Anahtar yokken "Meta reklam hesabı bağlı değil", anahtar varken "entegrasyon henüz yazılmadı" der; bekliyor durumunda kalıyor.
-- **Mesai işleri:** `agents.yaml` → `shift_jobs`.
-  - Nova 10:00 dönüş takibi, Orion 08:30 rakip taraması, Lyra 09:30 reklam metrikleri, Arda 09:15 teslim takibi, Mira 11:00 trend taraması, Ece 10:30 hatırlatmalar.
-  - Hepsi zamanlayıcıda (`shift:<çalışan>:<iş>`), bütçe kontrollü, sonuç deftere ve gelen kutusuna yazılıyor.
-  - **Canlıda 6/6 çalışan defterine yazdı.**
-  - karar: mesai notları LLM'siz, kodla yazılıyor: ücretsiz ve uydurmasız. Web taraması sonuçların başlıklarını ve sitelerini listeliyor (özet yok).
-- **Bütçe:** örnek dosyada `office.daily_budget_usd: 0.20`; senin dosyanda yeni 6 kişiye ayrı ayrı $0.20.
-  - karar: senin mevcut 4 çalışanına dokunmadım, onlar kod varsayılanında ($0.50) kaldı.
-- **Yönlendirme:** `pytest -m live -k routing`, 9 mesaj, alan başına bir.
-  - 1. tur 8/9: tek ıskalama, koordinatörün tek alanlı toplantıyı `fast_path` ile kendisinin eklemesiydi. Tasarım gereği; test artık bunu doğru sayıyor.
-  - 2. tur 8/9: "Bugün spora gidemeyeceğim" bu sefer Karen'e değil koordinatöre kaldı. 1. turda aynı prompt'la doğruydu; LLM'in değişken davranışı.
-- **karar:** koordinatör prompt'undaki örnek isimler artık id ile seçiliyor. `agents[-1]` 10 kişide Ece olunca spor örneği yanlış kişiye düşüyordu.
-- **Bulunan hata:** çalışan satırı yokken "bekliyor" notu FK hatasıyla tüm sohbeti düşürüyordu. Artık not yazılmıyor, sohbet devam ediyor (`a6f5095`).
-- **Prompt boyutu:** koordinatör 3443 → 3698 token (+%7: 6 yeni alan satırı ve delegasyon listesi). Yeni çalışanlar çağrı başına 1.8-2.8k token.
+`syllabus/` klasöründeki 11 dosya. Dönem başı: 28 Eylül 2026.
 
-## O4 — Ritüeller
+| Ders | Bulunan | Eksik / belirsiz |
+|---|---|---|
+| CSE 211 | İzlence: 14 hafta, 7 lab ödevi haftası, 3 kitap | Kitap PDF'i yok; haftalarda okuma bölümü yazmıyor |
+| CSE 221 | İzlence: 14 hafta, 2 kitap. 2 ödev (hafta 1-2), Labwork01 Part I (3-6), Part II (4). Google Sheets notları (4. madde) | **Çelişki:** ara sınav hem 8. hafta konusunda hem "Midterm I: Week 9" olarak yazıyor. Kitap PDF'i yok |
+| EE211 (BME 211) | İzlence (5 kitap, ara sınav 10 Kasım), lab kitabı: 7 deney sayfalarıyla | **İzlencede haftalık plan yok**: deneyler haftalara eşlenmedi (tahmin edilmedi) |
+| MATH 221 | 14 hafta, her haftada okuma bölümü (1.1 … 5.2), kitap | Kitap PDF'i yok. **İzlenceye göre ara sınav 27 Kasım Cuma 16:00**, takviminde olup olmadığına bak |
+| TKL 201 | 13 hafta, yazılı tarihlerin 13'ü de dönem haftalarıyla tutuyor, 10 kitap | — |
+| HUM 103 | 13 hafta, bölüm + sayfa okumaları (`.docx`), kitap | — |
 
-- **Standup:** brifing işinin içinde.
-  - Yaver ve 9 çalışan `meeting` durumuna geçiyor ve toplantı odasında toplanıyor. Oda 9 koltuklu; perde önüne ve kapının yanına 3 ayakta yer eklendi.
-  - Her çalışan defteri, gelen kutusu ve bugünkü mesai işlerinden 1-2 cümle söylüyor (fast tier, kendi bütçesinden).
-  - Söyleyecek bir şeyi olmayanın ya da bütçesi dolanın cümlesini kod yazıyor, LLM çağrılmıyor.
-  - Yaver bunları brifingin sonuna "**Standup**" bölümü olarak ekliyor; sonra herkes dağılıyor.
-  - Canlıda 10 kişi odada birlikte görüldü (`o4-standup-toplanti-odasi.png`).
-  - ⚠️ **Saat:** standup `BRIEFING_TIME`'da çalışıyor. Kod ve `.env.example`'da varsayılanı 09:00 yaptım, ama senin `.env`'inde `BRIEFING_TIME=08:00` varsa 08:00'de çalışır (dosyaya dokunmadım). 09:00 istiyorsan `.env`'de değiştir.
-- **Gün sonu raporu:** her çalışanın bugünkü defter notları ve gelen kutusundan Yaver tek bir fast-tier çağrıyla rapor yazıyor; LLM olmazsa kod listesi var. O gün bir şey olmadıysa mesaj yok.
-  - karar: saat **21:15** (`DAY_REPORT_TIME`). 21:00'deki check-in'le aynı dakikada iki mesaj gelmesin diye.
-  - Canlı çıktı: "Nova: Iceberg… 2 gündür dönüş bekleniyor; Arda: TÜBİTAK ara rapor teslimi 25 Kasım…".
-- **Pazar haftalık toplantısı:** mevcut haftalık plan akışı `weekly_plan.order`'daki çalışanlarla toplantı odasında çalışıyor. Toplantı kısmı testli; plan taslağı Sonnet kullandığı için canlıda denemedim.
-- **Görev panosu:** `#/board` (`GET /api/office/board`).
-  - **Bekliyor:** bugün henüz çalışmamış planlı işler.
-  - **Çalışıyor:** süren işler.
-  - **Onay bekliyor:** açık sorusu olan çalışanın son işi.
-  - **Bitti:** son 3 gün.
-  - Kartlar çalışan rengiyle; karta tıklayınca `#/office?employee=<id>` ile o çalışanın paneli açılıyor.
-  - Pano her ofis olayında yenileniyor. Telefonda sütunlar yana kayıyor.
-  - Ek: mesai işleri ve ritüeller artık gelen kutusuna "Mesai" kaynağıyla düşüyor (`64c60fa`).
-- **Dev düğmeleri:** yalnızca `npm run dev` / dev container'da, ofiste "Ritüeller (yalnızca geliştirme)": Standup, Gün sonu raporu, Haftalık toplantı.
-  - Gerçek işi `force` ile çalıştırırlar: gerçek LLM çağrısı yaparlar ve sohbete gerçek mesaj yazarlar.
-  - Prod derlemede görünmezler.
+- **Kitaplar:** klasörde ders kitabı PDF'i yok; tek "kitap" EE211 lab kitabı. Bölüm → hafta eşlemesi kodda hazır, kitap gelince çalışır: önce okumadaki "3.5, 3.6"dan, kalanı tek bir Sonnet çağrısıyla. Kitabın yalnız haftaya eşlenen bölümleri gömülür. Embedding süresi dosya başına ~1 sn; CPU sorun değil.
+- **karar:** kodu olmayan ama izlencesi olan dersler `--create-courses` ile oluşturuldu. EE211 canlıdaki adıyla, `BME 211` takma adıyla eşlendi.
+- **Hata (düzeltildi):** `.gitignore`'daki `materials/` kalıbı kod klasörü `backend/app/materials/`'ı da yok sayıyordu; kod commit'e hiç girmeyecekti. Kalıplar kök dizine sabitlendi (`/syllabus/`, `/materials/`).
 
-## Ekran görüntüleri
+## 3. Paket ve canlıya yükleme
 
-`C:\Users\PC\Desktop\yaver-gece-ekranlar\` klasöründe (repoda değil):
-- **O2:**
-  - `o2-ofis-10-kisi-senaryolu-sunucu.png`: prototiple karşılaştırma için 10 kişilik sabit senaryo.
-  - `o2-ofis-panel-secili.png`, `o2-ofis-390px.png`, `o2-ofis-390px-panel.png`
-  - `o2-canli-dogrudan-sohbet.png`: gerçek LLM, panelden not.
-  - `o2-canli-ilk-deneme-sorun.png`: bekleme kuralından önceki sorun.
-- **O4:**
-  - `o4-standup-toplanti-odasi.png`, `o4-standup-tam-ekran.png`
-  - `o4-gorev-panosu-masaustu.png`, `o4-gorev-panosu-390px.png`
-  - `o4-karttan-acilan-panel.png`
+- **Dışa aktarma:** `docker compose exec api python -m app.materials.bundle export` → `data\bundles\materials-<zaman>\` (gitignore'da).
+  - Pakette DB kimliği yok: dersler kod/takma adla, dosyalar SHA-256 ile eşleşiyor.
+  - Embedding'ler aynen taşınıyor, canlıda yeniden hesaplanmıyor.
+- **İçe aktarma:**
+  - Tek transaction, tek change_set; geri alınabilir.
+  - Aynı paket ikinci kez hiçbir şey yazmaz.
+  - Embedding modeli farklıysa, kopya bozuksa ya da DB eski şemadaysa reddedilir.
+- **Betik:** `scripts\import-materials-live.ps1` sırasıyla:
+  1. Paketi ve çalışan sürümde komutun olduğunu kontrol eder.
+  2. `backups\preimport\` altına yedek alır.
+  3. Paketi api'ye kopyalar, önce kuru deneme yapar, sonra yükler.
+  4. Kopyayı temizler, change set kimliğini `imports.log`'a yazar.
+  - Seçenekler: `-DryRun`, `-Undo <id>`.
+- **Deneme (dev DB'nin kopyasında):** materyalleri silinmiş "canlı gibi" kopyaya:
+  - Yükleme: 5 ders oluştu, EE211 eşleşti, 11 dosya, 226 parça.
+  - Tekrar yükleme: hiçbir şey yazmadı.
+  - Bozulmuş kopya: onarıldı. Onarımı geri almak bozuk hâli birebir geri getirdi.
+  - İlk yüklemeyi geri almak: DB başlangıç hâline döndü.
+  - Arama sonuçları dev ile birebir aynı.
+  - Betiğin kendisi `-Project yaver-dev` ile denendi (yedek, yükleme, geri alma, "yapacak bir şey yok").
+- **Hazır paket:** `data\bundles\materials-20261122-0024` (11 dosya, 226 parça, CSE 221 kaynağı ve 11 sekmesi).
 
-Not: prototip dosyası (`Main.dc.html`) kendi başına çalışmadığı için yan yana ekran görüntüsü alınamadı. Statik katmanlar birebir aynı olduğundan karşılaştırmayı figür yerleşimi ve z-sırası üzerinden yaptım.
+## 4. CSE 221 not kaynağı
 
-## Sabah denemen gerekenler
+- **Tablolar:** `course_sources`, `source_items`. Komutlar: `python -m app.materials.sources add / check / list`.
+- **Okuma:** xlsx bütün olarak indirilip kodda okunuyor (ek bağımlılık yok). Hücrelerde neredeyse metin yok (yalnız "codes"ta 7 kısa satır), bağlantı yok; asıl içerik **61 görsel**.
+- **Model yalnız yeni/değişen sekmeyi okur.** Değişmeyen kaynak = bir indirme, sıfır maliyet. Görseller Sonnet'le okunuyor; okunamayan el yazısı "belirsiz"e yazılıyor, tahmin edilmiyor.
+- **Eşleme** (syllabus'la tutarlı):
 
-1. **Ofis:** `http://localhost:8080` artık ofisle açılıyor.
-   - 10 kişiyi görmelisin. Bir çalışana tıkla: Şu an, Defter, Gelen kutusu, Mesai planı, Sohbet.
-   - Telefonda sahneyi yana kaydır; liste ve panel altta olmalı.
-2. **Canlı devir:** "Yaver'e yaz"a iki alanlı bir şey yaz (ör. "Cuma 10:00 toplantı ekle, bir de bugün spora gidemeyeceğim").
-   - İlgili çalışanlar toplantı odasına yürüyüp Yaver'le oturmalı, sonra masalarına ya da molaya dönmeli.
-   - Ofis 10-30 sn geriden gelir (karar yukarıda).
-3. **Standup:** ofisin altındaki dev düğmesi "Standup", ya da `POST /api/jobs/briefing/run?force=true`.
-   - Herkes toplantı odasına gitmeli; sohbete "Standup" bölümlü bir brifing düşmeli.
-   - Saati 09:00 istiyorsan `.env`'de `BRIEFING_TIME=09:00` yap.
-4. **Gün sonu raporu:** dev düğmesi ya da akşam 21:15'te.
-5. **Görev panosu:** "Görev panosu" sekmesi. Bir karta tıkla, ofiste o çalışanın paneli açılmalı.
-6. **Web arama (istersen):** `.env`'e `TAVILY_API_KEY` (ücretsiz katman) ekle ve `docker compose up -d` yap.
-   - Orion ve Mira'nın sabah taraması gerçek sonuç yazar.
-   - Elle: `POST /api/jobs/shift:startup:web_scan/run?force=true`
-7. **Yönlendirme ölçümü (istersen):** `docker compose exec api pytest -m live -k routing -s` (~$0.005).
+  | Sekme | Hafta |
+  |---|---|
+  | num1, compl., signed | 1 |
+  | codes | 2 |
+  | bool | 2-3 |
+  | func, simpl, canonic | 3 |
+  | Map | 4-5 |
+  | Lab-Debug | 6 |
+  | comb1 | 6-7 |
 
-**Dikkat (risk):** senin yerel `agents.yaml`'ında Jarvis'in alanı hâlâ "iş/staj (Medipol, Iceberg vb.), başvurular" diyor; Nova'nınki de "Medipol ve Iceberg işleri, staj…".
-- Bu sınırda yönlendirme ikisi arasında kayabilir; canlı testte "Iceberg staj başvurusu" Nova'ya gitti.
-- Mevcut 4'ü değiştirmemem istendiği için dokunmadım. İstersen Jarvis'in alanından "iş/staj, başvurular"ı çıkar; örnek dosyada bunu yaptım.
+- **Scholar'ın `source_watch` mesai işi** (her gün 08:20): yeni/değişen sekme olursa deftere not, sohbete "CSE 221'e yeni not: Map" ve bildirim. Bildirim commit'ten sonra gidiyor; başarısız olsa da işi geri almıyor.
+- **Bağlantılı dosyalar:** sekmenin bağladığı herkese açık PDF'ler (Drive dosyası, Google Doc, .pdf) materyale ekleniyor. Bu tabloda bağlantı yok; bu yol yalnız testle doğrulandı.
+- **Hata (düzeltildi):** ilk okuma son sekmede çöktü. Model `pages` dizisini metin olarak döndürdü, tek transaction olduğu için önceki sekmeler de kayboldu ($0.35).
+  - Artık çağrı başına 4 görsel.
+  - Metin gelen dizi kodda çözülüyor.
+  - Okunamayan sekme atlanıp ertesi kontrole kalıyor.
+
+## 5. Haftalık konu analizi (Scholar)
+
+- **`get_syllabus`:**
+  - Haftanın konusu, okuması, lab'ı, sınavı.
+  - Tek hafta için o haftaya eşlenen kitap/lab bölümleri (sayfalarıyla), paylaşılan not sekmeleri, föyler ve atıf için izlence dosyası.
+  - "geçen hafta / bu hafta / haftaya" kodda çözülüyor.
+- **`get_exam_scope` (yeni):** dersin sıradaki sınavı ve kapsadığı haftalar.
+  - Kullanıcının söylediği konular syllabus'la eşleşir: kelime kökü + küçük bir TR→EN sözlük ("kanonik formlar" → "Canonical Forms").
+  - Konuların hepsi bulunursa yalnız o haftalar döner. Bulunamayan konu varsa açıkça söylenir ve kapsanan tüm haftalar döner.
+- **Pazar planı:** mesajda kodda üretilen "📚 Derslerde bu hafta" listesi; modele de ders başına okuma görevi önermesi söyleniyor.
+- **Sınav tekrar planı:** her haftanın satırına okuma, bölüm (sayfa), not ve föy ekleniyor.
+- **Çalışma kağıdı kaynağı:** artık önce o haftaya eşlenmiş materyalleri alıyor. Önceden 4-5. hafta gibi çok haftalı sekmeler haftalık filtreye hiç girmiyordu.
+- **karar:** kağıtlar Pazar gecesi üretildi ve sabah okunacak; bu yüzden "bu hafta" = Pazartesi başlayan **9. hafta**.
+
+**Çalışma kağıtları (9. hafta, dev DB):** kalite, dersin gerçek notu olup olmamasına bağlı.
+
+| Ders | Kaynak | Sonuç |
+|---|---|---|
+| CSE 221 | Paylaşılan notlar (comb1) | İyi |
+| EE211 | Lab kitabı | Haftalık plan yok, genel |
+| CSE 211, MATH 221, TKL 201, HUM 103 | Yalnız izlence | İnce, ama uydurma yok: "pasajlarda tanım yok" diyor |
+
+Kitap PDF'leri gelince bu dört ders düzelir.
+
+Örnek (CSE 221, kısaltılmış):
+
+```
+## Temel kavramlar
+**3x8 yüksek-aktif decoder**
+- Girişler A, B, C; çıkışlar D0..D7'dir [5].
+- D0 = A'B'C' = m0, yani Di = mi [3].
+**Decoder ile fonksiyon gerçekleme**
+- F(x,y,z) = Σ(1,5) için D1 ve D5 bir OR kapısına bağlanır [3].
+- G' = Σ(0,3) yazılır. D0 ve D3 bir NOR kapısına girer ve çıkış G olur [3].
+- MUX fikri notlarda yalnızca kısaca geçiyor. DEMUX için pasajlarda bilgi yok.
+## Kaynaklar
+- [3] CSE 221 notları: comb1, s. 15-16
+- [5] CSE 221 notları: comb1, s. 15
+```
+
+## 6. Canlı regresyon (`pytest -m live -k materials_talk -s`)
+
+- **Kurulum:** 15 soru senin yazım tarzınla ("bu hafta cse221de ne var", "dsa sınavına neler çalışmam lazım", "labwork01 part 2 hangi haftanın", "ee211 5. deney ne hakkında"…).
+  - Test DB'si: regresyon seed'i + gerçek paket (canlıdaki gibi) + DSA takma adı + 3 sınav.
+  - Kontrol: cevapta doğru hafta/bölüm/sayfa **ve** kaynak var mı.
+- **Sonuç:** ilk tur 8/15 (%53). Düzeltmelerden sonra iki tur **15/15 (%100) ve 14/15 (%93)**. Tek kalan kayıp: bir turda model "8. hafta" numarasını söylemedi.
+- **Düzeltilenler:**
+  - Ders adı geçen hafta/sınav sorusu takvim sorusu sanılıyordu; artık Scholar'a gidiyor.
+  - Model 25 Kasım Çarşamba'ya "Salı" dedi. Gün adı artık kodda veriliyor (ilke 3).
+  - Haftalık planı olmayan EE211 için "hiç materyal yok" dendi. Artık dersin materyalleri listeleniyor.
+  - Dosya adı ("labwork01 part 2") ve deney numarası ("5. deney" → Experiment #5, s. 39-42) kodda bulunuyor.
+  - "Geçen hafta" seçeneği eklendi.
+  - DSA'da araç çağırmadan "hangi ders?" diye soruluyordu. Artık önce araç çağrılıyor (takma adı araçlar biliyor).
+  - "lineer cebir" bilinmeyen takma ad: bir kez soruluyor, kurala uygun. Testte kullanıcı "evet math221" diyor.
+- Paket kişisel olduğu için yoksa test atlanır.
+
+## Sabah adımların (bu sırayla)
+
+1. **Masaüstü:** `desktop\src-tauri\target\release\bundle\nsis\Yaver_0.2.0_x64-setup.exe` kur. Ayarlarda cihaz anahtarını gir, "Bağlantıyı test et".
+2. **Birleştir:** `feat/night-materials` → `main`.
+3. **Deploy:** `.\scripts\deploy-live.ps1`. İki migration (`d25f6a819ed6`, `4cefff197dd5`) ve materyal kodu bununla gelir. İçe aktarma deploy'dan **önce** çalışmaz: tablolar ve komut yok, betik bunu söyleyip durur.
+4. **Ana klasördeki yerel config** (canlı bunu okur, gitignore'da; ben dokunmadım):
+   - `config\agents.yaml` → `academic`:
+     - `tools`'a `get_exam_scope` ekle.
+     - `shift_jobs: - {job: source_watch, at: "08:20", title: Ders notlarına bakıyor}` ekle.
+   - `config\providers.yaml` → `routing.purposes`'a `material_map: smart` ve `source_notes: smart` ekle.
+   - Sonra `.\scripts\live.ps1 restart api` (ya da bir sonraki deploy).
+5. **Paket:** `.\scripts\import-materials-live.ps1 -DryRun` ile raporu gör, sonra `.\scripts\import-materials-live.ps1`.
+   - Beğenmezsen `-Undo <imports.log'daki id>`.
+   - Canlıda dersler kod/takma adla eşleşir (CSE221 = CSE 221). Bilinmeyen dersler (HUM 103, TKL 201 vb.) yeni ders olarak açılır; dry-run'da "courses created" listesine bak.
+6. **Kontrol:**
+   - Takvimde MATH 221 ara sınavı (27 Kasım Cuma 16:00) var mı?
+   - CSE 221 ara sınavı 8. hafta mı, 9. hafta mı?
+   - EE211 lab'larının hangi haftalarda olduğunu Scholar'a söylersen eşleştiririm.
