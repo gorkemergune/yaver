@@ -1628,6 +1628,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "fastapi" },
     { name = "fastembed" },
+    { name = "httpx2" },
     { name = "jinja2" },
     { name = "openai" },
     { name = "pgvector" },
@@ -1646,7 +1647,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx2" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1663,6 +1663,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "fastembed", specifier = ">=0.5" },
+    { name = "httpx2", specifier = ">=2.16" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "openai", specifier = ">=3.55" },
     { name = "pgvector", specifier = ">=0.3" },
@@ -1681,7 +1682,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx2", specifier = ">=2.16" },
     { name = "mypy", specifier = ">=1.13" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
