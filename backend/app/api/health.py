@@ -1,6 +1,7 @@
 import logging
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Response
+from fastapi import status as http_status
 from pydantic import BaseModel
 
 from app import __version__
@@ -36,6 +37,6 @@ async def ready(response: Response) -> ReadinessResponse:
         await db_session.ping_database()
     except Exception:
         logger.warning("Database readiness check failed", exc_info=True)
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        response.status_code = http_status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadinessResponse(status="unavailable", database="unreachable")
     return ReadinessResponse(status="ok", database="ok")

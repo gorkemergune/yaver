@@ -1,0 +1,17 @@
+# Checks before every commit (QA O2). Once: `pip install pre-commit && pre-commit install`.
+# The same checks run in pytest (tests/test_smoke.py) and `docker compose exec api ruff ...`.
+repos:
+  - repo: local
+    hooks:
+      - id: shadow-scan
+        name: no class field / name shadows an import (backend/app)
+        entry: python -I backend/scripts/shadow_scan.py backend/app
+        language: system
+        pass_filenames: false
+        files: ^backend/app/.*\.py$
+      - id: ruff
+        name: ruff (backend)
+        entry: uv run --directory backend ruff check .
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$

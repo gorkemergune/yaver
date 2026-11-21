@@ -1,4 +1,6 @@
-"""Usage: python -I e2e/tools/shadow_scan.py backend/app
+"""Usage: python -I backend/scripts/shadow_scan.py backend/app   (exit 1 on any finding)
+
+Run by tests/test_smoke.py and the pre-commit hook (.pre-commit-config.yaml).
 
 Read-only AST scan: names that shadow an imported module / imported name.
 
@@ -9,6 +11,7 @@ Read-only AST scan: names that shadow an imported module / imported name.
 """
 
 import ast
+import contextlib
 import sys
 from pathlib import Path
 
@@ -37,10 +40,8 @@ def names_in(node: ast.AST | None) -> set[str]:
     # string annotations
     for n in ast.walk(node):
         if isinstance(n, ast.Constant) and isinstance(n.value, str):
-            try:
+            with contextlib.suppress(SyntaxError):
                 found |= names_in(ast.parse(n.value, mode="eval"))
-            except SyntaxError:
-                pass
     return found
 
 
@@ -73,7 +74,10 @@ def scan(path: Path) -> list[str]:
                         later |= names_in(d)
             own = names_in(stmt.annotation) if isinstance(stmt, ast.AnnAssign) else set()
             severity = "RISK" if target in later or target in own else "shadow"
-            out.append(f"{severity}: {path}:{stmt.lineno} class {cls.name}: field `{target}` shadows import (line {imports[target]})")
+            out.append(
+                f"{severity}: {path}:{stmt.lineno} class {cls.name}: field `{target}` "
+                f"shadows import (line {imports[target]})"
+            )
     for fn in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)]:
         params = [a.arg for a in fn.args.args + fn.args.kwonlyargs + fn.args.posonlyargs]
         body_names = set()
@@ -82,17 +86,27 @@ def scan(path: Path) -> list[str]:
                 body_names.add(n.value.id)
         for p in params:
             if p in imports and p in body_names:
-                out.append(f"RISK?: {path}:{fn.lineno} def {fn.name}: parameter `{p}` shadows import and `{p}.attr` is used")
+                out.append(
+                    f"RISK?: {path}:{fn.lineno} def {fn.name}: parameter `{p}` shadows "
+                    f"import and `{p}.attr` is used"
+                )
         for n in ast.walk(fn):
             if isinstance(n, ast.Assign):
                 for t in n.targets:
                     if isinstance(t, ast.Name) and t.id in imports and t.id in body_names:
-                        out.append(f"RISK?: {path}:{n.lineno} def {fn.name}: local `{t.id}` shadows import and `{t.id}.attr` is used")
+                        out.append(
+                            f"RISK?: {path}:{n.lineno} def {fn.name}: local `{t.id}` "
+                            f"shadows import and `{t.id}.attr` is used"
+                        )
     return out
 
 
+def scan_tree(root: Path) -> list[str]:
+    return [line for file in sorted(root.rglob("*.py")) for line in scan(file)]
+
+
 if __name__ == "__main__":
-    root = Path(sys.argv[1])
-    for file in sorted(root.rglob("*.py")):
-        for line in scan(file):
-            print(line)
+    findings = scan_tree(Path(sys.argv[1]))
+    for line in findings:
+        print(line)
+    sys.exit(1 if findings else 0)

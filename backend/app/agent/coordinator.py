@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ads.intake import CSV_MIME, AdFileInput, read_ad_files
 from app.ads.report import analyze
-from app.agent import intents
+from app.agent import intents as intent_routing
 from app.agent.context import ToolContext
 from app.agent.documents import DocumentInput, read_documents
 from app.agent.loop import AgentRun, Emit, LLMClient, OnTool, run_agent
@@ -164,7 +164,7 @@ OWN_PART_HINTS = {
 }
 
 
-def own_parts_note(classified: "list[intents.Routed] | None") -> str:
+def own_parts_note(classified: "list[intent_routing.Routed] | None") -> str:
     """The parts the code left to the coordinator, with what to do (live: "bu dönem cuma
     günleri medipoldeyim" is a memory, the coordinator delegated it as a weekly block)."""
     lines = [
@@ -352,7 +352,7 @@ class Coordinator:
         # Instruction each yaver got this turn (the open question's context).
         instructions: dict[str, str] = {}
 
-        classified: list[intents.Routed] | None = None
+        classified: list[intent_routing.Routed] | None = None
         waiting = PendingAction.load(conversation.pending_action)
         conversation.pending_action = None  # answered now, or replaced at the end
         binding = None
@@ -426,7 +426,7 @@ class Coordinator:
                 # not its area: the owner of the area it names gets the same words, once
                 delegated[agent.id] = {"agent": agent.name, "handoff": sub.handoff.get("reason")}
                 instructions.pop(agent.id, None)
-                target = intents.owner_of(str(sub.handoff.get("area", "")), self._team_ids())
+                target = intent_routing.owner_of(str(sub.handoff.get("area", "")), self._team_ids())
                 if target is not None and target != agent.id and target not in delegated:
                     if target in queued:
                         # it gets its own part of this message next: both in one go (live:
@@ -713,10 +713,12 @@ class Coordinator:
 
     async def _classify(
         self, text: str, open_question: str | None = None
-    ) -> list[intents.Routed] | None:
+    ) -> list[intent_routing.Routed] | None:
         if not text.strip():
             return None
-        return await intents.classify(self.llm, text, self._team_ids(), open_question=open_question)
+        return await intent_routing.classify(
+            self.llm, text, self._team_ids(), open_question=open_question
+        )
 
     def _member(self, agent_id: str) -> Member | None:
         if agent_id == self.team.coordinator.id:

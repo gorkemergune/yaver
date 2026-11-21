@@ -29,8 +29,8 @@ npm run typecheck
   `llm_usage` toplamı $0.28'i geçince testleri atlar, sonda > $0.30 ise suite'i düşürür.
 - Seed verisi `helpers/seed.ts` ile doğrudan e2e DB'sine (`docker exec yaver-e2e-db-1 psql`) yazılır;
   başlıklar her koşuda benzersizdir, tekrar koşmak için reset gerekmez.
-- `tools/shadow_scan.py`: modül / import adını gölgeleyen sınıf alanlarını bulan salt-okur AST
-  taraması (`python -I e2e/tools/shadow_scan.py backend/app`).
+- İsim gölgeleme taraması `backend/scripts/shadow_scan.py`'ye taşındı (pytest + pre-commit çalıştırır):
+  `python -I backend/scripts/shadow_scan.py backend/app`.
 
 `tests/chat-errors.spec.ts`'deki iki test (sonu gelmeyen ya da `done`/`error` olmadan kapanan
 sohbet akışı) QA bulgusu Y3'ü yakalamıştı; düzeltmeden sonra yeşil. `tests/streams.spec.ts` Y1'i
