@@ -305,3 +305,12 @@ export interface BoardResponse {
   cards: BoardCard[];
   ts: string;
 }
+
+export interface DeviceKeyView {
+  id: number;
+  name: string;
+  prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked: boolean;
+}

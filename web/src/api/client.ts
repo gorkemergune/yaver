@@ -39,3 +39,8 @@ export async function apiPost<T>(path: string, body?: unknown, init?: RequestIni
     }),
   );
 }
+
+/** DELETE on the backend (JSON answer). */
+export async function apiDelete<T>(path: string, init?: RequestInit): Promise<T> {
+  return parse<T>(await fetch(`/api${path}`, withJson({ ...init, method: "DELETE" })));
+}
