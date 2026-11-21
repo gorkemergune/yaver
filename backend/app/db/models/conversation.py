@@ -71,7 +71,7 @@ class Attachment(CreatedAtMixin, Base):
         ForeignKey("messages.id", ondelete="CASCADE"), index=True
     )
     path: Mapped[str] = mapped_column(String(300))  # relative to UPLOAD_DIR
-    mime: Mapped[str] = mapped_column(String(50))
+    mime: Mapped[str] = mapped_column(String(100))  # .docx's is 71 characters
     width: Mapped[int]
     height: Mapped[int]
     size_bytes: Mapped[int]

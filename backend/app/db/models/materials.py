@@ -4,7 +4,8 @@
 import datetime as dt
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, CreatedAtMixin, TimestampMixin
@@ -68,3 +69,43 @@ class SyllabusWeek(CreatedAtMixin, Base):
     )
     week_no: Mapped[int]
     topics: Mapped[str] = mapped_column(Text)
+    # From a full syllabus import (app.materials.ingest); None when the syllabus says nothing.
+    dates_text: Mapped[str | None] = mapped_column(String(80))  # as written ("5-9 Ekim")
+    readings: Mapped[str | None] = mapped_column(Text)  # book sections / texts to read
+    lab: Mapped[str | None] = mapped_column(Text)  # the week's lab / lab assignment
+    assessment: Mapped[str | None] = mapped_column(Text)  # exam, quiz, deadline that week
+
+
+class CourseBook(CreatedAtMixin, Base):
+    """A textbook a syllabus names; `material_id` once its PDF is in the materials."""
+
+    __tablename__ = "course_books"
+    __table_args__ = (UniqueConstraint("course_id", "title", name="uq_course_books_course_title"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(300))
+    authors: Mapped[str | None] = mapped_column(String(300))
+    edition: Mapped[str | None] = mapped_column(String(60))
+    required: Mapped[bool] = mapped_column(Boolean, default=False)
+    material_id: Mapped[int | None] = mapped_column(
+        ForeignKey("course_materials.id", ondelete="SET NULL")
+    )
+
+
+class MaterialSection(Base):
+    """A chapter / section / experiment of a material (its table of contents) with its
+    pages and the term weeks it belongs to ("4.e Experiment #5", s. 40-43, weeks [9])."""
+
+    __tablename__ = "material_sections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    material_id: Mapped[int] = mapped_column(
+        ForeignKey("course_materials.id", ondelete="CASCADE"), index=True
+    )
+    course_id: Mapped[int | None] = mapped_column(index=True)  # copied for filtering
+    number: Mapped[str | None] = mapped_column(String(20))  # "1.3", "4.e"
+    title: Mapped[str] = mapped_column(String(300))
+    page_start: Mapped[int]  # PDF pages, 1-based
+    page_end: Mapped[int]
+    week_nos: Mapped[list[int]] = mapped_column(ARRAY(Integer), default=list, server_default="{}")

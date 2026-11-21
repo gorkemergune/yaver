@@ -64,6 +64,7 @@ routing:
     weekly_plan: smart
     study_sheet: smart
     syllabus_parse: smart          # syllabus PDF -> topics per week
+    material_map: smart            # book sections / lab sheets -> term weeks (materials ingest)
     document_classify: fast        # PDF: syllabus, notes or other (first pages)
     intent_classify: fast          # every chat message: its parts and their intents (routing)
     schedule_parse: smart          # long pasted schedules (onboarding)

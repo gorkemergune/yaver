@@ -1,7 +1,8 @@
 # secrets & personal data
-# personal course materials (syllabi, books, lab sheets, notes): never committed
-syllabus/
-materials/
+# personal course materials (syllabi, books, lab sheets, notes): never committed.
+# Anchored at the root: an unanchored materials/ hid the code in backend/app/materials/.
+/syllabus/
+/materials/
 *.syllabus.pdf
 .env
 .env.*

@@ -6,7 +6,13 @@ from app.db.models.audit import ChangeLog, LlmUsage
 from app.db.models.auth import AuthSession, DeviceKey
 from app.db.models.conversation import Attachment, Conversation, Message
 from app.db.models.jobs import JobRun
-from app.db.models.materials import CourseMaterial, MaterialChunk, SyllabusWeek
+from app.db.models.materials import (
+    CourseBook,
+    CourseMaterial,
+    MaterialChunk,
+    MaterialSection,
+    SyllabusWeek,
+)
 from app.db.models.office import Employee, EmployeeNote, EmployeeState, EmployeeTask
 from app.db.models.planning import Followup, Memory, Task
 from app.db.models.proposals import Proposal
@@ -35,6 +41,7 @@ __all__ = [
     "ChangeLog",
     "Conversation",
     "Course",
+    "CourseBook",
     "CourseMaterial",
     "DeviceKey",
     "Employee",
@@ -47,6 +54,7 @@ __all__ = [
     "JobRun",
     "LlmUsage",
     "MaterialChunk",
+    "MaterialSection",
     "Memory",
     "Message",
     "Proposal",
