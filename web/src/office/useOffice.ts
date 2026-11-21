@@ -2,9 +2,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { apiGet } from "../api/client";
-import type { OfficeEvent, OfficeSnapshot } from "../api/types";
+import type { OfficeEvent, OfficeHours, OfficeSnapshot } from "../api/types";
 import { tr } from "../i18n/tr";
-import { applyOfficeEvent, feedLine, type Staff } from "./model";
+import { applyOfficeEvent, cueFor, feedLine, type Staff } from "./model";
+import { playCue } from "./sound";
 
 export type Link = "connecting" | "live" | "reconnecting";
 
@@ -37,6 +38,7 @@ export function useOffice() {
   const [ready, setReady] = useState<boolean | null>(null); // null: not known yet
   const [link, setLink] = useState<Link>("connecting");
   const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [hours, setHours] = useState<OfficeHours | null>(null);
   const current = useRef<Staff>({});
 
   useEffect(() => {
@@ -58,12 +60,18 @@ export function useOffice() {
       if (event.type === "state") {
         const line = feedLine(before[event.employee_id], event, before);
         if (line) push(event.employee_id, line, event.ts);
-        if (event.activity === "break") void queryClient.invalidateQueries({ queryKey: officeKeys.tasks(event.employee_id) });
+        const cue = cueFor(before[event.employee_id], event);
+        if (cue) playCue(cue); // silent unless the user turned sounds on
+        if (event.activity === "break" || event.activity === "off") void queryClient.invalidateQueries({ queryKey: officeKeys.tasks(event.employee_id) });
       } else if (event.type === "note") {
         push(event.employee_id, tr.office.feed.noted(event.note.content), event.ts);
         void queryClient.invalidateQueries({ queryKey: officeKeys.notes(event.employee_id) });
       } else if (event.type === "snapshot") {
         setReady(event.ready);
+        setHours(event.hours ?? null);
+      } else if (event.type === "hours") {
+        setHours({ open_at: event.open_at, close_at: event.close_at, off_hours: event.off_hours });
+        return;
       } else {
         return; // ping: only keeps the watchdog quiet
       }
@@ -121,5 +129,5 @@ export function useOffice() {
     };
   }, [queryClient]);
 
-  return { staff, ready, link, feed };
+  return { staff, ready, link, feed, hours };
 }

@@ -7,6 +7,8 @@
  *   meeting        -> meeting room; with `meeting_with`, both at the same table, facing
  *   break          -> idle: coffee, an armchair, the lounge (picked here, at random)
  *   needs_user     -> red dot, wherever it is
+ *   off            -> outside office hours: walks out by the door and is gone (its desk
+ *                     dark); a request at night brings it in again - the night shift
  *
  * working / meeting / needs_user come only from the backend; idle places are the only
  * thing the web app chooses.
@@ -15,6 +17,7 @@ import type { EmployeeState, OfficeEmployee, OfficeEvent } from "../api/types";
 import { tr } from "../i18n/tr";
 import {
   COFFEE_COUNT,
+  DOOR,
   MEET_COUNT,
   MEET_TABLE_SIDE,
   SPOTS,
@@ -230,7 +233,7 @@ export function planFigures(figures: Record<string, Figure>, staff: Staff, now: 
     let target: Target;
     if (f && held) target = { act: f.act, spot: f.spot };
     else if (e.activity === "working") target = { act: "work", spot: homeSpot(e) };
-    else if (e.activity === "off") target = { act: "off", spot: homeSpot(e) };
+    else if (e.activity === "off") target = { act: "off", spot: DOOR };
     else if (e.activity === "meeting") target = { act: "meeting", spot: seats[e.id] ?? homeSpot(e) };
     else if (f && IDLE.includes(f.act) && f.idleUntil > now) target = { act: f.act, spot: f.spot };
     else {
@@ -300,10 +303,12 @@ export interface FigureView {
   atDesk: boolean; // working at its desk: the "…" bubble
   hasCup: boolean;
   alert: boolean; // needs_user: red dot
+  hidden: boolean; // off: gone home (not drawn until it comes back)
   status: string;
 }
 
-export function figureView(f: Figure, e: OfficeEmployee, staff: Staff): FigureView {
+/** `night`: outside office hours (the snapshot's / `hours` event's off_hours). */
+export function figureView(f: Figure, e: OfficeEmployee, staff: Staff, night = false): FigureView {
   const walking = f.path.length > 0;
   const spot = SPOTS[f.spot];
   const sit = !walking && spot?.sit ? spot.sit : null;
@@ -318,19 +323,22 @@ export function figureView(f: Figure, e: OfficeEmployee, staff: Staff): FigureVi
     atDesk: f.act === "work" && !walking,
     hasCup: f.cup || (f.act === "coffee" && !walking),
     alert: e.needs_user,
-    status: statusText(f, e, staff),
+    hidden: f.act === "off" && !walking,
+    status: statusText(f, e, staff, night),
   };
 }
 
-export function statusText(f: Figure, e: OfficeEmployee, staff: Staff): string {
+export function statusText(f: Figure, e: OfficeEmployee, staff: Staff, night = false): string {
   const s = tr.office.status;
   if (f.path.length > 0) {
-    return f.act === "work" ? s.toDesk : f.act === "coffee" ? s.toKitchen : f.act === "meeting" ? s.toMeeting : s.walking;
+    if (f.act === "off") return s.goingHome;
+    if (f.act === "work") return night ? s.toNightShift : s.toDesk;
+    return f.act === "coffee" ? s.toKitchen : f.act === "meeting" ? s.toMeeting : s.walking;
   }
   if (e.needs_user && e.activity !== "working") return e.needs_user_reason === "budget" ? s.budget : s.waiting;
   switch (f.act) {
     case "work":
-      return e.task ?? s.working;
+      return night ? s.nightShift(e.task ?? s.working) : (e.task ?? s.working);
     case "meeting": {
       const partner = e.meeting_with ? staff[e.meeting_with] : undefined;
       return partner ? s.meetingWith(partner.name) : s.meeting;
@@ -356,6 +364,19 @@ export function feedLine(before: OfficeEmployee | undefined, after: EmployeeStat
   }
   if (after.activity === "working" && after.task && after.task !== before?.task && !after.tool) return f.started(after.task);
   if (after.activity === "break" && (before?.activity === "working" || before?.activity === "meeting")) return f.done;
+  return null;
+}
+
+/** A light sound for a change (sound.ts plays it if the user turned sounds on). */
+export type Cue = "work" | "meeting" | "alert" | "done";
+
+export function cueFor(before: OfficeEmployee | undefined, after: EmployeeState): Cue | null {
+  if (!before) return null;
+  if (after.needs_user && !before.needs_user) return "alert";
+  if (after.activity === "meeting" && before.activity !== "meeting") return "meeting";
+  if (after.activity === "working" && before.activity !== "working" && before.activity !== "meeting") return "work";
+  const idle = after.activity === "break" || after.activity === "off";
+  if (idle && (before.activity === "working" || before.activity === "meeting")) return "done";
   return null;
 }
 

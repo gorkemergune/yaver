@@ -230,11 +230,16 @@ export const MEET_TABLE_SIDE = 3;
 export const COFFEE_COUNT = COFFEE.length;
 export const WALK_COUNT = WALK.length;
 
+/** Where people come in and go home (the corridor on the right): an employee outside
+ *  office hours (`off`) walks here and is gone until a request brings it back. */
+export const DOOR = "door";
+
 export const SPOTS: Readonly<Record<string, Spot>> = (() => {
   const spots: Record<string, Spot> = {};
   const spot = (key: string, pt: Point, app: Point | null = null, sit: Sit | null = null): void => {
     spots[key] = { pt, app: app ?? pt, sit };
   };
+  spot(DOOR, [11.7, 6.6]);
   spot("seat:office", [1.45, 1.16], [2.5, 1.16], { elev: 14, back: false });
   DESK_X.forEach((dx, col) => {
     const x = dx + 0.7;
@@ -283,6 +288,42 @@ export function routeFrom(pos: Point | null, fromKey: string | null, toKey: stri
   const pts = steps(chain, 0.55);
   pts.push(b.pt);
   return pts;
+}
+
+// ---------- desks ----------
+const [DESK_W = 1.4, DESK_D = 0.7] = layout.desk;
+const DESK_TOP_Z = 22; // desk top (scripts/office_scene.py desk())
+const SCREEN_TOP_Z = 48; // a little above the monitors
+
+const px = (x: number, y: number, h: number): string => {
+  const p = iso(x, y);
+  return `${p.X.toFixed(1)},${(p.Y - h).toFixed(1)}`;
+};
+
+/** The outline of a desk with its monitors (an SVG polygon): the dark screen at night,
+ *  the click target for the zoomed screen. */
+export function deskOutline(row: "back" | "front", col: number): string {
+  const x = at(DESK_X, col);
+  const y = layout.rowY[row];
+  const [w, d] = [DESK_W, DESK_D];
+  return [
+    px(x, y, SCREEN_TOP_Z),
+    px(x + w, y, SCREEN_TOP_Z),
+    px(x + w, y, DESK_TOP_Z),
+    px(x + w, y + d, DESK_TOP_Z),
+    px(x, y + d, DESK_TOP_Z),
+    px(x, y + d, SCREEN_TOP_Z),
+  ].join(" ");
+}
+
+/** The middle of a desk on the stage (px): where the zoomed screen grows from. */
+export function deskCenter(row: "office" | "back" | "front", col: number): { X: number; Y: number } {
+  if (row === "office") {
+    const p = iso(1.45, 1.95);
+    return { X: p.X, Y: p.Y - 34 };
+  }
+  const p = iso(at(DESK_X, col) + DESK_W / 2, layout.rowY[row] + DESK_D / 2);
+  return { X: p.X, Y: p.Y - 34 };
 }
 
 // ---------- drawing order ----------

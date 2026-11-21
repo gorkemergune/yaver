@@ -37,6 +37,7 @@ ONBOARDING_TOOLS = (
 COMMON_TOOLS = ("resolve_date", "get_day_plan", "add_event", "add_note", "get_notes", "handoff")
 COORDINATOR_COMMON_TOOLS = ("resolve_date", "get_notes")
 DESK_COLUMNS = 5  # the office has 5 desk pairs: back 0-4, front 0-4
+HHMM_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"  # local wall-clock time
 # Where the default team sits when agents.yaml names no desk (the approved prototype).
 DEFAULT_DESKS: dict[str, tuple[str, int]] = {
     "academic": ("back", 0),
@@ -85,7 +86,7 @@ class ShiftJobConfig(_Strict):
         "github_watch",
         "content_calendar",
     ]
-    at: str = Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")  # local time
+    at: str = Field(pattern=HHMM_PATTERN)  # local time
     weekday: int | None = Field(None, ge=0, le=6)  # 0 = Monday; None = every day
     title: str = ""  # shown while it runs ("Sabah rakip taraması")
     topics: list[str] = Field(default_factory=list)  # web_scan: what to search
@@ -139,6 +140,10 @@ class CoordinatorConfig(MemberConfig):
 class OfficeConfig(_Strict):
     # Per employee per local day (llm_usage of its agent_id). Over it, its shift jobs stop.
     daily_budget_usd: Decimal = Field(Decimal("0.50"), ge=0)
+    # Office hours (local time, O5): outside them an idle employee is "off" (gone home,
+    # its desk dark) and a request brings it in for a night shift. Equal = always open.
+    open_at: str = Field("08:00", pattern=HHMM_PATTERN)
+    close_at: str = Field("23:00", pattern=HHMM_PATTERN)
 
 
 class WeeklyPlanConfig(_Strict):

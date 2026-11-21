@@ -16,6 +16,10 @@
 
 office:
   daily_budget_usd: 0.20
+  # Mesai saatleri (yerel saat): dışında boştaki çalışan eve gider (masası boş, ekranı sönük);
+  # o saatte bir istek gelirse ilgili çalışan "gece mesaisi"ne gelir. İkisi aynıysa ofis hep açık.
+  open_at: "08:00"
+  close_at: "23:00"
 
 coordinator:
   id: yaver

@@ -126,9 +126,71 @@
 .yhq-list button[aria-pressed="true"] { background: rgb(157 140 255 / 0.18); }
 .yhq-list button:focus-visible { outline: 2px solid #a99cff; }
 
+/* O5: desks and their screens. Dark when the employee went home, lit (its colour) for a
+   night shift; a desk is also the button that zooms into its screen. */
+.yhq-desks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.yhq-desk {
+  pointer-events: auto;
+  cursor: zoom-in;
+  fill: transparent;
+  transition: fill 0.8s ease;
+}
+.yhq-desk:hover { fill: rgb(255 255 255 / 0.06); }
+.yhq-desk:focus-visible { outline: none; stroke: #a99cff; stroke-width: 2; }
+.yhq-desk[data-state="dark"] { fill: rgb(3 5 18 / 0.5); }
+.yhq-desk[data-state="dark"]:hover { fill: rgb(3 5 18 / 0.38); }
+.yhq-desk[data-state="lit"] {
+  fill: color-mix(in srgb, var(--yhq-accent) 22%, transparent);
+  animation: yhqPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes yhqZoom {
+  from { opacity: 0; transform: scale(0.12); }
+  to { opacity: 1; transform: scale(1); }
+}
+.yhq-screen-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  background: rgb(4 6 20 / 0.55);
+}
+.yhq-screen {
+  width: min(520px, 92%);
+  transform-origin: var(--yhq-origin, 50% 50%);
+  animation: yhqZoom 0.28s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+.yhq-screen-glass {
+  min-height: 230px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  border: 10px solid #151824;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--yhq-accent) 26%, transparent), transparent 60%),
+    #0b0f24;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.04);
+}
+.yhq-screen-glass[data-dark="true"] { background: #05070f; }
+.yhq-screen-stand {
+  width: 90px;
+  height: 18px;
+  margin: 0 auto;
+  background: linear-gradient(#1a1d29, #10131d);
+  clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .yhq-agent { transition: none; }
-  .yhq-walk, .yhq-dot, .yhq-glow, .yhq-steam { animation: none; }
+  .yhq-walk, .yhq-dot, .yhq-glow, .yhq-steam, .yhq-desk[data-state="lit"], .yhq-screen { animation: none; }
 }
 
 /* Phones: the list moves under the scene (inside, it would scroll away with it). */

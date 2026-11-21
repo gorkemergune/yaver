@@ -4,7 +4,8 @@ import { useEffect, useRef, type CSSProperties } from "react";
 
 import type { OfficeEmployee } from "../api/types";
 import { tr } from "../i18n/tr";
-import { SCENE_H, SCENE_W } from "./geometry";
+import { DeskScreen } from "./DeskScreen";
+import { SCENE_H, SCENE_W, deskOutline } from "./geometry";
 import { figureView, looks, type Figure, type Staff } from "./model";
 import chairBacks from "./scene/chairBacks.svg?raw";
 import desks from "./scene/desks.svg?raw";
@@ -24,10 +25,14 @@ interface Props {
   figures: Record<string, Figure>;
   selected: string | null;
   onSelect: (id: string) => void;
-  night: boolean;
+  night: boolean; // the sky (local hour)
+  offHours: boolean; // the office is closed (backend office hours)
+  screen: string | null; // the desk screen zoomed in
+  onOpenScreen: (id: string) => void;
+  onCloseScreen: () => void;
 }
 
-export function OfficeScene({ staff, figures, selected, onSelect, night }: Props) {
+export function OfficeScene({ staff, figures, selected, onSelect, night, offHours, screen, onOpenScreen, onCloseScreen }: Props) {
   const people = Object.values(staff); // Yaver first, then the agents.yaml order
   const frame = useRef<HTMLDivElement>(null);
   // narrow screens: start with the desks in view (the scene scrolls sideways)
@@ -46,10 +51,13 @@ export function OfficeScene({ staff, figures, selected, onSelect, night }: Props
         {LAYERS.map((layer) => (
           <div key={layer.name} className="yhq-layer" style={{ zIndex: layer.z }} dangerouslySetInnerHTML={{ __html: layer.svg }} />
         ))}
+        {(["back", "front"] as const).map((row) => (
+          <Desks key={row} row={row} people={people} offHours={offHours} onOpen={onOpenScreen} />
+        ))}
         {people.map((e) => {
           const f = figures[e.id];
-          return f ? (
-            <Person key={e.id} employee={e} figure={f} staff={staff} selected={selected === e.id} onSelect={onSelect} />
+          return f && !figureView(f, e, staff).hidden ? (
+            <Person key={e.id} employee={e} figure={f} staff={staff} night={offHours} selected={selected === e.id} onSelect={onSelect} />
           ) : null;
         })}
         <div
@@ -59,7 +67,7 @@ export function OfficeScene({ staff, figures, selected, onSelect, night }: Props
         <div className="yhq-list" role="list" aria-label={tr.office.listLabel}>
           {people.map((e) => {
             const f = figures[e.id];
-            const status = f ? figureView(f, e, staff).status : "";
+            const status = f ? figureView(f, e, staff, offHours).status : "";
             return (
               <div role="listitem" key={e.id}>
                 <button type="button" aria-pressed={selected === e.id} aria-label={`${e.name}, ${e.role} — ${status}`} onClick={() => {
@@ -75,8 +83,67 @@ export function OfficeScene({ staff, figures, selected, onSelect, night }: Props
             );
           })}
         </div>
+        {screen && staff[screen] && (
+          <DeskScreen
+            employee={staff[screen]}
+            status={figures[screen] ? figureView(figures[screen], staff[screen], staff, offHours).status : ""}
+            onClose={onCloseScreen}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+/** One desk row's screens: dark when its employee went home, lit for a night shift;
+ *  clicking a desk zooms into its screen. Drawn just above that row's desks. */
+function Desks({
+  row,
+  people,
+  offHours,
+  onOpen,
+}: {
+  row: "back" | "front";
+  people: OfficeEmployee[];
+  offHours: boolean;
+  onOpen: (id: string) => void;
+}) {
+  const here = people.filter((e) => e.desk.row === row);
+  return (
+    <svg
+      className="yhq-desks"
+      width={SCENE_W}
+      height={SCENE_H}
+      viewBox={`0 0 ${String(SCENE_W)} ${String(SCENE_H)}`}
+      style={{ zIndex: row === "back" ? 505 : 555 }}
+      aria-hidden={here.length === 0}
+    >
+      {here.map((e) => {
+        const state = e.activity === "off" ? "dark" : offHours && e.activity === "working" ? "lit" : "idle";
+        return (
+          <polygon
+            key={e.id}
+            points={deskOutline(row, e.desk.col)}
+            className="yhq-desk"
+            data-desk={e.id}
+            data-state={state}
+            style={{ "--yhq-accent": e.color } as CSSProperties}
+            role="button"
+            tabIndex={0}
+            aria-label={tr.office.screen.desk(e.name)}
+            onClick={() => {
+              onOpen(e.id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onOpen(e.id);
+              }
+            }}
+          />
+        );
+      })}
+    </svg>
   );
 }
 
@@ -84,16 +151,18 @@ function Person({
   employee: e,
   figure: f,
   staff,
+  night,
   selected,
   onSelect,
 }: {
   employee: OfficeEmployee;
   figure: Figure;
   staff: Staff;
+  night: boolean;
   selected: boolean;
   onSelect: (id: string) => void;
 }) {
-  const v = figureView(f, e, staff);
+  const v = figureView(f, e, staff, night);
   const { hair, head } = looks(e.id);
   const bubble = v.atDesk || v.alert || selected;
   return (

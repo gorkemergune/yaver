@@ -96,6 +96,8 @@ mesai işleri durur ama sohbet çalışmaya devam eder.
 - "Trendyol'a staj başvurusu yaptım, 3 günde bir dönüş geldi mi diye sor"
 - "Iceberg'den mülakat daveti geldi, 2 Aralık 11:00"
 - "Iceberg'den olumsuz döndüler" → takip kapanır
+- Staj ve iş başvurusu takipleri Mentor'un: her sabah 10:00'da kendi listesine bakar, öğlen
+  takip mesajında kendi adıyla sorar (Chrono yalnız diğer takipleri sorar).
 - "işteki dashboard projesi için cumaya kadar demo hazırla görevi ekle"
 - "junior backend ilanlarında en çok istenen ne?" (web arama anahtarı varsa)
 
@@ -203,6 +205,13 @@ istisna Creator'ın haftalık taslağı); sonuçları defterlere ve görev panos
 ## 8. Ekranlar
 
 - **Ofis:** sahne, çalışan listesi, son cevap ve ofis akışı; bir çalışana tıkla → paneli.
+  - **Masaya tıkla** (ya da paneldeki *Ekranına bak*): o çalışanın ekranı yakınlaşır; şu an ne
+    yaptığı, hangi aracı kullandığı, elindeki iş ve defterinden son iki satır. Esc ile kapanır.
+  - **Mesai dışı** (`agents.yaml` → `office.open_at` / `close_at`, varsayılan 08:00-23:00):
+    boştaki çalışanlar kapıdan çıkıp eve gider, masaları boş ve ekranları sönüktür. Gece bir
+    şey yazarsan ilgili çalışan "gece mesaisi"ne gelir, işi bitince yine gider.
+  - **Ses** (başlıktaki hoparlör): iş başlarken, toplantıda, seni beklerken ve iş bitince hafif
+    sesler. Varsayılan kapalı; seçim bu tarayıcıda hatırlanır.
 - **Sohbet:** Yaver'le genel sohbet.
 - **Takvim:** Bugün / Yarın / Hafta. "Şu an" çizgisi, iptaller üstü çizili; haftalar ‹ › ile
   ya da kaydırarak değişir.

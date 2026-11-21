@@ -141,10 +141,27 @@ class Office:
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _start_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _failed_at: dt.datetime | None = None
+    _off_hours: bool | None = None  # the office-hours flag last published
 
     @property
     def coordinator_id(self) -> str:
         return self.config.coordinator.id
+
+    def off_hours(self, now: dt.datetime | None = None) -> bool:
+        """Outside office hours (agents.yaml office.open_at / close_at, local time)."""
+        opens = dt.time.fromisoformat(self.config.office.open_at)
+        closes = dt.time.fromisoformat(self.config.office.close_at)
+        if opens == closes:
+            return False
+        local = (now or self.clock()).astimezone(self.tz).time()
+        if opens < closes:
+            return not opens <= local < closes
+        return closes <= local < opens  # open across midnight (e.g. 18:00-02:00)
+
+    def _idle(self, now: dt.datetime) -> Activity:
+        """An idle employee is on a break in office hours and gone home (off) outside them;
+        a request at night still brings it in (working) - the night shift."""
+        return Activity.OFF if self.off_hours(now) else Activity.BREAK
 
     async def start(self) -> bool:
         """Sync employees from agents.yaml and load their states (startup). Nothing can
@@ -227,6 +244,8 @@ class Office:
             return None
         async with self._lock:
             now = self.clock()
+            if activity in (Activity.BREAK, Activity.OFF):
+                activity = self._idle(now)
             old = self._states.get(employee_id)
             flag = old.needs_user if old is not None else False
             reason = old.needs_user_reason if old is not None else None
@@ -313,6 +332,29 @@ class Office:
     def busy(self, employee_id: str) -> bool:
         return self._busy[employee_id] > 0
 
+    async def refresh_hours(self) -> bool:
+        """Idle employees go home when the office closes and come back when it opens; an
+        `hours` event tells the browsers. Called on every snapshot and stream ping (15 s),
+        so no scheduler is needed. Returns whether the office is closed now."""
+        if not self.ready:
+            return False
+        now = self.clock()
+        off = self.off_hours(now)
+        idle = self._idle(now)
+        for state in list(self._states.values()):
+            if state.activity in (Activity.BREAK, Activity.OFF) and state.activity is not idle:
+                await self._keep_activity(state)  # set_state picks break / off
+        if off != self._off_hours:
+            changed = self._off_hours is not None  # the first look is in the snapshot
+            self._off_hours = off
+            if changed:
+                self.hub.publish({"type": "hours", **self.hours(off), "ts": now.isoformat()})
+        return off
+
+    def hours(self, off: bool) -> dict[str, Any]:
+        office = self.config.office
+        return {"open_at": office.open_at, "close_at": office.close_at, "off_hours": off}
+
     # ---- budget ------------------------------------------------------------------------
 
     async def spent_today(self, employee_ids: Iterable[str] | None = None) -> dict[str, Decimal]:
@@ -360,9 +402,10 @@ class Office:
         if not await self.ensure_ready():
             return {"ready": False, "employees": [], "ts": now.isoformat()}
         spent = await self.refresh_budget_flags()
+        off = await self.refresh_hours()
         employees = []
         for info in self.employees.values():
-            state = self._states.get(info.id) or StateView(info.id, Activity.BREAK, now, now)
+            state = self._states.get(info.id) or StateView(info.id, self._idle(now), now, now)
             employees.append(
                 {
                     "id": info.id,
@@ -380,7 +423,12 @@ class Office:
                     **state.as_dict(),
                 }
             )
-        return {"ready": True, "employees": employees, "ts": now.isoformat()}
+        return {
+            "ready": True,
+            "employees": employees,
+            "hours": self.hours(off),
+            "ts": now.isoformat(),
+        }
 
     def publish_notes(self, notes: Iterable[dict[str, Any]]) -> None:
         """Notebook entries of a committed message."""

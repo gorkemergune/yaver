@@ -24,9 +24,10 @@ interface Props {
   status: string;
   members: Record<string, Member>;
   onClose: () => void;
+  onOpenScreen: () => void; // the zoomed desk screen (also a click on the desk)
 }
 
-export function EmployeePanel({ employee: e, status, members, onClose }: Props) {
+export function EmployeePanel({ employee: e, status, members, onClose, onOpenScreen }: Props) {
   const notes = useQuery({
     queryKey: officeKeys.notes(e.id),
     queryFn: ({ signal }) =>
@@ -74,6 +75,13 @@ export function EmployeePanel({ employee: e, status, members, onClose }: Props) 
             {t.budget(money(String(e.spent_today_usd)), money(String(e.daily_budget_usd)))}
           </span>
         )}
+        <button
+          type="button"
+          onClick={onOpenScreen}
+          className="mt-1 self-start rounded-full bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-500/20 dark:text-[#b3a6ff]"
+        >
+          {tr.office.screen.open}
+        </button>
       </div>
 
       <div className="flex flex-col gap-2">

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { EmployeeState, OfficeEmployee, OfficeEvent } from "../api/types";
-import { SPOTS, inMeetingRoom, need } from "./geometry";
-import { DWELL_MS, applyOfficeEvent, feedLine, figureView, meetingSeats, planFigures, stepFigures, type Figure, type Staff } from "./model";
+import { DOOR, SPOTS, deskOutline, inMeetingRoom, need } from "./geometry";
+import { DWELL_MS, applyOfficeEvent, cueFor, feedLine, figureView, meetingSeats, planFigures, stepFigures, type Figure, type Staff } from "./model";
 import { TICK_MS } from "./useFigures";
 
 function employee(id: string, desk: OfficeEmployee["desk"], extra: Partial<OfficeEmployee> = {}): OfficeEmployee {
@@ -308,5 +308,69 @@ describe("feedLine", () => {
     const ask = state("agenda", { needs_user: true, needs_user_reason: "question" });
     if (ask.type !== "state") throw new Error("state");
     expect(feedLine(STAFF.agenda, ask, STAFF)).toBe("cevabını bekliyor");
+  });
+});
+
+describe("outside office hours (O5)", () => {
+  const night = (patch: Partial<EmployeeState>, base: Staff = STAFF): Staff =>
+    Object.keys(base).reduce<Staff>((staff, id) => applyOfficeEvent(staff, state(id, { activity: "off", ...patch })), base);
+
+  it("off: walks out by the door, then is gone - its desk stays empty", () => {
+    const day = arrive(planFigures({}, STAFF, 0, fixed(0.1)));
+    const closed = night({});
+    const leaving = planFigures(day, closed, 1000);
+    expect(leaving.academic?.spot).toBe(DOOR);
+    const walking = figureView(need(leaving.academic, "academic"), need(closed.academic, "academic"), closed, true);
+    expect(walking).toMatchObject({ walking: true, hidden: false, status: "Eve gidiyor" });
+
+    const gone = arrive(leaving);
+    const view = figureView(need(gone.academic, "academic"), need(closed.academic, "academic"), closed, true);
+    expect(view.hidden).toBe(true);
+    expect(view.status).toBe("Mesai dışı");
+    // a fresh page at night: nobody is drawn, nobody sits at a desk
+    const fresh = planFigures({}, closed, 0);
+    expect(Object.values(fresh).every((f) => f.spot === DOOR && f.act === "off")).toBe(true);
+  });
+
+  it("a request at night: the employee comes in by the door for a night shift", () => {
+    const gone = planFigures({}, night({}), 0);
+    const shift = applyOfficeEvent(night({}), state("agenda", { activity: "working", task: "Toplantı ekliyor" }));
+    const coming = planFigures(gone, shift, 1000);
+    expect(coming.agenda?.spot).toBe("seat:front:2");
+    expect([coming.agenda?.x, coming.agenda?.y]).toEqual(SPOTS[DOOR]?.pt); // from the door
+    const walking = figureView(need(coming.agenda, "agenda"), need(shift.agenda, "agenda"), shift, true);
+    expect(walking).toMatchObject({ hidden: false, walking: true, status: "Gece mesaisine geliyor" });
+    const seated = arrive(coming);
+    const view = figureView(need(seated.agenda, "agenda"), need(shift.agenda, "agenda"), shift, true);
+    expect(view).toMatchObject({ atDesk: true, status: "Gece mesaisi: Toplantı ekliyor" });
+    expect(seated.academic?.act).toBe("off"); // the others stay home
+  });
+
+  it("every desk has a six-point outline to click (and to darken)", () => {
+    for (const row of ["back", "front"] as const) {
+      for (let col = 0; col < 5; col++) expect(deskOutline(row, col).split(" ")).toHaveLength(6);
+    }
+  });
+});
+
+describe("cueFor (sounds)", () => {
+  const before = (patch: Partial<OfficeEmployee>) => employee("academic", { row: "back", col: 0 }, patch);
+  const after = (patch: Partial<EmployeeState>) => {
+    const event = state("academic", patch);
+    if (event.type !== "state") throw new Error("state");
+    return event;
+  };
+
+  it("work, meeting, alert and done - and nothing for small changes", () => {
+    expect(cueFor(before({}), after({ activity: "working", task: "x" }))).toBe("work");
+    expect(cueFor(before({ activity: "off" }), after({ activity: "working" }))).toBe("work");
+    expect(cueFor(before({}), after({ activity: "meeting", meeting_with: "yaver" }))).toBe("meeting");
+    expect(cueFor(before({ activity: "meeting" }), after({ activity: "working" }))).toBeNull(); // meeting -> desk
+    expect(cueFor(before({ activity: "working" }), after({ activity: "working", task: "y" }))).toBeNull();
+    expect(cueFor(before({ activity: "working" }), after({ activity: "break" }))).toBe("done");
+    expect(cueFor(before({ activity: "working" }), after({ activity: "off" }))).toBe("done");
+    expect(cueFor(before({}), after({ needs_user: true, needs_user_reason: "question" }))).toBe("alert");
+    expect(cueFor(before({ activity: "break" }), after({ activity: "off" }))).toBeNull(); // closing time
+    expect(cueFor(undefined, after({ activity: "working" }))).toBeNull();
   });
 });

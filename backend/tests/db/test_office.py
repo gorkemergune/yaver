@@ -46,9 +46,13 @@ from tests.db.test_agent_scenarios import week_setup_script
 IST = ZoneInfo("Europe/Istanbul")
 
 
-def example_config() -> TeamConfig:
+def example_config(open_at: str = "00:00", close_at: str = "00:00") -> TeamConfig:
+    """The example team; the office always open unless hours are given (tests run at any
+    hour of the day; test_office_hours_* pin the clock)."""
     with (REPO_CONFIG / "agents.example.yaml").open(encoding="utf-8") as fh:
-        return TeamConfig.model_validate(yaml.safe_load(fh))
+        config = TeamConfig.model_validate(yaml.safe_load(fh))
+    hours = config.office.model_copy(update={"open_at": open_at, "close_at": close_at})
+    return config.model_copy(update={"office": hours})
 
 
 @pytest.fixture
@@ -619,3 +623,93 @@ async def test_changes_mentioning_a_note_are_undoable_via_change_log(
     ]
     assert reply.change_set_id == entries[0].change_set_id
     assert isinstance(reply.change_set_id, uuid.UUID)
+
+
+# --- office hours (O5) --------------------------------------------------------------------
+
+
+class Clock:
+    def __init__(self, at: dt.datetime) -> None:
+        self.at = at
+
+    def __call__(self) -> dt.datetime:
+        return self.at
+
+
+def local(hour: int, minute: int = 0) -> dt.datetime:
+    return dt.datetime(2026, 11, 23, hour, minute, tzinfo=IST)  # a Monday
+
+
+@pytest.fixture
+async def office_with_hours(session: AsyncSession, database_url: str) -> AsyncIterator[Office]:
+    engine = create_async_engine(database_url, connect_args=CONNECT_ARGS)
+    config = example_config("08:00", "23:00")
+    clock = Clock(local(22, 0))
+    office = Office(async_sessionmaker(engine, expire_on_commit=False), config, IST, clock=clock)
+    assert await office.start()
+    yield office
+    await engine.dispose()
+
+
+async def test_office_hours_send_idle_employees_home_and_bring_them_back(
+    office_with_hours: Office,
+) -> None:
+    office = office_with_hours
+    clock = office.clock
+    assert isinstance(clock, Clock)
+    async with office.hub.subscribe() as queue:
+        assert await office.refresh_hours() is False  # 22:00: still open
+        clock.at = local(23, 5)
+        assert await office.refresh_hours() is True
+        closed = drain(queue)
+        clock.at = local(8, 0) + dt.timedelta(days=1)
+        assert await office.refresh_hours() is False
+        opened = drain(queue)
+
+    hours = [e for e in closed if e["type"] == "hours"]
+    assert [e["off_hours"] for e in hours] == [True]  # the first look is no event
+    assert hours[-1]["open_at"] == "08:00"
+    assert hours[-1]["close_at"] == "23:00"
+    assert set(activities(closed, "academic")) == {"off"}
+    assert {e["employee_id"] for e in closed if e.get("activity") == "off"} == set(office.employees)
+    assert activities(opened, "academic") == ["break"]
+    assert [e["off_hours"] for e in opened if e["type"] == "hours"] == [False]
+
+
+async def test_a_request_at_night_is_a_night_shift_then_home_again(
+    office_with_hours: Office,
+) -> None:
+    office = office_with_hours
+    clock = office.clock
+    assert isinstance(clock, Clock)
+    clock.at = local(1, 30)
+    await office.refresh_hours()
+    office.acquire("agenda")
+
+    working = await office.set_state("agenda", Activity.WORKING, task="Toplantı ekliyor")
+    await office.release("agenda")
+
+    assert working is not None
+    assert working.activity is Activity.WORKING  # came in for it
+    after = office.state("agenda")
+    assert after is not None
+    assert after.activity is Activity.OFF  # and went home, not to the kitchen
+    snapshot = await office.snapshot()
+    assert snapshot["hours"] == {"open_at": "08:00", "close_at": "23:00", "off_hours": True}
+    assert {e["activity"] for e in snapshot["employees"]} == {"off"}
+
+
+def test_office_hours_across_midnight_and_always_open(office: Office) -> None:
+    late = office.config.model_copy(
+        update={
+            "office": office.config.office.model_copy(
+                update={"open_at": "18:00", "close_at": "02:00"}
+            )
+        }
+    )
+    night_office = Office(office.sessionmaker, late, IST)
+
+    assert night_office.off_hours(local(1, 0)) is False
+    assert night_office.off_hours(local(2, 0)) is True
+    assert night_office.off_hours(local(17, 59)) is True
+    assert office.off_hours(local(3, 0)) is False  # open_at == close_at: never closed

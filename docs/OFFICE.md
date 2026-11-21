@@ -15,7 +15,7 @@ Animasyon gerçek duruma bağlıdır. Backend her çalışanın durumunu yayınl
 | Mutfakta / pencere koltuğunda, elinde kahve | `break` — boşta; kuyruğu boş |
 | Dinlenme kanepesi, koridor | `idle_walk` — boşta (rastgele, sadece görsel çeşitlilik) |
 | Kırmızı nokta | `needs_user` — senden onay/cevap bekliyor |
-| Mesai dışı (gece) | `off` — masası boş, ekran sönük (opsiyonel, O5) |
+| Mesai dışı (`office.open_at`-`close_at` dışı) | `off` — kapıdan çıkıp gider, masası boş, ekranı sönük; o saatte gelen istek "gece mesaisi" (`working`) |
 
 Boşta olma (break/idle_walk) görsel çeşitlemedir ve frontend'de seçilebilir; working / meeting / needs_user ise **yalnızca** backend'den gelir.
 
@@ -63,4 +63,4 @@ Mevcut 3 yaver eşlemesi: academic → Scholar, agenda → Chrono, discipline �
 | **O2 – Ofis sahnesi** | Prototipin React'e taşınması, statik SVG katmanları, A* hareket, panel, liste, canlı SSE bağlantısı | Ekranda gerçek isteklerle çalışanlar masaya dönüp çalışıyor, delegasyonda toplantı odasına gidiyor |
 | **O3 – Yeni çalışanlar** | Venture, Metrics, Creator, Buddy, Mentor + mesai işleri (araştırma masası boş); web arama ve diğer entegrasyonlar (anahtar yoksa çalışan "entegrasyon bekliyor" durumunda) | Her çalışan en az bir gerçek mesai işini yapıp defterine yazıyor |
 | **O4 – Ritüeller** | 09:00 standup (herkes toplantı odasında, brifing), 21:00 gün sonu raporu, Pazar haftalık toplantı, görev panosu (kanban) | Standup sahnede görünüyor ve brifing sohbete düşüyor |
-| **O5 – Cila** | Mesai dışı durumu, ses efektleri (kapatılabilir), masaya tıklayınca ekran yakınlaştırma, performans | — |
+| **O5 – Cila** | Mesai dışı durumu, ses efektleri (kapatılabilir), masaya tıklayınca ekran yakınlaştırma, performans | Gece masalar boş ve sönük, bir istek gelince ilgili çalışan gece mesaisine geliyor; masaya tıklayınca ekranı yakınlaşıyor; ses varsayılan kapalı |

@@ -272,9 +272,17 @@ export interface OfficeEmployee extends EmployeeState {
   spent_today_usd: number;
 }
 
+/** Office hours (agents.yaml office.open_at / close_at); off_hours: closed right now. */
+export interface OfficeHours {
+  open_at: string;
+  close_at: string;
+  off_hours: boolean;
+}
+
 export interface OfficeSnapshot {
   ready: boolean;
   employees: OfficeEmployee[];
+  hours?: OfficeHours; // missing when the office is not ready
   ts: string;
 }
 
@@ -289,6 +297,7 @@ export type OfficeEvent =
   | ({ type: "snapshot" } & OfficeSnapshot)
   | ({ type: "state" } & EmployeeState)
   | { type: "note"; employee_id: string; note: EmployeeNote; ts: string }
+  | ({ type: "hours"; ts: string } & OfficeHours)
   | { type: "ping"; ts: string };
 
 export interface EmployeeTask {

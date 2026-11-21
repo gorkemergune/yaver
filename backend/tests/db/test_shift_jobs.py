@@ -28,8 +28,11 @@ SETTINGS = Settings(_env_file=None)
 
 
 def example_config() -> TeamConfig:
+    """The example team, the office always open (the tests run at any hour)."""
     with (REPO_CONFIG / "agents.example.yaml").open(encoding="utf-8") as fh:
-        return TeamConfig.model_validate(yaml.safe_load(fh))
+        config = TeamConfig.model_validate(yaml.safe_load(fh))
+    always = config.office.model_copy(update={"open_at": "00:00", "close_at": "00:00"})
+    return config.model_copy(update={"office": always})
 
 
 @pytest.fixture

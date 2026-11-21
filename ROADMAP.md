@@ -54,6 +54,12 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 ### O5 — Cila
 - Mesai dışı (`off`) durumu, ses efektleri (kapatılabilir), masaya tıklayınca yakınlaştırma, performans
 
+**Durum: kod tamam (2026-11-21), performans ayrı ele alınmadı.** Mesai saatleri `agents.yaml` `office.open_at` / `close_at` (varsayılan 08:00-23:00). Dışında boştaki çalışan `off`: kapıdan çıkar, masası sönük; gece gelen istek ilgili çalışanı "gece mesaisi"ne getirir, iş bitince yine gider (backend `Office.set_state` saate göre `break`/`off` seçer, geçişler snapshot ve 15 sn'lik ping'de). Masaya tıklayınca (ya da paneldeki *Ekranına bak*) ekran yakınlaşır: durum, araç, başlangıç saati, elindeki / son iş, defterden iki satır. Ses: Web Audio ile üretilen dört hafif ses (iş, toplantı, seni bekliyor, bitti), varsayılan kapalı, tarayıcıda hatırlanır.
+
+**Bitti sayılır:**
+- [x] Gece masalar boş ve sönük, bir istek gelince ilgili çalışan gece mesaisine geliyor — backend testleri (`test_office_hours_*`, sabit saatle) + e2e `office-hours.spec.ts` (gece snapshot'ı: sönük masalar, Chrono "Gece mesaisi: ..." ve yanan masası, ekran yakınlaştırma, ses anahtarı)
+- [ ] Gerçek gecede canlıda görmek (Görkem; 23:00 sonrası bir mesaj)
+
 ---
 
 ## Faz 0 — Çekirdek: konuşarak program yönetimi
@@ -163,10 +169,10 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 - Spor takibi detayları (set/tekrar, streak) — Dayframe metrikleri
 - VPS'e taşıma rehberi (7/24 erişim)
 - QA raporundan kalanlar (`docs/QA_REPORT.md`, 21 Kasım):
-  - **O5** doğrudan sohbet başka bir konuşmanın id'siyle yazabiliyor: `employee_id` uyuşmazsa 409, bilinmeyen id 404 (istemci `storeConversation(null)`).
-  - **D6** DST'li bir `APP_TIMEZONE`'da var olmayan / iki kez yaşanan saatler: süre hesapları UTC'de, Europe/Berlin ile time_resolver/schedule testleri (Europe/Istanbul'da etkisiz).
-  - **Y2 / O3 nginx tarafı** (`feat/live-deploy` branch'i): `proxy_set_header X-Forwarded-For $remote_addr;`, `location = /api/calendar.ics { access_log off; }`. Backend tarafı bitti (TRUSTED_PROXIES, api log maskesi).
+  - ~~**O5**~~ bitti (`31e093e`): ana sohbet bir çalışanın konuşmasına 422 `not_the_main_chat`, koordinatör de başkasının konuşmasını reddediyor; bilinmeyen id bilerek yeni konuşma açıyor (istemci cevaptaki id'yi saklıyor).
+  - ~~**D6**~~ bitti (`694f7ff`): `core/localtime` (atlanan saat ileri, iki kez yaşanan ilki), süreler gerçek geçen zaman; Europe/Berlin testleri.
+  - ~~**Y2 / O3 nginx tarafı**~~ `feat/live-deploy` ile `main`'de.
   - **Y1 ek**: `office_events` döngüsünde `request.is_disconnected()` (kopan sekmenin akışı ping'i beklemeden kapanır). Bağlantı sızıntısı düzeldi; bu yalnız temizlik.
   - Giriş için global deneme sınırı (QA önerisi) bilerek yapılmadı: başkası sahibini dışarıda bırakabilir; adres bazlı sınır + güvenilen proxy yeterli sayıldı.
 - Sınav eklenince arka planda gelen tekrar planı sohbete en geç 1 dk'da düşer (istemci dakikada bir yeniler): SSE ile anında göstermek.
-- Canlı yönlendirme setinde "Iceberg staj başvuruma dönüş bekliyorum, her gün sor" artık takip niyetiyle Chrono'ya gidiyor (set Mentor bekliyor; takip yine de oluşuyor): beklentiyi niyet tablosuna göre güncellemek ya da kariyer takibini Mentor'a vermek.
+- ~~Canlı yönlendirme setinde staj takibi Chrono'ya gidiyordu~~ bitti (`7b50887`): kariyer takipleri Mentor'un (`followups.owner_id`), set 18/18.

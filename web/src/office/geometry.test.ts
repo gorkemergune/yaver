@@ -36,8 +36,8 @@ describe("walking", () => {
   const keys = Object.keys(SPOTS);
 
   it("has every seat, meeting, coffee and walk spot", () => {
-    // 11 seats (Yaver's room + 2 rows x 5 desks), 9 + 3 standing meeting, 7 coffee, 8 walk
-    expect(keys).toHaveLength(38);
+    // 11 seats (Yaver's room + 2 rows x 5 desks), 9 + 3 standing meeting, 7 coffee, 8 walk, the door
+    expect(keys).toHaveLength(39);
     for (const key of keys) expect(clearPt(spotOf(key).app, 0), `${key} approach point`).toBe(true);
   });
 
@@ -52,7 +52,7 @@ describe("walking", () => {
         if (bad.length) failures.push(`${from} -> ${to}: ${String(bad.length)} points, e.g. ${JSON.stringify(bad[0])}`);
       }
     }
-    expect(routes).toBe(38 * 37);
+    expect(routes).toBe(39 * 38);
     expect(failures).toEqual([]);
   });
 

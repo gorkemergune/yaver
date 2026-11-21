@@ -13,6 +13,7 @@ import { EmployeePanel } from "./EmployeePanel";
 import type { AssistantItem } from "../chat/model";
 import { figureView, isNight, type Staff } from "./model";
 import { OfficeScene } from "./OfficeScene";
+import { useSound } from "./sound";
 import { useFigures } from "./useFigures";
 import { useOffice, type FeedItem } from "./useOffice";
 
@@ -39,7 +40,10 @@ export function OfficeView() {
   const figures = useFigures(office.staff);
   // in the URL (#/office?employee=academic): the task board opens a panel this way
   const [selected, setSelected] = useHashParam("employee");
+  const [screen, setScreen] = useState<string | null>(null);
+  const [sound, toggleSound] = useSound();
   const night = isNight(useHour());
+  const offHours = office.hours?.off_hours ?? false;
   const people = Object.values(office.staff);
   const members = useMemo<Record<string, Member>>(
     () => Object.fromEntries(people.map((e) => [e.id, { id: e.id, name: e.name, color: e.color, domain: e.domain }])),
@@ -67,7 +71,18 @@ export function OfficeView() {
               : office.link === "connecting"
                 ? tr.office.connecting
                 : tr.office.reconnecting}
+            {offHours && office.hours && <span> · {tr.office.closed(office.hours.open_at)}</span>}
           </span>
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-pressed={sound}
+            aria-label={tr.office.sound.label}
+            title={sound ? tr.office.sound.on : tr.office.sound.off}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300/70 text-slate-600 hover:bg-white/60 dark:border-[#262f5a] dark:text-[#c7cbe0] dark:hover:bg-white/5"
+          >
+            <SpeakerIcon on={sound} />
+          </button>
         </div>
         {office.ready === false && (
           <p className="rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
@@ -81,9 +96,18 @@ export function OfficeView() {
           onSelect={(id) => {
             setSelected(selected === id ? null : id);
           }}
-          night={night}
+          night={night || offHours}
+          offHours={offHours}
+          screen={screen}
+          onOpenScreen={(id) => {
+            setScreen(id);
+            setSelected(id);
+          }}
+          onCloseScreen={() => {
+            setScreen(null);
+          }}
         />
-        <MobileList staff={office.staff} figures={figures} selected={selected} onSelect={setSelected} />
+        <MobileList staff={office.staff} figures={figures} selected={selected} onSelect={setSelected} offHours={offHours} />
         <MainComposer chat={chat} />
         {import.meta.env.DEV && <DevRituals />}
       </section>
@@ -93,10 +117,13 @@ export function OfficeView() {
           <EmployeePanel
             key={chosen.id}
             employee={chosen}
-            status={figureView(chosenFigure, chosen, office.staff).status}
+            status={figureView(chosenFigure, chosen, office.staff, offHours).status}
             members={members}
             onClose={() => {
               setSelected(null);
+            }}
+            onOpenScreen={() => {
+              setScreen(chosen.id);
             }}
           />
         ) : (
@@ -116,11 +143,13 @@ function MobileList({
   figures,
   selected,
   onSelect,
+  offHours,
 }: {
   staff: Staff;
   figures: ReturnType<typeof useFigures>;
   selected: string | null;
   onSelect: (id: string | null) => void;
+  offHours: boolean;
 }) {
   return (
     <ul className="yhq-mobile-list yv-glass grid-cols-1 gap-0.5 rounded-2xl p-1.5 min-[480px]:grid-cols-2" aria-label={tr.office.listLabel}>
@@ -140,7 +169,7 @@ function MobileList({
                 {e.name}
               </span>
               <span className="min-w-0 flex-auto truncate text-slate-600 dark:text-[#b9bfdc]">
-                {f ? figureView(f, e, staff).status : ""}
+                {f ? figureView(f, e, staff, offHours).status : ""}
               </span>
               {e.needs_user && <span className="yhq-alert" />}
             </button>
@@ -148,6 +177,15 @@ function MobileList({
         );
       })}
     </ul>
+  );
+}
+
+function SpeakerIcon({ on }: { on: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M11 5 6 9H3v6h3l5 4z" />
+      {on ? <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" /> : <path d="m16 9 5 6m0-6-5 6" />}
+    </svg>
   );
 }
 
