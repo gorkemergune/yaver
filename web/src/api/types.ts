@@ -148,6 +148,15 @@ export interface MonthUsage {
     ratio: number | null;
     level: "ok" | "downgrade" | "limit";
   };
+  /** Tiers with their own monthly limit (deep: Opus for the marked weekly jobs). */
+  tier_budgets?: {
+    tier: string;
+    model: string;
+    limit_usd: string;
+    spent_usd: string;
+    reached: boolean;
+    over_limit: string;
+  }[];
   by_model: {
     provider: string;
     model: string;

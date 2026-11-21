@@ -169,7 +169,8 @@ Kurallar:
 - Prompt boyutu: `PYTHONPATH=. uv run python scripts/measure_prompts.py` (ajan başına token). Prompt/araç eklerken ölç; her çağrıda giden metin Groq kotasını doğrudan yer.
 
 ## LLM router
-- Tier'lar: `fast` (Groq), `fallback` (Claude Haiku 5.5), `smart` (Claude Sonnet 5.5), `local` (Ollama). Model ID'leri `config/providers.yaml`'da, koda gömülmez.
+- Tier'lar: `fast` (Groq), `fallback` (Claude Haiku 5.5), `smart` (Claude Sonnet 5.5), `deep` (Claude Opus 5.5), `local` (Ollama). Model ID'leri `config/providers.yaml`'da, koda gömülmez.
+- `deep` yalnızca `routing.purposes`'ta ona bağlanmış haftalık işler içindir (`ads_weekly_report`, `startup_weekly_review`); `routing.explicit_only` kodda zorlar, başka amaçla istenirse `ValueError`. Kendi aylık sınırı `DEEP_MONTHLY_BUDGET_USD` (`budget.tier_limits`, dolunca `smart`); Claude bütçesine de sayılır.
 - Failover: 429/5xx veya aynı turda 2 geçersiz tool call → bir üst tier.
 - Budget guard: `CLAUDE_MONTHLY_BUDGET_USD`. %80'de `smart` → `fallback`, %100'de sadece `fast`/`local`.
 - Prompt caching: system prompt + araç şemaları sabit tutulup cache'lenir. System prompt'a **bugünün tarihi, kullanıcıya özel veya istek başına değişen hiçbir şey yazılmaz** (prefix değişir, cache hiç tutmaz); takvim bağlamı ve tarih mesajlara eklenir. Araç listesi deterministik sırada verilir.

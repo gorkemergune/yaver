@@ -23,6 +23,14 @@ tiers:
     model: claude-sonnet-5-5
     options:
       effort: medium               # Sonnet 5.5 can't disable thinking; effort controls depth
+  deep:
+    # Opus 5.5: only purposes mapped to it below (routing.explicit_only), own monthly limit
+    # DEEP_MONTHLY_BUDGET_USD (budget.tier_limits). Thinking can't be disabled; forced
+    # tool_choice is rejected (the router validates tool calls instead).
+    provider: anthropic
+    model: claude-opus-5-5
+    options:
+      effort: high
   local:
     provider: ollama
     model: qwen3:8b
@@ -62,6 +70,10 @@ routing:
     image_read: fallback           # Haiku: what is it, dates of a notice / poster
     schedule_image: smart          # Sonnet: timetable photo / screenshot
     document_image: smart          # Sonnet: notes, tables, slides
+    # Weekly jobs marked deep (Opus); nothing else may use the deep tier:
+    ads_weekly_report: deep        # Metrics: week-over-week ad analysis + recommendations
+    startup_weekly_review: deep    # Venture: weekly review of the startup repo
+  explicit_only: [deep]
   max_tool_steps: 6
   max_invalid_tool_calls: 2      # same tier this many times, then fail over
   rate_limit_max_wait_seconds: 3 # 429 "try again in <=3s": wait on the same tier
@@ -81,5 +93,10 @@ budget:
   downgrade_at: 0.8              # >= 80%: tiers below are downgraded
   downgrade:
     smart: fallback
+    deep: fallback               # >= 80% of the Claude budget: weekly jobs on Haiku
   limit_at: 1.0                  # >= 100%: tiers on this provider are dropped from the chain
   allowed_at_limit: [fast, local] # ... and a chain with nothing left uses these (minus Claude)
+  tier_limits:                   # tiers with their own monthly limit (inside the one above)
+    deep:
+      limit_env: DEEP_MONTHLY_BUDGET_USD
+      over_limit: smart            # limit reached: the weekly jobs run on Sonnet

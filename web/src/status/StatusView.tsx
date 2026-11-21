@@ -236,6 +236,21 @@ function SpendCard() {
       </div>
       <Bar ratio={budget.ratio ?? 1} tone={budgetTone(budget.level)} />
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{tr.status.levels[budget.level]}</p>
+      {(usage.data.tier_budgets ?? []).map((tier) => {
+        const limit = Number(tier.limit_usd);
+        return (
+          <div key={tier.tier} className="mt-3">
+            <div className="mb-1 flex items-baseline justify-between text-sm">
+              <span>{tr.status.tierBudget(tier.tier)}</span>
+              <span className="tabular-nums">{tr.status.budget(money(tier.spent_usd), money(tier.limit_usd))}</span>
+            </div>
+            <Bar ratio={limit > 0 ? Number(tier.spent_usd) / limit : 1} tone={tier.reached ? "bad" : "ok"} />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {tier.reached ? tr.status.tierReached(tier.over_limit) : tr.status.tierNote}
+            </p>
+          </div>
+        );
+      })}
       {byModel.length > 0 && (
         <>
           <h3 className="mb-1 mt-4 text-sm font-medium text-slate-500 dark:text-slate-400">{tr.status.byModel}</h3>

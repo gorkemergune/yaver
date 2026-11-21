@@ -49,10 +49,20 @@ class RoutingConfig(_Strict):
     default: str
     failover_chain: list[str] = Field(default_factory=list)
     purposes: dict[str, str] = Field(default_factory=dict)
+    # Tiers only a purpose mapped to them may use (deep: Opus for marked weekly jobs); a
+    # call asking for one under any other purpose is refused in code.
+    explicit_only: list[str] = Field(default_factory=list)
     max_tool_steps: int = 6
     max_invalid_tool_calls: int = 2
     rate_limit_max_wait_seconds: float = 3.0  # 429 asking for a longer wait -> fail over
     rate_limit_max_waits: int = 2
+
+
+class TierLimit(_Strict):
+    """A tier with its own monthly limit on top of the provider budget."""
+
+    limit_env: str  # USD per month, from .env (e.g. DEEP_MONTHLY_BUDGET_USD)
+    over_limit: str  # the tier used instead once this month's spend reaches the limit
 
 
 class BudgetConfig(_Strict):
@@ -61,6 +71,7 @@ class BudgetConfig(_Strict):
     downgrade: dict[str, str] = Field(default_factory=lambda: {"smart": "fallback"})
     limit_at: float = 1.0
     allowed_at_limit: list[str] = Field(default_factory=lambda: ["fast", "local"])
+    tier_limits: dict[str, TierLimit] = Field(default_factory=dict)
 
 
 class SttConfig(_Strict):
@@ -92,10 +103,25 @@ class ProvidersConfig(_Strict):
             *self.budget.downgrade.keys(),
             *self.budget.downgrade.values(),
             *self.budget.allowed_at_limit,
+            *self.routing.explicit_only,
+            *self.budget.tier_limits.keys(),
+            *(limit.over_limit for limit in self.budget.tier_limits.values()),
         ]
         unknown = sorted({tier for tier in referenced if tier not in self.tiers})
         if unknown:
             raise ValueError(f"unknown tier(s) referenced: {', '.join(unknown)}")
+        # An explicit-only tier must never be reached by default, by failing over or by a
+        # budget step: only a purpose mapped to it.
+        reachable = {
+            self.routing.default,
+            *self.routing.failover_chain,
+            *self.budget.downgrade.values(),
+            *self.budget.allowed_at_limit,
+            *(limit.over_limit for limit in self.budget.tier_limits.values()),
+        }
+        leaked = sorted(set(self.routing.explicit_only) & reachable)
+        if leaked:
+            raise ValueError(f"explicit-only tier(s) reachable without a purpose: {leaked}")
         return self
 
     def tier_for_purpose(self, purpose: str) -> str:

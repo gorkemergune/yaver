@@ -63,7 +63,9 @@ class UsageRecord:
 class UsageStore(Protocol):
     async def record(self, record: UsageRecord) -> int | None: ...
 
-    async def spend_since(self, since: dt.datetime, provider: str | None = None) -> Decimal: ...
+    async def spend_since(
+        self, since: dt.datetime, provider: str | None = None, *, tier: str | None = None
+    ) -> Decimal: ...
 
 
 class InMemoryUsageStore:
@@ -76,12 +78,16 @@ class InMemoryUsageStore:
         self.records.append(record)
         return len(self.records)
 
-    async def spend_since(self, since: dt.datetime, provider: str | None = None) -> Decimal:
+    async def spend_since(
+        self, since: dt.datetime, provider: str | None = None, *, tier: str | None = None
+    ) -> Decimal:
         return sum(
             (
                 r.cost_usd
                 for r in self.records
-                if r.created_at >= since and (provider is None or r.provider == provider)
+                if r.created_at >= since
+                and (provider is None or r.provider == provider)
+                and (tier is None or r.tier == tier)
             ),
             Decimal(0),
         )
@@ -114,12 +120,16 @@ class DbUsageStore:
             await session.commit()
             return row_id
 
-    async def spend_since(self, since: dt.datetime, provider: str | None = None) -> Decimal:
+    async def spend_since(
+        self, since: dt.datetime, provider: str | None = None, *, tier: str | None = None
+    ) -> Decimal:
         query = select(func.coalesce(func.sum(LlmUsage.cost_usd), 0)).where(
             LlmUsage.created_at >= since
         )
         if provider is not None:
             query = query.where(LlmUsage.provider == provider)
+        if tier is not None:
+            query = query.where(LlmUsage.tier == tier)
         async with self._sessionmaker() as session:
             total = await session.scalar(query)
         return Decimal(total or 0)

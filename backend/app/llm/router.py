@@ -190,9 +190,21 @@ class LLMRouter:
         requested = tier or self.config.tier_for_purpose(purpose)
         if requested not in self.config.tiers:
             raise ValueError(f"unknown tier {requested!r}")
+        if (
+            requested in self.config.routing.explicit_only
+            and self.config.routing.purposes.get(purpose) != requested
+        ):
+            raise ValueError(
+                f"tier {requested!r} is only for purposes mapped to it in providers.yaml"
+                f" (routing.purposes), not {purpose!r}"
+            )
         chain = self.chain_for(requested)
         own_chain = set(chain)  # tiers a budget downgrade swaps in don't take the override
         if not ignore_budget:
+            limited = await self.budget.apply_tier_limits(chain)
+            if limited != chain:
+                logger.info("Tier limit reached: %s -> %s", chain, limited)
+                chain = limited
             status = await self.budget.status()
             chain = self.budget.apply(chain, status.level)
             if status.level is not BudgetLevel.OK:
@@ -438,6 +450,19 @@ def build_providers(config: ProvidersConfig, settings: Settings) -> dict[str, Pr
     }
 
 
+def tier_limits(config: ProvidersConfig, settings: Settings) -> dict[str, Decimal]:
+    """tier -> monthly USD limit from .env (unset or invalid: 0, i.e. the tier is off)."""
+    limits: dict[str, Decimal] = {}
+    for tier, limit in config.budget.tier_limits.items():
+        raw = env_value(settings, limit.limit_env) or "0"
+        try:
+            limits[tier] = Decimal(raw)
+        except ArithmeticError:
+            logger.warning("%s=%r is not a number: tier %s is off", limit.limit_env, raw, tier)
+            limits[tier] = Decimal(0)
+    return limits
+
+
 def build_router(
     settings: Settings | None = None,
     *,
@@ -453,6 +478,7 @@ def build_router(
         store,
         settings.tz,
         tier_providers={name: tier.provider for name, tier in config.tiers.items()},
+        tier_limits=tier_limits(config, settings),
     )
     return LLMRouter(
         config,

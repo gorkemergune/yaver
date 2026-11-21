@@ -8,7 +8,16 @@ modele gittiği `config/providers.yaml`'da yazar; kodda model adı yoktur.
 | `fast` | Groq `gpt-oss-120b` (ücretsiz katman) | Günlük sohbet, ekleme/iptal, sorular |
 | `fallback` | Claude Haiku 5.5 | `fast` hata verirse, rate limit'e takılırsa ya da 2 kez geçersiz araç çağrısı yaparsa |
 | `smart` | Claude Sonnet 5.5 | Haftalık plan, çalışma kâğıdı, uzun yapıştırılmış ders programı |
+| `deep` | Claude Opus 5.5 | Yalnızca işaretli haftalık işler: haftalık reklam raporu (Metrics), haftalık startup değerlendirmesi (Venture) |
 | `local` | Ollama (opsiyonel) | Tamamen yerel çalışma |
+
+`deep` başka hiçbir şeye açılmaz: `routing.explicit_only: [deep]`, yani yalnızca
+`routing.purposes`'ta `deep`'e bağlanan amaçlar kullanabilir, kod başka bir çağrıyı reddeder
+(varsayılan, failover ya da bütçe adımı `deep`'e çıkamaz). Kendi aylık sınırı var:
+`DEEP_MONTHLY_BUDGET_USD` (varsayılan 2). Dolunca o işler `smart`'la (Sonnet) yapılır.
+Opus harcaması `CLAUDE_MONTHLY_BUDGET_USD`'nin içinde de sayılır: Claude toplamı %80'i geçince
+haftalık işler Haiku'ya iner, %100'de Claude hiç kullanılmaz. Opus 5.5'te thinking
+kapatılamaz; derinliği `effort` belirler (`high`). Durum ekranında ayrı bir çubukla görünür.
 
 `providers.example.yaml` varsayılan olarak Groq'la başlar: yalnızca ücretsiz bir Groq
 key'iyle Yaver çalışır.

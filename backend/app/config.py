@@ -61,6 +61,8 @@ class Settings(BaseSettings):
 
     # --- Budget guard ---
     claude_monthly_budget_usd: float = 4.0
+    # Own limit of the deep tier (Opus, marked weekly jobs); counts toward the Claude budget too.
+    deep_monthly_budget_usd: float = 2.0
 
     # --- Clock convention for bare hours ("9'da" -> 09:00, "3'te" -> 15:00) ---
     clock_morning_hours: str = "8-11"

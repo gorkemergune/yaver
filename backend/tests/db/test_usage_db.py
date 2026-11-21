@@ -124,6 +124,9 @@ async def test_usage_endpoint(session: AsyncSession) -> None:
     assert body["budget"]["provider"] == "anthropic"
     assert body["budget"]["spent_usd"] == "1.500000"
     assert [m["provider"] for m in body["by_model"]] == ["anthropic", "groq"]
+    (deep,) = body["tier_budgets"]  # Opus: own limit (DEEP_MONTHLY_BUDGET_USD, default 2)
+    assert (deep["tier"], deep["model"], deep["spent_usd"]) == ("deep", "claude-opus-5-5", "0")
+    assert (deep["reached"], deep["over_limit"]) == (False, "smart")
 
 
 async def test_record_returns_the_id_even_when_commit_expires_rows(session: AsyncSession) -> None:

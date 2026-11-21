@@ -187,6 +187,7 @@ FAKE_PRICES = PriceTable(
         "claude": {
             "haiku": ModelPrice(input=Decimal(1), output=Decimal(1)),
             "sonnet": ModelPrice(input=Decimal(10), output=Decimal(10)),
+            "opus": ModelPrice(input=Decimal(20), output=Decimal(20)),
         },
         "ollama": {"*": ModelPrice(input=Decimal(0), output=Decimal(0))},
     }
@@ -199,6 +200,7 @@ def make_router(
     config: ProvidersConfig | None = None,
     limit_usd: str = "1.00",
     store: InMemoryUsageStore | None = None,
+    tier_limits: dict[str, str] | None = None,
 ) -> tuple[LLMRouter, InMemoryUsageStore]:
     config = config or make_config()
     store = store or InMemoryUsageStore()
@@ -211,5 +213,6 @@ def make_router(
         IST,
         clock=lambda: NOW,
         tier_providers={name: tier.provider for name, tier in config.tiers.items()},
+        tier_limits={tier: Decimal(usd) for tier, usd in (tier_limits or {}).items()},
     )
     return LLMRouter(config, providers, FAKE_PRICES, store, budget), store
