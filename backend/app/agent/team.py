@@ -68,11 +68,19 @@ SHIFT_JOB_KINDS = (
     "social_reminders",  # birthdays / plans in the next days
     "followup_watch",  # follow-ups still waiting for an answer
     "deadline_watch",  # deadlines in the next days
+    "github_watch",  # the startup repo (read only): week hand-ins, dated items, reminders
 )
 
 
 class ShiftJobConfig(_Strict):
-    job: Literal["web_scan", "ads_report", "social_reminders", "followup_watch", "deadline_watch"]
+    job: Literal[
+        "web_scan",
+        "ads_report",
+        "social_reminders",
+        "followup_watch",
+        "deadline_watch",
+        "github_watch",
+    ]
     at: str = Field(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")  # local time
     weekday: int | None = Field(None, ge=0, le=6)  # 0 = Monday; None = every day
     title: str = ""  # shown while it runs ("Sabah rakip taraması")

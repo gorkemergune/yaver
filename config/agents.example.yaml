@@ -140,8 +140,11 @@ agents:
     persona: Meraklı bir girişim analisti. Rakipleri ve haberleri takip eder, bulduğunu kaynağıyla söyler.
     tier: fast
     model: {groq: openai/gpt-oss-20b}
-    shift: Her sabah sektör ve rakip haberlerini tarar, öne çıkanları defterine yazar.
+    shift: >-
+      Her sabah startup deposuna bakar (GitHub, salt okunur): hafta teslimleri, tarihli işler
+      takvime + takibe, dosyası olmayan yaklaşan işe hatırlatma. Sektör ve rakip haberlerini tarar.
     shift_jobs:
+      - {job: github_watch, at: "08:15", title: Startup deposu kontrolü}
       - {job: web_scan, at: "08:30", title: Sabah rakip taraması, topics: [yapay zeka girişim haberleri, girişim yatırımları Türkiye]}
     tools: [web_search, add_task, complete_task, add_followup, update_followup, remember]
 

@@ -21,11 +21,13 @@ from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
 from app.db.models import Event, Followup, JobRun
 from app.db.models.enums import EventKind, FollowupStatus
 from app.db.session import get_sessionmaker
-from app.integrations import web_search as search
+from app.integrations import github as gh
+from app.integrations import web_search as websearch
 from app.integrations.meta_ads import NO_CREDENTIALS, NOT_BUILT, ads_status
 from app.office.notebook import note_event, record_shift, write_note
 from app.office.shifts import OverBudgetError, run_shift
 from app.office.state import Office
+from app.startup import repo as startup_repo
 
 logger = logging.getLogger(__name__)
 PREFIX = "shift:"
@@ -37,9 +39,10 @@ DEFAULT_TITLES = {
     "social_reminders": "Hatırlatmaları topluyor",
     "followup_watch": "Bekleyen dönüşlere bakıyor",
     "deadline_watch": "Yaklaşan teslimlere bakıyor",
+    "github_watch": "Startup deposuna bakıyor",
 }
 # Status notes (no data source yet) are written once a day, not on every run.
-STATUS_NOTES = frozenset({search.PENDING_NOTE, NO_CREDENTIALS, NOT_BUILT})
+STATUS_NOTES = frozenset({websearch.PENDING_NOTE, NO_CREDENTIALS, NOT_BUILT, gh.PENDING_NOTE})
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +74,9 @@ class ShiftContext:
     tz: dt.tzinfo
     job: ShiftJobConfig
     settings: Settings
-    search: search.WebSearch | None
+    search: websearch.WebSearch | None
+    employee_id: str = ""
+    github: gh.GitHub | None = None
 
     @property
     def today(self) -> dt.date:
@@ -93,12 +98,12 @@ async def _upcoming(ctx: ShiftContext) -> list[Event]:
 
 async def web_scan(ctx: ShiftContext) -> str | None:
     if ctx.search is None:
-        return search.PENDING_NOTE
+        return websearch.PENDING_NOTE
     lines = []
     for topic in ctx.job.topics:
         try:
             results = await ctx.search.search(topic, 3)
-        except search.SearchError as exc:
+        except websearch.SearchError as exc:
             logger.warning("web_scan %r failed: %s", topic, exc)
             lines.append(f"{topic}: arama başarısız")
             continue
@@ -109,6 +114,22 @@ async def web_scan(ctx: ShiftContext) -> str | None:
 
 async def ads_report(ctx: ShiftContext) -> str | None:
     return ads_status(ctx.settings).note
+
+
+async def github_watch(ctx: ShiftContext) -> str | None:
+    client = ctx.github or gh.get_github(ctx.settings)
+    if client is None:
+        return gh.PENDING_NOTE
+    try:
+        return await startup_repo.morning(
+            ctx.session, client, ctx.employee_id, ctx.now, ctx.settings.tz
+        )
+    except gh.GitHubError as exc:
+        logger.warning("github_watch: %s", exc)
+        return f"GitHub deposuna bakılamadı: {exc}"
+    finally:
+        if ctx.github is None:  # made here: closed here
+            await client.aclose()
 
 
 async def social_reminders(ctx: ShiftContext) -> str | None:
@@ -156,6 +177,7 @@ JOBS: dict[str, Callable[[ShiftContext], Awaitable[str | None]]] = {
     "social_reminders": social_reminders,
     "followup_watch": followup_watch,
     "deadline_watch": deadline_watch,
+    "github_watch": github_watch,
 }
 assert set(JOBS) == set(SHIFT_JOB_KINDS), "every kind agents.yaml accepts has a job"
 
@@ -168,8 +190,9 @@ async def run_shift_job(
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
     config: TeamConfig | None = None,
     office: Office | None = None,
-    web: search.WebSearch | bool | None = True,
+    web: websearch.WebSearch | bool | None = True,
     force: bool = False,
+    repo: gh.GitHub | None = None,
 ) -> str | None:
     """The note written, or None (unknown key, already ran today, nothing to say, over
     budget - not recorded then, so it can run once the budget allows). `force`: run again
@@ -183,7 +206,7 @@ async def run_shift_job(
     now = now or dt.datetime.now(dt.UTC)
     today = now.astimezone(settings.tz).date()
     sessionmaker = sessionmaker or get_sessionmaker()
-    provider = search.get_web_search() if web is True else (web or None)
+    provider = websearch.get_web_search() if web is True else (web or None)
 
     async with sessionmaker() as session:
         done = await session.scalar(
@@ -191,7 +214,9 @@ async def run_shift_job(
         )
         if done is not None and not force:
             return None
-        ctx = ShiftContext(session, now, settings.tz, plan.job, settings, provider)
+        ctx = ShiftContext(
+            session, now, settings.tz, plan.job, settings, provider, plan.employee_id, repo
+        )
 
         async def work() -> str | None:
             return await JOBS[plan.job.job](ctx)

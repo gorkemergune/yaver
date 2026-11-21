@@ -1,6 +1,8 @@
 """Application settings, loaded from environment variables / `.env` (pydantic-settings)."""
 
 import datetime as dt
+import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -89,11 +91,30 @@ class Settings(BaseSettings):
     brave_api_key: SecretStr | None = None
     meta_access_token: SecretStr | None = None  # Metrics: Meta Marketing API (skeleton)
     meta_ad_account_id: str | None = None
+    # Venture: the startup's GitHub repository, read only ("owner/name"). A fine-grained
+    # token with read access to contents, issues, pull requests and metadata is enough.
+    github_token: SecretStr | None = None
+    github_startup_repo: str | None = None
 
     # --- Web Push (Phase 1) ---
     vapid_public_key: str | None = None
     vapid_private_key: SecretStr | None = None
     vapid_subject: str | None = None
+
+    @field_validator("github_startup_repo", mode="before")
+    @classmethod
+    def _validate_repo(cls, value: object) -> object:
+        """'owner/name' (a pasted URL works too); empty or invalid = not set."""
+        if not isinstance(value, str) or not value.strip():
+            return None
+        repo = value.strip().removeprefix("https://github.com/").removesuffix(".git").strip("/")
+        if not re.fullmatch(r"[\w.-]+/[\w.-]+", repo):
+            # a placeholder left in .env must not stop the app: the integration stays pending
+            logging.getLogger(__name__).warning(
+                "GITHUB_STARTUP_REPO=%r is not owner/name: GitHub integration off", value
+            )
+            return None
+        return repo
 
     @field_validator("app_timezone")
     @classmethod

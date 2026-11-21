@@ -195,6 +195,7 @@ def test_every_new_employee_has_a_scheduled_shift_job() -> None:
     assert keys == [
         "shift:agenda:deadline_watch",  # the research employee's job, now the agenda's
         "shift:career:followup_watch",
+        "shift:startup:github_watch",  # the startup repo, read only
         "shift:startup:web_scan",
         "shift:ads:ads_report",
         "shift:content:web_scan",
@@ -203,6 +204,7 @@ def test_every_new_employee_has_a_scheduled_shift_job() -> None:
     scheduled = {p.job_id: p for p in plans(SETTINGS, config)}
     assert set(keys) <= set(scheduled)
     assert scheduled["shift:startup:web_scan"].at == dt.time(8, 30)
+    assert scheduled["shift:startup:github_watch"].at == dt.time(8, 15)
     assert "briefing" in scheduled  # the existing jobs stay
 
 

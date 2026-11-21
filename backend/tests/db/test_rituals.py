@@ -98,7 +98,10 @@ async def test_standup_meets_everyone_and_joins_the_briefing(
     assert f"- **Coach**: {QUIET}" in standup
     assert len(standup) == 8  # every employee, Yaver hosts
     assert "Defterimdeki son notlar: MATH 221 devamsızlık sınırda" in seen["academic"]
-    assert "Bugünkü mesai işlerim: 08:30 Sabah rakip taraması" in seen["startup"]
+    assert (
+        "Bugünkü mesai işlerim: 08:15 Startup deposu kontrolü | 08:30 Sabah rakip taraması"
+        in seen["startup"]
+    )
 
     meetings = {
         e["employee_id"]: e for e in events if e["type"] == "state" and e["activity"] == "meeting"
