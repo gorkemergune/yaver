@@ -20,7 +20,13 @@ from app.db.models import (
 )
 from app.db.models.enums import EventKind
 from app.jobs.weekly_plan import draft_week
-from app.materials.weekly import WeekRef, match_topics, week_material_ids
+from app.materials.weekly import (
+    WeekRef,
+    match_topics,
+    sections_numbered,
+    titles_like,
+    week_material_ids,
+)
 from tests.agent_fakes import NOW, ScriptedLLM, call
 from tests.db.test_agent_tools import IST, context, tool
 
@@ -197,3 +203,42 @@ async def test_a_weeks_materials_include_tabs_of_several_weeks(session: AsyncSes
         ).all()
     }
     assert titles == {"Digital Design.pdf", "CSE 221 notları: Map"}
+
+
+async def test_files_and_numbered_sections_are_found_by_name(session: AsyncSession) -> None:
+    course = await cse221(session)
+    lab = CourseMaterial(course_id=course.id, kind="lab", title="Lab Book.pdf", pages=60)
+    session.add(lab)
+    await session.flush()
+    session.add(
+        MaterialSection(
+            material_id=lab.id,
+            course_id=course.id,
+            number=None,
+            title="Experiment #5 Verifying Thevenin's Theorem",
+            page_start=39,
+            page_end=42,
+        )
+    )
+    await session.commit()
+    assert await titles_like(session, "lab3 decoder hangi hafta", None) == [
+        {"file": "Lab3 decoder.pdf", "course": "CSE 221", "weeks": [9]}
+    ]
+    found = await sections_numbered(session, "5. deney ne hakkında", course.id)
+    assert [(f["section"], f["pages"]) for f in found] == [
+        ("Experiment #5 Verifying Thevenin's Theorem", "s. 39-42")
+    ]
+    assert await sections_numbered(session, "5 soru çöz", None) == []
+
+
+async def test_a_course_without_a_weekly_plan_lists_its_materials(session: AsyncSession) -> None:
+    course = Course(code="EE211", name="Devre")
+    session.add(course)
+    await session.flush()
+    session.add(
+        CourseMaterial(course_id=course.id, kind="lab", title="EE211_Lab_Book.pdf", pages=58)
+    )
+    await session.commit()
+    result = await tool(context(session), "get_syllabus", course="EE211")
+    assert result["materials"] == ["EE211_Lab_Book.pdf"]
+    assert "search_materials" in result["note"]

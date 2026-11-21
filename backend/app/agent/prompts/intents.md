@@ -5,7 +5,7 @@ Split the message into its separate requests (usually one; "X, ayrıca Y" is two
 - exam: an exam, quiz, midterm (vize), final or its topics ("pazartesi DSA sınavında linked list çıkcakmış").
 - class: the weekly class schedule, one class cancelled / moved / a make-up class ("yarınki ders iptal", "lab cumaya alındı").
 - attendance: missed classes, absence limits and totals ("dersine gitmedim", "kaç devamsızlığım var").
-- course_note: lecture notes, syllabus, course content questions, study sheets.
+- course_note: lecture notes, syllabus, course content questions, study sheets; what a named course covers in a week or for its exam ("bu hafta cse221de ne var", "haftaya lineer cebirde hangi bölümler", "dsa sınavına ne çalışayım", "labwork01 hangi hafta").
 - task: a to-do ("görev ekle", "rapor yazmam lazım", "bitirdim").
 - followup: waiting for news and being reminded to ask ("hackathon başvurumun sonucunu bekliyorum, her gün sor"), or that news arriving - except internship / job applications, which are career.
 - sport: sport, workouts, the gym, running, screen time, games.
@@ -15,7 +15,7 @@ Split the message into its separate requests (usually one; "X, ayrıca Y" is two
 - career: internships (staj), jobs, CV, interviews (mülakat), job applications - including waiting for an application's answer and being reminded to ask ("X staj başvuruma dönüş bekliyorum, her gün sor"), and that answer arriving ("X'ten staj kabulü geldi").
 - social: friends, birthdays, gifts, social plans with people.
 - memory: a lasting fact about the user's life to remember, with no date and no hours ("cuma günleri Medipol'deyim"). With weekly hours it is a weekly block, not a memory: "her cuma 9-17 Medipol'de çalışıyorum" is an event (work), a class schedule is class.
-- question: a question about the plan or the past ("yarın ne var?", "bu hafta neler var"), or anything asked of the assistant.
+- question: a question about the plan or the past with no course named ("yarın ne var?", "bu hafta neler var"), or anything asked of the assistant.
 - undo: undoing the last change ("geri al").
 - answer: ONLY when an open question is shown below and this part answers it (a choice, a date, a course name, "evet"). A new request is never an answer, even right after a question.
 - other: thanks, greetings, chit-chat.

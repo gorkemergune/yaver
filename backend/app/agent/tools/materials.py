@@ -12,6 +12,7 @@ from app.agent.context import ToolContext
 from app.agent.tools import ToolError, ToolResult, tool
 from app.agent.tools.matching import find_or_create_course, require_course
 from app.config import get_settings
+from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
 from app.db.models import Attachment, CourseMaterial, Event, Proposal, SyllabusWeek
 from app.db.models.enums import EventKind
 from app.materials.ingest import compact
@@ -19,8 +20,10 @@ from app.materials.weekly import (
     course_weeks,
     covered_weeks,
     match_topics,
+    sections_numbered,
     syllabus_files,
     term_week,
+    titles_like,
     topics_of,
 )
 from app.rag.pdf import page_texts
@@ -52,9 +55,15 @@ async def search_materials(args: SearchMaterialsArgs, ctx: ToolContext) -> ToolR
         week_no=args.week,
         limit=args.limit,
     )
-    if not hits:
+    titled = await titles_like(ctx.session, args.query, course.id if course else None)
+    numbered = await sections_numbered(ctx.session, args.query, course.id if course else None)
+    if not hits and not titled and not numbered:
         return {"results": [], "note": "nothing uploaded matches; say so, do not make it up"}
+    found: dict[str, Any] = {"files_named": titled} if titled else {}
+    if numbered:
+        found["sections_named"] = numbered
     return {
+        **found,
         "results": [
             {
                 "source": f"{hit.title}, {hit.pages}",
@@ -65,15 +74,16 @@ async def search_materials(args: SearchMaterialsArgs, ctx: ToolContext) -> ToolR
                 "text": hit.content[:SNIPPET_CHARS],
             }
             for hit in hits
-        ]
+        ],
     }
 
 
 class GetSyllabusArgs(BaseModel):
     course: str = Field(description="course code or name")
     week: int | None = Field(None, ge=1, le=30, description="one term week; omit for all weeks")
-    relative: Literal["this_week", "next_week"] | None = Field(
-        None, description="'bu hafta' / 'haftaya' instead of a week number (resolved in code)"
+    relative: Literal["last_week", "this_week", "next_week"] | None = Field(
+        None,
+        description="'geçen hafta' / 'bu hafta' / 'haftaya' instead of a week number (in code)",
     )
 
 
@@ -94,7 +104,7 @@ async def get_syllabus(args: GetSyllabusArgs, ctx: ToolContext) -> ToolResult:
     if args.relative is not None:
         if current is None:
             raise ToolError("today is outside the term: give a week number")
-        week = current + (1 if args.relative == "next_week" else 0)
+        week = current + {"last_week": -1, "this_week": 0, "next_week": 1}[args.relative]
     refs = await course_weeks(ctx.session, course, [week] if week is not None else None)
     detailed = len(refs) <= MATERIAL_WEEKS
     result: dict[str, Any] = {
@@ -104,9 +114,25 @@ async def get_syllabus(args: GetSyllabusArgs, ctx: ToolContext) -> ToolResult:
         "weeks": [r.as_dict(materials=detailed) for r in refs],
     }
     if not refs:
-        result["note"] = "no syllabus uploaded for this course (or no such week)"
+        files = (
+            await ctx.session.scalars(
+                select(CourseMaterial.title)
+                .where(CourseMaterial.course_id == course.id)
+                .order_by(CourseMaterial.id)
+            )
+        ).all()
+        if files:  # EE211: a syllabus without a weekly plan, a lab book
+            result["materials"] = list(files)[:10]
+            result["note"] = (
+                "the syllabus has no week-by-week plan (or no such week); the course's "
+                "materials are listed: use search_materials for their content"
+            )
+        else:
+            result["note"] = "no syllabus uploaded for this course (or no such week)"
     elif not detailed:
         result["note"] = "ask for one week to see its sections, notes and sheets"
+    else:
+        result["note"] = "say the week number; cite the syllabus_file and pages as given"
     return result
 
 
@@ -169,6 +195,10 @@ async def get_exam_scope(args: GetExamScopeArgs, ctx: ToolContext) -> ToolResult
         "exam": {
             "title": exam.title,
             "date": day.isoformat(),
+            "when": (
+                f"{day.day} {MONTH_NAMES_TR[day.month - 1]} {WEEKDAY_NAMES_TR[day.weekday()]}"
+                + ("" if exam.all_day else exam.start_at.astimezone(ctx.tz).strftime(" %H:%M"))
+            ),
             "days_left": (day - ctx.today).days,
             "topics_you_gave": told,
         },
@@ -180,7 +210,10 @@ async def get_exam_scope(args: GetExamScopeArgs, ctx: ToolContext) -> ToolResult
         "topics_not_in_syllabus": match.missing if match else [],
         "syllabus_file": ", ".join(await syllabus_files(ctx.session, course.id)) or None,
         "weeks": weeks,
-        "note": "cite readings and sections with their pages; never add a section not listed",
+        "note": (
+            "say the date as 'when'; for each week its topics and, by name, its readings, "
+            "sections (pages), notes and sheets; cite the syllabus_file; add nothing unlisted"
+        ),
     }
 
 

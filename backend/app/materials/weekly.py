@@ -260,6 +260,90 @@ async def covered_weeks(
     return [w for w in teaching if after < w.week_no < exam_week] or list(teaching)
 
 
+async def titles_like(
+    session: AsyncSession, query: str, course_id: int | None
+) -> list[dict[str, Any]]:
+    """Materials whose file / tab name is in the question ("labwork01 part 2" ->
+    "Labwork01 - Part II.pdf") with their course and weeks: a name is not found by meaning."""
+    asked = _compact(query.replace(" ii", " 2").replace(" i ", " 1 "))
+    query_rows = select(CourseMaterial, Course.code).join(
+        Course, Course.id == CourseMaterial.course_id
+    )
+    if course_id is not None:
+        query_rows = query_rows.where(CourseMaterial.course_id == course_id)
+    found = []
+    for material, code in (await session.execute(query_rows)).all():
+        stem = PurePath(material.title).stem.split(": ")[-1]
+        name = _compact(stem.replace(" II", " 2").replace(" I", " 1"))
+        if len(name) < 4 or name not in asked:
+            continue
+        weeks = sorted(
+            {
+                w
+                for row in (
+                    await session.scalars(
+                        select(MaterialSection.week_nos).where(
+                            MaterialSection.material_id == material.id
+                        )
+                    )
+                ).all()
+                for w in row
+            }
+            | ({material.week_no} if material.week_no else set())
+            | {
+                w
+                for row in (
+                    await session.scalars(
+                        select(SourceItem.week_nos).where(SourceItem.material_id == material.id)
+                    )
+                ).all()
+                for w in row
+            }
+        )
+        found.append({"file": material.title, "course": code, "weeks": weeks})
+    return found[:5]
+
+
+NUMBERED = re.compile(
+    r"(?:\b(\d{1,2})\s*\.?\s*(?:deney|experiment|lab|deneyi)\b"
+    r"|\b(?:deney|experiment|lab)\w*\s*#?\s*(\d{1,2})\b)"
+)
+
+
+async def sections_numbered(
+    session: AsyncSession, query: str, course_id: int | None
+) -> list[dict[str, Any]]:
+    """ "5. deney" / "deney 5" / "lab 5" -> the section "Experiment #5 ..." of a lab book, with
+    its pages and weeks (the table of contents is in the database; meaning search may miss
+    a Turkish number for an English title)."""
+    match = NUMBERED.search(normalize(query))
+    if not match:
+        return []
+    number = match[1] or match[2]
+    pattern = re.compile(rf"(?:experiment|deney|lab)\w*\s*#?\s*0?{number}\b", re.IGNORECASE)
+    statement = select(MaterialSection, CourseMaterial.title).join(
+        CourseMaterial, CourseMaterial.id == MaterialSection.material_id
+    )
+    if course_id is not None:
+        statement = statement.where(MaterialSection.course_id == course_id)
+    found = []
+    for section, title in (await session.execute(statement)).all():
+        if pattern.search(normalize(section.title)):
+            found.append(
+                {
+                    "file": title,
+                    "section": section.title,
+                    "pages": _pages(section.page_start, section.page_end),
+                    "weeks": list(section.week_nos or []),
+                }
+            )
+    return found[:3]
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", normalize(text))
+
+
 async def syllabus_files(session: AsyncSession, course_id: int) -> list[str]:
     """The file(s) the course's weekly plan was read from, to cite ("CSE221 ... Syllabus.pdf")."""
     rows = await session.scalars(
