@@ -143,6 +143,10 @@ Ofis durumu (O1):
 - `break` dışındaki boşta görünümler (`idle_walk`) frontend'de seçilir; backend `idle_walk` yazmaz. `off` O5'te.
 
 Kurallar:
+- **Yönlendirme niyet bazlı** (`agent/intents.py`, `intent_map.py`): genel sohbette her mesaj önce tek bir `intent_classify` (fast) çağrısıyla parçalara ve niyetlere ayrılır (event, exam, class, attendance, course_note, task, followup, sport, content, ads, startup, career, social, memory, question, undo, answer, other). Niyet → sahip eşlemesi kodda sabit (`OWNERS`); kod sahiplere delege eder, koordinatör yalnız cevabı yazar (kendi parçaları: memory → `remember`, soru → plan araçları). Yer adı (Medipol, Iceberg) tek başına hiçbir şeyi belirlemez. Sınıflandırma başarısızsa eski akış (koordinatör kendisi delege eder).
+- Açık soru varken gelen mesaj da sınıflandırılır: `answer` ya da soran çalışanın alanıysa soruyla birlikte ona, değilse yeni istek olarak normal akışa gider (gerçek hata: "yarın sabah Medipoldeki kahvaltıya gidicem" Scholar'ın sorusuna cevap sanıldı).
+- Hiçbir çalışan isteği yapmadan dönmez: alanı dışındaysa `handoff(reason, area)` (ortak araç) ile geri verir, koordinatör aynı mesajda (aynı change_set) doğru çalışana iletir; o çalışanın aynı mesajda kendi parçası varsa ikisi birlikte gider. Kendi alanına handoff reddedilir. Düz bir takvim etkinliği (`add_event`) herkesin ortak aracı; `resolve_date` "sabah/akşam" için `default_start_time` verir.
+- Ders takma adları: `courses.aliases` ("DSA", "Veri Yapıları"); bilinmeyen kısaltmada araç bir kez sormasını söyler, cevap `add_course_alias` ile kaydedilir. Sınav konuları `add_event topics` → `events.notes` ("Konular: ..."); sınav sohbette eklenince tekrar planı mesaj kaydedildikten sonra arka planda (`Coordinator.after_message` → `run_job("exam_prep", record=False)`) ayrı mesaj olarak düşer, cevap beklemez.
 - Kullanıcı genel sohbette koordinatörle konuşur; ofiste bir çalışana tıklayıp doğrudan da yazabilir (`POST /api/employees/{id}/chat`, o çalışanın prompt'u ve araçları, aynı change_set/undo). Koordinatör karışık mesajı parçalara böler, `delegate` ile ilgili yavere gönderir, sonuçları tek cevapta birleştirir.
 - Her yaverin sadece kendi araçları ve kısa kendi prompt'u vardır (`agents.yaml` → `tools`). Bu hem doğruluk hem token tasarrufu içindir.
 - Bir kullanıcı mesajındaki tüm delegasyonlar **aynı `change_set_id`'yi** paylaşır; tek "Geri al" hepsini geri alır.
@@ -229,6 +233,15 @@ docker compose ps api                                   # STATUS: (healthy)
 curl -s -o /dev/null -w "%{http_code}
 " http://localhost:8000/api/health/ready   # 200
 ```
-`tests/test_smoke.py` uvicorn'un yüklediği `app.main:app` nesnesiyle `/health`'i çağırır ve `app/` altındaki her modülü içe aktarır.
+`tests/test_smoke.py` uvicorn'un yüklediği `app.main:app` nesnesiyle `/health`'i çağırır, `app/` altındaki her modülü içe aktarır ve isim gölgeleme taramasını (`backend/scripts/shadow_scan.py`, pre-commit'te de) çalıştırır.
+
+**Her maddeden sonra smoke testi + LLM'siz e2e suite; kırmızıysa commit yok:**
+```bash
+docker compose exec api pytest tests/test_smoke.py       # smoke
+./e2e/stack.ps1 up                                        # izole e2e stack (web 8090, api 8001, db 5433)
+cd e2e && npx playwright test                             # LLM'siz suite (@live hariç); hepsi yeşil olmalı
+```
+e2e stack çalışma klasöründen build edilir: backend/web değişikliğinden sonra `docker compose -p yaver-e2e -f e2e/docker-compose.e2e.yml --env-file .env up -d --build api web` ile yenile.
+Canlı konuşma seti (gerçek para, test DB'si): `docker compose exec api pytest -m live -k real_talk -s` (41 mesaj × 2 tur, DB sonucu kontrol, %95 altı kırmızı).
 - Sınıf gövdesinde bir alan, aynı gövdede sonra kullanılan bir modül / içe aktarılan adla aynı adı taşımaz (`github: github.GitHub`, `date: date` → `AttributeError` / `MappedAnnotationError`, uygulama açılmaz). Modülü takma adla al (`from app.integrations import github as gh`).
 - Yapılandırma hatası uygulamayı düşürmez (QA O1): geçersiz bir `.env` değeri varsayılana düşer (`Settings._bad_values_fall_back`), bozuk `agents.yaml` / `providers.yaml` yerine example dosyası okunur (`core/yaml_config.load_validated`); ikisi de `core/config_problems`'a yazılır, açılışta ERROR loglanır, `/api/team` `config_problems` ile arayüzde uyarı bandı çıkar. Yeni bir entegrasyon alanı yer tutucu değerde uyarı loglar, entegrasyonu kapalı sayar. Yalnız örnek dosyanın kendisi bozuksa (repo hatası) açılış durur.

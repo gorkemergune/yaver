@@ -162,3 +162,11 @@ Mevcut backend (araçlar, change_set/undo, scheduler, router, bütçe) aynen kal
 - ICS export → iPhone Takvim'e abonelik
 - Spor takibi detayları (set/tekrar, streak) — Dayframe metrikleri
 - VPS'e taşıma rehberi (7/24 erişim)
+- QA raporundan kalanlar (`docs/QA_REPORT.md`, 21 Kasım):
+  - **O5** doğrudan sohbet başka bir konuşmanın id'siyle yazabiliyor: `employee_id` uyuşmazsa 409, bilinmeyen id 404 (istemci `storeConversation(null)`).
+  - **D6** DST'li bir `APP_TIMEZONE`'da var olmayan / iki kez yaşanan saatler: süre hesapları UTC'de, Europe/Berlin ile time_resolver/schedule testleri (Europe/Istanbul'da etkisiz).
+  - **Y2 / O3 nginx tarafı** (`feat/live-deploy` branch'i): `proxy_set_header X-Forwarded-For $remote_addr;`, `location = /api/calendar.ics { access_log off; }`. Backend tarafı bitti (TRUSTED_PROXIES, api log maskesi).
+  - **Y1 ek**: `office_events` döngüsünde `request.is_disconnected()` (kopan sekmenin akışı ping'i beklemeden kapanır). Bağlantı sızıntısı düzeldi; bu yalnız temizlik.
+  - Giriş için global deneme sınırı (QA önerisi) bilerek yapılmadı: başkası sahibini dışarıda bırakabilir; adres bazlı sınır + güvenilen proxy yeterli sayıldı.
+- Sınav eklenince arka planda gelen tekrar planı sohbete en geç 1 dk'da düşer (istemci dakikada bir yeniler): SSE ile anında göstermek.
+- Canlı yönlendirme setinde "Iceberg staj başvuruma dönüş bekliyorum, her gün sor" artık takip niyetiyle Chrono'ya gidiyor (set Mentor bekliyor; takip yine de oluşuyor): beklentiyi niyet tablosuna göre güncellemek ya da kariyer takibini Mentor'a vermek.
