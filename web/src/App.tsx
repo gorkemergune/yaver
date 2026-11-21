@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ReactNode } from "react";
 
 import { useAuthStatus } from "./api/auth";
-import { useMonthUsage } from "./api/queries";
+import { useMonthUsage, useTeam } from "./api/queries";
 import { ChatView } from "./chat/ChatView";
 import { Backdrop } from "./components/Backdrop";
 import { ConnectionStatus } from "./components/ConnectionStatus";
@@ -63,6 +63,7 @@ export function App() {
     <div className="flex h-dvh flex-col print:block print:h-auto">
       <Backdrop />
       <Header route={route} />
+      <ConfigWarning />
       <main className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
         {route === "office" && <OfficeView />}
         {route === "chat" && <ChatView />}
@@ -75,6 +76,28 @@ export function App() {
         {route === "sheet" && <SheetView />}
       </main>
       <BottomNav route={route} />
+    </div>
+  );
+}
+
+/** O1: a bad .env value or a broken agents.yaml doesn't stop the API; it shows up here. */
+function ConfigWarning() {
+  const problems = useTeam().data?.config_problems ?? [];
+  if (problems.length === 0) return null;
+  return (
+    <div role="alert" className="border-b border-amber-500/30 bg-amber-100/80 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 print:hidden">
+      <div className="mx-auto max-w-[1500px]">
+        <p className="font-medium">{tr.configProblems.title}</p>
+        <ul className="mt-0.5 list-disc pl-5 text-xs">
+          {problems.map((p) => (
+            <li key={`${p.source}:${p.field ?? ""}`} title={p.message}>
+              {p.field ? tr.configProblems.env(p.field, p.fallback) : tr.configProblems.file(p.source, p.fallback)}{" "}
+              <span className="opacity-75">({p.message})</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-0.5 text-xs opacity-80">{tr.configProblems.fix}</p>
+      </div>
     </div>
   );
 }

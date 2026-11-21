@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.agent.tools import PLANNED_TOOLS, REGISTRY, Tool
 from app.core.time_resolver import normalize
-from app.core.yaml_config import load_yaml_config
+from app.core.yaml_config import load_validated
 from app.llm.config import ProvidersConfig, load_providers_config
 from app.llm.types import ToolSpec
 
@@ -357,7 +357,7 @@ def model_overrides(config: TeamConfig, providers: ProvidersConfig) -> list[tupl
 
 
 def load_team_config() -> TeamConfig:
-    return TeamConfig.model_validate(load_yaml_config("agents"))
+    return load_validated("agents", TeamConfig)
 
 
 @lru_cache

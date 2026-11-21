@@ -65,3 +65,20 @@ test.describe("API and login", () => {
     });
   });
 });
+
+test("O1: a configuration mistake the API survived shows a warning banner", async ({ page }) => {
+  await page.route("**/api/team", async (route) => {
+    const response = await route.fetch();
+    const team = (await response.json()) as Record<string, unknown>;
+    team.config_problems = [
+      { source: ".env", field: "BRIEFING_TIME", message: "expected HH:MM, got '9h'", fallback: "09:00" },
+      { source: "agents.yaml", field: null, message: "agents.0.tools: unknown tool", fallback: "agents.example.yaml" },
+    ];
+    await route.fulfill({ response, json: team });
+  });
+  await page.goto("/#/plan");
+  const banner = page.getByRole("alert").filter({ hasText: "Ayar dosyasında hata var" });
+  await expect(banner).toBeVisible();
+  await expect(banner.getByText('.env: BRIEFING_TIME geçersiz, "09:00" kullanılıyor.')).toBeVisible();
+  await expect(banner.getByText("agents.yaml okunamadı, agents.example.yaml kullanılıyor.")).toBeVisible();
+});

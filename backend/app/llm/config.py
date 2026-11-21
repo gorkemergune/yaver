@@ -8,7 +8,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.core.yaml_config import load_yaml_config
+from app.core.yaml_config import load_validated
 
 PRICING_FILE = Path(__file__).with_name("pricing.yaml")
 
@@ -130,7 +130,7 @@ class ProvidersConfig(_Strict):
 
 @lru_cache
 def load_providers_config() -> ProvidersConfig:
-    return ProvidersConfig.model_validate(load_yaml_config("providers"))
+    return load_validated("providers", ProvidersConfig)
 
 
 # --- pricing ---------------------------------------------------------------------------

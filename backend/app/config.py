@@ -6,11 +6,20 @@ import logging
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import SecretStr, field_validator, model_validator
+from pydantic import (
+    ModelWrapValidatorHandler,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core import config_problems
+from app.core.config_problems import ConfigProblem
 from app.core.time_resolver import ClockConvention
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -137,6 +146,42 @@ class Settings(BaseSettings):
             raise ValueError(f"Unknown timezone: {value!r}") from exc
         return value
 
+    @model_validator(mode="wrap")
+    @classmethod
+    def _bad_values_fall_back(
+        cls, data: Any, handler: ModelWrapValidatorHandler["Settings"]
+    ) -> "Settings":
+        """A wrong .env value (BRIEFING_TIME=9.00, APP_TIMEZONE=Istanbul, a budget of "4$")
+        never stops the app: the default is used, the mistake is logged and shown in the UI."""
+        if not isinstance(data, dict):
+            return handler(data)
+        config_problems.clear_source(".env")
+        data = dict(data)
+        for _ in range(len(cls.model_fields)):
+            try:
+                return handler(data)
+            except ValidationError as exc:
+                errors = [e for e in exc.errors() if e["loc"] and e["loc"][0] in cls.model_fields]
+                if not errors or len(errors) < len(exc.errors()):
+                    raise
+                for error in errors:
+                    name = str(error["loc"][0])
+                    field = cls.model_fields[name]
+                    if field.is_required() or name not in data:
+                        raise
+                    secret = "SecretStr" in str(field.annotation)
+                    default = field.get_default(call_default_factory=True)
+                    config_problems.report(
+                        ConfigProblem(
+                            ".env",
+                            name.upper(),
+                            str(error["msg"]).removeprefix("Value error, "),
+                            "boş" if secret or default is None else str(default),
+                        )
+                    )
+                    data.pop(name)
+        return handler(data)
+
     @property
     def trusted_networks(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
         networks = []
@@ -170,11 +215,13 @@ class Settings(BaseSettings):
     )
     @classmethod
     def _hhmm(cls, value: str) -> str:
+        match = re.fullmatch(r"(\d{1,2})[:.](\d\d)", value.strip())  # 9:00, 21.00 too
         try:
-            dt.time.fromisoformat(value)
+            if match is None:
+                raise ValueError(value)
+            return dt.time(int(match[1]), int(match[2])).strftime("%H:%M")
         except ValueError as exc:
             raise ValueError(f"expected HH:MM, got {value!r}") from exc
-        return value
 
     @field_validator("clock_morning_hours", "clock_afternoon_hours")
     @classmethod
@@ -184,7 +231,15 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_clock(self) -> "Settings":
-        _ = self.clock  # ranges within 1-11 and not overlapping
+        try:
+            _ = self.clock  # ranges within 1-11 and not overlapping
+        except ValueError as exc:
+            config_problems.report(
+                ConfigProblem(
+                    ".env", "CLOCK_MORNING_HOURS / CLOCK_AFTERNOON_HOURS", str(exc), "8-11 / 1-7"
+                )
+            )
+            self.clock_morning_hours, self.clock_afternoon_hours = "8-11", "1-7"
         return self
 
 

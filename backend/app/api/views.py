@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.team import Team, get_team
 from app.api.uploads import attachment_view
 from app.config import get_settings
+from app.core import config_problems
 from app.core.change_log import describe_changes
 from app.core.time_resolver import week_start
 from app.db.models import (
@@ -54,6 +55,8 @@ async def team(members: Team = Depends(get_team)) -> dict[str, Any]:
         "agents": [view(agent) for agent in members.agents],
         "onboarding": view(members.onboarding) if members.onboarding else None,
         "user_name": get_settings().app_user_name,
+        # config mistakes the app survived (O1): shown as a warning banner
+        "config_problems": config_problems.problems(),
     }
 
 

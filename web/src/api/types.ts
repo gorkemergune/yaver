@@ -12,6 +12,15 @@ export interface Team {
   agents: Member[];
   onboarding: Member | null;
   user_name: string;
+  config_problems?: ConfigProblem[];
+}
+
+/** A configuration mistake the API survived (app/core/config_problems.py). */
+export interface ConfigProblem {
+  source: string; // ".env", "agents.yaml", "providers.yaml"
+  field: string | null;
+  message: string;
+  fallback: string;
 }
 
 export interface OnboardingStatus {

@@ -231,4 +231,4 @@ curl -s -o /dev/null -w "%{http_code}
 ```
 `tests/test_smoke.py` uvicorn'un yüklediği `app.main:app` nesnesiyle `/health`'i çağırır ve `app/` altındaki her modülü içe aktarır.
 - Sınıf gövdesinde bir alan, aynı gövdede sonra kullanılan bir modül / içe aktarılan adla aynı adı taşımaz (`github: github.GitHub`, `date: date` → `AttributeError` / `MappedAnnotationError`, uygulama açılmaz). Modülü takma adla al (`from app.integrations import github as gh`).
-- Yeni `.env` alanı geçersiz ya da yer tutucu bir değerde uygulamayı düşürmez: uyarı loglar, entegrasyonu kapalı sayar.
+- Yapılandırma hatası uygulamayı düşürmez (QA O1): geçersiz bir `.env` değeri varsayılana düşer (`Settings._bad_values_fall_back`), bozuk `agents.yaml` / `providers.yaml` yerine example dosyası okunur (`core/yaml_config.load_validated`); ikisi de `core/config_problems`'a yazılır, açılışta ERROR loglanır, `/api/team` `config_problems` ile arayüzde uyarı bandı çıkar. Yeni bir entegrasyon alanı yer tutucu değerde uyarı loglar, entegrasyonu kapalı sayar. Yalnız örnek dosyanın kendisi bozuksa (repo hatası) açılış durur.

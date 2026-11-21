@@ -152,6 +152,12 @@ export const tr = {
       upload_upload_failed: "Görsel yüklenemedi.",
     } as Record<string, string>,
   },
+  configProblems: {
+    title: "Ayar dosyasında hata var; Yaver varsayılanlarla çalışıyor.",
+    env: (field: string, fallback: string) => `.env: ${field} geçersiz, "${fallback}" kullanılıyor.`,
+    file: (source: string, fallback: string) => `${source} okunamadı, ${fallback} kullanılıyor.`,
+    fix: "Düzeltip api'yi yeniden başlat (docker compose restart api).",
+  },
   design: {
     title: "Tasarım önizleme",
     newTitle: "Uygulanan · A + B yazısı",

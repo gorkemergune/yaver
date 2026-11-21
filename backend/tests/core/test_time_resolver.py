@@ -893,8 +893,9 @@ def test_clock_convention_from_settings() -> None:
 
     settings = Settings(_env_file=None, clock_morning_hours="9-11", clock_afternoon_hours="1-6")
     assert settings.clock == ClockConvention(morning=(9, 11), afternoon=(1, 6))
-    with pytest.raises(ValueError, match="overlap"):
-        Settings(_env_file=None, clock_morning_hours="5-11", clock_afternoon_hours="1-7")
+    # overlapping ranges don't stop the app (O1): the defaults are used and it is reported
+    overlapping = Settings(_env_file=None, clock_morning_hours="5-11", clock_afternoon_hours="1-7")
+    assert overlapping.clock == ClockConvention(morning=(8, 11), afternoon=(1, 7))
 
 
 def test_time_with_ambiguous_date_keeps_both_ambiguities_visible() -> None:
