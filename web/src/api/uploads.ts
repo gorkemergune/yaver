@@ -39,14 +39,25 @@ export async function uploadImages(files: File[], signal?: AbortSignal): Promise
 
 /** Image files out of a paste / drop / file picker (HEIC included: browsers often leave
  * its type empty, so the extension decides). */
-/** Images (HEIC too) and PDFs (syllabi, lecture notes); anything else is ignored. */
+/** Images (HEIC too), PDFs (syllabi, lecture notes) and CSVs (Meta Ads Manager exports,
+ * for Metrics); anything else is ignored. */
 export function attachableFiles(list: FileList | File[] | null | undefined): File[] {
   return Array.from(list ?? []).filter(
     (file) =>
-      file.type.startsWith("image/") || file.type === "application/pdf" || /\.(heic|heif|pdf)$/i.test(file.name),
+      file.type.startsWith("image/") ||
+      /\.(heic|heif)$/i.test(file.name) ||
+      documentKind(file.type) !== null ||
+      documentKind(file.name) !== null,
   );
 }
 
 export function isPdf(mimeOrName: string): boolean {
-  return mimeOrName === "application/pdf" || /\.pdf$/i.test(mimeOrName);
+  return documentKind(mimeOrName) === "PDF";
+}
+
+/** "PDF" / "CSV" for a document attachment (by type or file name), null for an image. */
+export function documentKind(mimeOrName: string): "PDF" | "CSV" | null {
+  if (mimeOrName === "application/pdf" || /\.pdf$/i.test(mimeOrName)) return "PDF";
+  if (mimeOrName === "text/csv" || /\.csv$/i.test(mimeOrName)) return "CSV";
+  return null;
 }

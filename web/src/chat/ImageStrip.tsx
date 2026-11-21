@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { XIcon } from "../components/icons";
-import { isPdf } from "../api/uploads";
+import { documentKind } from "../api/uploads";
 import { tr } from "../i18n/tr";
 
 export interface PendingImage {
@@ -34,17 +34,26 @@ export function ImageStrip({ images, onRemove }: { images: PendingImage[]; onRem
   );
 }
 
-/** An image, a PDF tile with its name, or a labelled tile when the browser can't show
- * the image (HEIC on desktop Chrome). */
+/** An image, a PDF / CSV tile with its name, or a labelled tile when the browser can't
+ * show the image (HEIC on desktop Chrome). */
 export function Thumb({ url, name, mime, className }: { url: string; name: string; mime?: string; className: string }) {
   const [broken, setBroken] = useState(false);
-  if (isPdf(mime ?? "") || isPdf(name)) {
+  const kind = documentKind(mime ?? "") ?? documentKind(name);
+  if (kind !== null) {
+    const tone =
+      kind === "PDF"
+        ? "bg-rose-50 ring-rose-200 dark:bg-rose-950/40 dark:ring-rose-400/20"
+        : "bg-emerald-50 ring-emerald-200 dark:bg-emerald-950/40 dark:ring-emerald-400/20";
     return (
       <div
-        className={`${className} flex flex-col items-center justify-center gap-1 rounded-xl bg-rose-50 p-1.5 text-center ring-1 ring-rose-200 dark:bg-rose-950/40 dark:ring-rose-400/20`}
+        className={`${className} flex flex-col items-center justify-center gap-1 rounded-xl p-1.5 text-center ring-1 ${tone}`}
         title={name}
       >
-        <span className="rounded bg-rose-500 px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-white">PDF</span>
+        <span
+          className={`rounded px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-white ${kind === "PDF" ? "bg-rose-500" : "bg-emerald-600"}`}
+        >
+          {kind}
+        </span>
         <span className="line-clamp-2 break-all text-[0.65rem] leading-tight text-slate-600 dark:text-slate-300">{name}</span>
       </div>
     );

@@ -113,11 +113,11 @@ export function Composer({
         >
           {voice.state === "transcribing" ? <TypingDots color="currentColor" /> : <MicIcon />}
         </button>
-        {/* accept="image/*" (+ PDF): iPhone offers camera, photo library and files */}
+        {/* accept="image/*" (+ PDF, CSV): iPhone offers camera, photo library and files */}
         <input
           ref={picker}
           type="file"
-          accept="image/*,.heic,.heif,application/pdf,.pdf"
+          accept="image/*,.heic,.heif,application/pdf,.pdf,text/csv,.csv"
           multiple
           hidden
           onChange={(event) => {
