@@ -18,6 +18,7 @@ from app.agent.loop import Emit
 from app.agent.team import get_team
 from app.config import get_settings
 from app.core.change_log import NothingToUndoError, undo_change_set
+from app.db.models import Conversation
 from app.db.models.enums import ConversationMode
 from app.db.session import get_session, get_sessionmaker
 from app.llm.router import LLMUnavailableError, get_router
@@ -89,6 +90,10 @@ async def _check_attachments(session: AsyncSession, body: ChatRequest) -> None:
         await unsent_attachments(session, body.attachment_ids)
     except ValueError as exc:
         raise HTTPException(422, detail={"code": "bad_attachments", "message": str(exc)}) from exc
+    if body.conversation_id is not None:  # QA O5: never an employee's direct chat
+        conversation = await session.get(Conversation, body.conversation_id)
+        if conversation is not None and conversation.employee_id is not None:
+            raise HTTPException(422, detail={"code": "not_the_main_chat"})
 
 
 class ChatResponse(BaseModel):

@@ -832,7 +832,14 @@ class Coordinator:
         if conversation_id is not None:
             existing = await session.get(Conversation, conversation_id)
             if existing is not None:
+                if existing.employee_id != employee_id:  # QA O5: one chat, one speaker
+                    raise ValueError(
+                        f"conversation {conversation_id} is not {employee_id or 'the main chat'}'s"
+                    )
                 return existing
+            # an id the database no longer has (reset): a new chat, its id goes back
+            # with the reply and the client keeps that one
+            logger.info("conversation %s not found: starting a new one", conversation_id)
         conversation = Conversation(title=text[:80], mode=mode, employee_id=employee_id)
         session.add(conversation)
         await session.flush()

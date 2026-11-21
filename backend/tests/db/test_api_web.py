@@ -16,10 +16,11 @@ from app.agent.coordinator import Coordinator
 from app.agent.team import get_team
 from app.api.chat import get_coordinator, get_session_factory
 from app.config import Settings, get_settings
-from app.db.models import Message, RecurringBlock
+from app.db.models import Conversation, Message, RecurringBlock
 from app.db.session import get_session
 from app.main import create_app
 from tests.agent_fakes import ScriptedLLM, call, example_team, say
+from tests.db.test_ads import team_in_office
 from tests.db.test_agent_scenarios import week_setup_script
 
 
@@ -263,3 +264,36 @@ async def test_chat_with_images(client: httpx2.AsyncClient, llm: ScriptedLLM) ->
     assert user["role"] == "user"
     assert [a["id"] for a in user["attachments"]] == [image["id"]]
     assert "context" not in user  # what the model read stays out of the chat view
+
+
+async def test_the_main_chat_never_writes_into_an_employees_direct_chat(
+    client: httpx2.AsyncClient, llm: ScriptedLLM, session: AsyncSession
+) -> None:
+    """QA O5: one conversation, one speaker - the main chat refuses a direct chat's id, the
+    coordinator itself too; an id the database no longer has starts a new chat."""
+    await team_in_office(session)
+    direct = Conversation(title="Scholar", employee_id="academic")
+    session.add(direct)
+    await session.commit()
+
+    plain = await client.post("/api/chat", json={"message": "selam", "conversation_id": direct.id})
+    streamed = await client.post(
+        "/api/chat/stream", json={"message": "selam", "conversation_id": direct.id}
+    )
+    with pytest.raises(ValueError, match="not the main chat's"):
+        await Coordinator(llm, example_team(), Settings(_env_file=None)).handle(
+            session, "selam", conversation_id=direct.id
+        )
+    await session.rollback()
+    written = await session.scalar(select(func.count(Message.id)))
+    llm.add("yaver", say("Merhaba!"))
+    gone = await client.post("/api/chat", json={"message": "selam", "conversation_id": 987654})
+
+    assert plain.status_code == 422
+    assert plain.json()["detail"]["code"] == "not_the_main_chat"
+    assert streamed.status_code == 422
+    assert written == 0
+    assert gone.status_code == 200
+    fresh = await session.get(Conversation, gone.json()["conversation_id"])
+    assert fresh is not None
+    assert fresh.employee_id is None
