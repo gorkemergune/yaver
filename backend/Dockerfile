@@ -21,7 +21,8 @@ FROM base AS dev
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# an open stream (office SSE) must not hold a reload / stop forever: 5 s, then it is cut
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--timeout-graceful-shutdown", "5"]
 
 # --- prod: runtime dependencies only, non-root user
 FROM base AS prod
@@ -30,4 +31,4 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY . .
 RUN useradd --create-home --uid 1000 yaver
 USER yaver
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--timeout-graceful-shutdown", "5"]
