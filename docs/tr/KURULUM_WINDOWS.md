@@ -48,7 +48,7 @@ Tailscale'e bağlı her cihaz adresi açabilir. Bu yüzden önce parola koy.
 2. API'yi yeniden başlat: `docker compose -f docker-compose.yml up -d` (geliştirme modundaysan `docker compose up -d`).
 3. `http://localhost:8080`'i aç; giriş ekranı çıkmalı.
 
-Oturum açık kalır ve 30 gün kullanılmazsa kapanır (`SESSION_DAYS`). Masaüstü uygulamasında: ⚙ → Parola → Giriş yap.
+Oturum açık kalır ve 30 gün kullanılmazsa kapanır (`SESSION_DAYS`). Masaüstü uygulaması ve iPhone Siri kısayolu süresi dolmayan bir **cihaz anahtarıyla** bağlanır: web'de Durum → Cihaz anahtarları → "Cihaz anahtarı oluştur", masaüstünde ⚙ → Cihaz anahtarı (adımlar: `cihaz-anahtari.md`).
 
 ## 3. Tailscale ile HTTPS adresi
 

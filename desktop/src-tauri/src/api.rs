@@ -18,7 +18,8 @@ const SHORT_TIMEOUT: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ApiError {
     /// `invalid_url` | `unreachable` | `timeout` | `http` | `bad_response` |
-    /// `login_required` | `wrong_password` | `too_many_attempts`
+    /// `login_required` | `wrong_password` | `too_many_attempts` | `invalid_key` |
+    /// `device_key_invalid`
     pub code: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<u16>,
@@ -27,7 +28,7 @@ pub struct ApiError {
 }
 
 impl ApiError {
-    fn new(code: &'static str) -> Self {
+    pub fn new(code: &'static str) -> Self {
         Self {
             code,
             status: None,
@@ -96,6 +97,10 @@ impl Client {
 
     pub fn has_token(&self) -> bool {
         self.token.read().expect("token lock").is_some()
+    }
+
+    pub fn token(&self) -> Option<String> {
+        self.token.read().expect("token lock").clone()
     }
 
     async fn send(
@@ -206,15 +211,43 @@ fn error_code(status: u16, body: &str) -> &'static str {
     });
     match (status, code.as_deref()) {
         (401, Some("wrong_password")) => "wrong_password",
+        (401, Some("device_key_invalid")) => "device_key_invalid",
         (401, _) => "login_required",
         (429, _) => "too_many_attempts",
         _ => "http",
     }
 }
 
+/// A device key from the web app (Durum → Cihaz anahtarları): `yvk_` + 43 url-safe chars.
+pub fn is_device_key(key: &str) -> bool {
+    key.strip_prefix("yvk_").is_some_and(|rest| {
+        rest.len() >= 20 && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    })
+}
+
 /// Keeps the id from smuggling extra path segments into the URL.
 fn uuid_like(id: &str) -> bool {
     !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    #[test]
+    fn device_keys_are_recognised() {
+        assert!(is_device_key("yvk_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_xyz"));
+        assert!(!is_device_key("AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"));
+        assert!(!is_device_key("yvk_short"));
+        assert!(!is_device_key("yvk_has spaces and more characters here"));
+    }
+
+    #[test]
+    fn a_revoked_key_has_its_own_code() {
+        let body = r#"{"detail": {"code": "device_key_invalid"}}"#;
+        assert_eq!(error_code(401, body), "device_key_invalid");
+        assert_eq!(error_code(401, r#"{"detail": {"code": "login_required"}}"#), "login_required");
+    }
 }
 
 #[cfg(test)]

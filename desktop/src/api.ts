@@ -59,6 +59,8 @@ export const api = {
   team: () => invoke<Team>("get_team"),
   /** false: the server has no password (nothing to log in to). */
   login: (password: string) => invoke<boolean>("login", { password }),
+  /** A device key from the web app (Durum → Cihaz anahtarları); checked by the server first. */
+  useDeviceKey: (key: string) => invoke<undefined>("use_device_key", { key }),
   logout: () => invoke<undefined>("logout"),
   hideChat: () => invoke<undefined>("hide_chat"),
   screenTime: () => invoke<ScreenSummary>("screen_time_today"),

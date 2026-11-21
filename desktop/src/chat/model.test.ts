@@ -47,6 +47,8 @@ describe("errorMessage", () => {
   it("maps Rust error codes to Turkish", () => {
     expect(errorMessage({ code: "unreachable" })).toBe(tr.errors.unreachable);
     expect(errorMessage({ code: "http", status: 500 })).toBe(tr.errors.http(500));
+    expect(errorMessage({ code: "device_key_invalid", status: 401 })).toBe(tr.errors.device_key_invalid);
+    expect(errorMessage({ code: "invalid_key" })).toBe(tr.errors.invalid_key);
     expect(errorMessage({ code: "something_new" })).toBe(tr.errors.unknown);
     expect(errorMessage("boom")).toBe(tr.errors.unknown);
   });

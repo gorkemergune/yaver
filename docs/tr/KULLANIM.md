@@ -133,7 +133,7 @@ Ekranda duran yuvarlak logoya tıklayınca mini sohbet açılır. Ekran süresin
 ## 10. Giriş ve güvenlik
 
 - `.env`'de `APP_PASSWORD` boşsa giriş yoktur. Bu yalnızca Yaver'e sadece kendi bilgisayarından erişiliyorsa uygundur.
-- **Telefonu bağlamadan (Tailscale) önce bir parola koy**, sonra `docker compose up -d` çalıştır. Tarayıcı bir kez giriş yapar, oturum 30 gün kullanılmazsa biter. Masaüstü uygulamasında: ⚙ → Parola.
+- **Telefonu bağlamadan (Tailscale) önce bir parola koy**, sonra `docker compose up -d` çalıştır. Tarayıcı bir kez giriş yapar, oturum 30 gün kullanılmazsa biter. Masaüstü uygulaması ve Siri kısayolu **cihaz anahtarı** ile bağlanır: Durum → Cihaz anahtarları (ayrıntı: `cihaz-anahtari.md`).
 - Durum → Oturum → *Oturumu kapat* o tarayıcının oturumunu bitirir.
 
 ## 11. Yedek ve geri yükleme

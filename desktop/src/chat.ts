@@ -201,6 +201,7 @@ async function submit(): Promise<void> {
     fillReply(pending, reply);
   } catch (error) {
     fillError(pending, error);
+    if (needsKey(error)) askForKey();
   } finally {
     setBusy(false);
     input.focus();
@@ -262,6 +263,11 @@ async function loadSettings(): Promise<void> {
   autostartStatus.textContent = "";
   logoutButton.hidden = !settings.logged_in;
   loginStatus.textContent = "";
+  if (keyWanted) {
+    // the server refused us: say why, whichever of the two openers ran last
+    setLoginStatus(tr.settings.keyNeeded, "err");
+    password.focus();
+  }
 }
 
 function setLoginStatus(text: string, kind: "ok" | "err" | "" = ""): void {
@@ -274,11 +280,12 @@ loginForm.addEventListener("submit", (event) => {
   if (!password.value) return;
   loginButton.disabled = true;
   api
-    .login(password.value)
-    .then((enabled) => {
+    .useDeviceKey(password.value)
+    .then(() => {
+      keyWanted = false;
       password.value = "";
-      logoutButton.hidden = !enabled;
-      setLoginStatus(enabled ? tr.settings.loggedIn : tr.settings.authOff, "ok");
+      logoutButton.hidden = false;
+      setLoginStatus(tr.settings.loggedIn, "ok");
       void refreshTeam().catch(() => undefined);
     })
     .catch((error: unknown) => {
@@ -313,6 +320,20 @@ autostart.addEventListener("change", () => {
       autostart.disabled = false;
     });
 });
+
+function needsKey(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "login_required" || code === "device_key_invalid";
+}
+
+/** The server wants a device key (first start, revoked key) until one is saved. */
+let keyWanted = false;
+
+/** Settings page, key field focused, with why. */
+function askForKey(): void {
+  keyWanted = true;
+  showView("settings");
+}
 
 async function refreshTeam(): Promise<Team> {
   team = await api.team();
@@ -371,8 +392,11 @@ function init(): void {
   byId("autostart-hint", HTMLElement).textContent = tr.settings.autostartHint;
   renderEmpty();
   showView("chat");
-  // Names/colors are nice to have; the chat works without them.
-  void refreshTeam().catch(() => undefined);
+  // Names/colors are nice to have; the chat works without them. A server that wants a key
+  // (first start, revoked key): the settings page asks for one.
+  void refreshTeam().catch((error: unknown) => {
+    if (needsKey(error)) askForKey();
+  });
   // A limit warning clicked: open on the screen-time view.
   void getCurrentWebviewWindow().listen<string>("show_view", (event) => {
     if (isView(event.payload)) showView(event.payload);

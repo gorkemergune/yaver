@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, State, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 /// Settings in memory + where they live on disk.
 pub struct AppState {
@@ -203,6 +203,51 @@ async fn login(state: State<'_, AppState>, password: String) -> Result<bool, api
     Ok(enabled)
 }
 
+/// Saves a device key (web: Durum → Cihaz anahtarları) once the server accepts it; the key
+/// then goes with every request as `Authorization: Bearer`, like a login token.
+#[tauri::command]
+async fn use_device_key(state: State<'_, AppState>, key: String) -> Result<(), api::ApiError> {
+    let key = key.trim().to_owned();
+    if !api::is_device_key(&key) {
+        return Err(api::ApiError::new("invalid_key"));
+    }
+    let base = state.api_url();
+    let previous = state.api.token();
+    state.api.set_token(Some(key.clone()));
+    if let Err(err) = state.api.team(&base).await {
+        state.api.set_token(previous);
+        return Err(err);
+    }
+    session::save(&state.config_dir, Some(&key)).map_err(|err| api::ApiError {
+        code: "save_failed",
+        status: None,
+        detail: Some(err.to_string()),
+    })
+}
+
+/// First start (or a revoked key): the server wants a key and there is none that works, so
+/// the chat opens on its settings page, which asks for one.
+fn ask_for_a_key_if_needed(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(STARTUP_CHECK_DELAY).await;
+        let state = app.state::<AppState>();
+        let base = state.api_url();
+        match state.api.team(&base).await {
+            Err(err) if matches!(err.code, "login_required" | "device_key_invalid") => {
+                log::info!("the server wants a device key: asking for one");
+                if let Err(err) = windows::show_chat(&app) {
+                    log::warn!("could not open the chat: {err}");
+                }
+                let _ = app.emit_to(windows::CHAT, "show_view", "settings");
+            }
+            _ => {}
+        }
+    });
+}
+
+/// Lets the chat window load before it is asked to show the settings.
+const STARTUP_CHECK_DELAY: Duration = Duration::from_secs(3);
+
 /// Ends the session on the server (best effort) and forgets the token here.
 #[tauri::command]
 async fn logout(state: State<'_, AppState>) -> Result<(), String> {
@@ -315,6 +360,7 @@ pub fn run() {
             }
             windows::show_bubble(app.handle(), saved_position)?;
             tray::create(app.handle())?;
+            ask_for_a_key_if_needed(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -338,6 +384,7 @@ pub fn run() {
             undo_changes,
             get_team,
             login,
+            use_device_key,
             logout,
             open_config_folder,
             screentime::screen_time_today,

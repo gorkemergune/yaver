@@ -64,6 +64,8 @@ export function errorMessage(error: unknown): string {
     case "login_required":
     case "wrong_password":
     case "too_many_attempts":
+    case "device_key_invalid":
+    case "invalid_key":
       return tr.errors[error.code];
     case "http":
       return tr.errors.http(error.status ?? 0);
