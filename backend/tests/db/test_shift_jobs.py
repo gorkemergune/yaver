@@ -145,13 +145,13 @@ async def test_ad_report_is_a_pending_skeleton(session: AsyncSession, office: Of
 async def test_delegating_to_a_new_employee_runs_its_tool(
     session: AsyncSession, office: Office, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ "Nexa için post fikri bul" -> Mira; without a key she says so and notes it."""
+    """ "Nexa için post fikri bul" -> Creator; without a key she says so and notes it."""
     monkeypatch.setattr(search, "get_web_search", lambda: None)
     llm = ScriptedLLM()
     llm.add(
         "yaver",
         call("delegate", agent_id="content", instruction="Nexa için post fikri bul"),
-        say("Mira: web arama anahtarı olmadığı için trendlere bakamadı, defterine not aldı."),
+        say("Creator: web arama anahtarı olmadığı için trendlere bakamadı, defterine not aldı."),
     )
     llm.add(
         "content",
@@ -186,10 +186,10 @@ def test_every_new_employee_has_a_scheduled_shift_job() -> None:
     config = example_config()
     keys = [p.key for p in shift_plans(config)]
     assert keys == [
+        "shift:agenda:deadline_watch",  # the research employee's job, now the agenda's
         "shift:career:followup_watch",
         "shift:startup:web_scan",
         "shift:ads:ads_report",
-        "shift:research:deadline_watch",
         "shift:content:web_scan",
         "shift:social:social_reminders",
     ]
@@ -265,24 +265,24 @@ async def test_data_jobs_note_what_is_coming_or_stay_quiet(
     later = NOW + dt.timedelta(days=1)
 
     social = await run("shift:social:social_reminders", office, session, now=later)
-    research = await run("shift:research:deadline_watch", office, session)
+    agenda = await run("shift:agenda:deadline_watch", office, session)
     career = await run("shift:career:followup_watch", office, session)
 
     assert social == "Önümüzdeki 7 gün: Ali'nin doğum günü (27 Kasım Cuma)"
-    assert research == "Yaklaşan teslimler: TÜBİTAK ara rapor (27 Kasım Cuma)"
+    assert agenda == "Yaklaşan teslimler: TÜBİTAK ara rapor (27 Kasım Cuma)"
     assert career == "Dönüş bekleniyor: Medipol staj dönüşü (3 gündür)"
-    assert await notes_of(session, "research") == [research]
+    assert await notes_of(session, "agenda") == [agenda]
 
 
 async def test_shift_job_over_budget_waits(session: AsyncSession, office: Office) -> None:
-    await spend(session, "research", "0.30", dt.datetime.now(dt.UTC))
+    await spend(session, "agenda", "0.30", dt.datetime.now(dt.UTC))
 
     assert (
-        await run("shift:research:deadline_watch", office, session, now=dt.datetime.now(dt.UTC))
+        await run("shift:agenda:deadline_watch", office, session, now=dt.datetime.now(dt.UTC))
         is None
     )
     assert not (await session.scalars(select(JobRun))).all()  # may run once the day turns
-    state = office.state("research")
+    state = office.state("agenda")
     assert state is not None
     assert state.needs_user_reason == BUDGET
     assert state.activity is Activity.BREAK

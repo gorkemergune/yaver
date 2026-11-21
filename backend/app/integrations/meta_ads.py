@@ -1,4 +1,4 @@
-"""Meta (Instagram / Facebook) ad reports for Lyra: a skeleton. The Marketing API call is
+"""Meta (Instagram / Facebook) ad reports for Metrics: a skeleton. The Marketing API call is
 not written yet, so the integration is always pending; what it waits for is said
 precisely (no credentials vs. credentials but no code)."""
 

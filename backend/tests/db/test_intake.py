@@ -86,7 +86,7 @@ async def test_pdf_notes_are_suggested_then_saved(session: AsyncSession, tmp_pat
         call(
             "delegate", agent_id="academic", instruction="Materyal #1: EE211 7. hafta olarak kaydet"
         ),
-        say("Atlas: notları kaydetti."),
+        say("Scholar: notları kaydetti."),
     )
     fake.add(
         "academic",

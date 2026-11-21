@@ -86,18 +86,17 @@ async def test_employees_are_synced_from_the_team_config(
 
     assert [(e.id, e.name, e.desk_row, e.desk_col) for e in rows] == [
         ("yaver", "Yaver", DeskRow.OFFICE, 0),
-        ("academic", "Atlas", DeskRow.BACK, 0),
-        ("agenda", "Deniz", DeskRow.FRONT, 2),
-        ("discipline", "Kaan", DeskRow.FRONT, 3),
-        ("career", "Nova", DeskRow.BACK, 1),
-        ("startup", "Orion", DeskRow.BACK, 2),
-        ("ads", "Lyra", DeskRow.BACK, 3),
-        ("research", "Arda", DeskRow.BACK, 4),
-        ("content", "Mira", DeskRow.FRONT, 0),
-        ("social", "Ece", DeskRow.FRONT, 1),
+        ("academic", "Scholar", DeskRow.BACK, 0),
+        ("agenda", "Chrono", DeskRow.FRONT, 2),
+        ("discipline", "Coach", DeskRow.FRONT, 3),
+        ("career", "Mentor", DeskRow.BACK, 1),
+        ("startup", "Venture", DeskRow.BACK, 2),
+        ("ads", "Metrics", DeskRow.BACK, 3),
+        ("content", "Creator", DeskRow.FRONT, 0),
+        ("social", "Buddy", DeskRow.FRONT, 1),
     ]
     assert rows[0].is_coordinator
-    assert rows[0].role == "Genel Müdür"
+    assert rows[0].role == "Chief of Staff"
     assert rows[1].role == "Akademik"
     assert "log_attendance" in rows[1].tools
     assert {e.daily_budget_usd for e in rows} == {Decimal("0.2")}  # office.daily_budget_usd
@@ -227,7 +226,7 @@ async def test_delegation_shows_a_meeting_then_work_then_break(
         events = drain(queue)
     llm.assert_done()
 
-    # Yaver reads, meets Atlas, waits, merges; meets Kaan, waits, merges; done.
+    # Yaver reads, meets Scholar, waits, merges; meets Coach, waits, merges; done.
     assert activities(events, "yaver") == [
         "working",
         "meeting",
@@ -269,7 +268,7 @@ async def test_addressed_employee_works_then_breaks(session: AsyncSession, offic
         say("Yarın dersin yok."),
     )
     async with office.hub.subscribe() as queue:
-        await coordinator_with(llm, office).handle(session, "Atlas, yarın ne var?", now=NOW)
+        await coordinator_with(llm, office).handle(session, "Scholar, yarın ne var?", now=NOW)
         events = drain(queue)
 
     academic = [e for e in events if e["employee_id"] == "academic"]
@@ -289,7 +288,7 @@ async def test_open_question_is_a_red_dot_until_the_next_message(
     llm.add("agenda", say("Tamam, vazgeçtim."))
     coordinator = coordinator_with(llm, office)
 
-    first = await coordinator.handle(session, "Deniz, yarın bir toplantım var", now=NOW)
+    first = await coordinator.handle(session, "Chrono, yarın bir toplantım var", now=NOW)
     state = office.state("agenda")
     assert state is not None
     assert (state.activity, state.needs_user, state.needs_user_reason) == (
@@ -303,7 +302,7 @@ async def test_open_question_is_a_red_dot_until_the_next_message(
     assert agenda["needs_user_reason"] == "question"
 
     await coordinator.handle(
-        session, "Deniz, boşver", conversation_id=first.conversation_id, now=NOW
+        session, "Chrono, boşver", conversation_id=first.conversation_id, now=NOW
     )
     assert not office.state("agenda").needs_user  # type: ignore[union-attr]
 
@@ -336,14 +335,14 @@ async def test_add_note_writes_the_notebook_publishes_it_and_undo_removes_it(
     )
     llm.add(
         "yaver",
-        call("get_notes", employee="Atlas"),
+        call("get_notes", employee="Scholar"),
         lambda request: say(request.messages[-1].content),
     )
     coordinator = coordinator_with(llm, office)
 
     async with office.hub.subscribe() as queue:
         reply = await coordinator.handle(
-            session, "Atlas, defterine not al: MATH 221 sınırda", now=NOW
+            session, "Scholar, defterine not al: MATH 221 sınırda", now=NOW
         )
         events = drain(queue)
     note_events = [e for e in events if e["type"] == "note"]
@@ -352,7 +351,7 @@ async def test_add_note_writes_the_notebook_publishes_it_and_undo_removes_it(
     ]
     assert reply.changes[0]["entity"] == "employee_notes"
 
-    read = await coordinator.handle(session, "Atlas'ın defterinde ne var?", now=NOW)
+    read = await coordinator.handle(session, "Scholar'ın defterinde ne var?", now=NOW)
     assert "MATH 221 devamsızlık 8/10 saat" in read.reply
 
     assert reply.change_set_id is not None
@@ -439,7 +438,7 @@ async def test_scheduled_messages_skip_direct_employee_chats(
     main = Conversation(title="ana sohbet")
     session.add(main)
     await session.flush()
-    session.add(Conversation(title="Atlas", employee_id="academic"))  # newer, but direct
+    session.add(Conversation(title="Scholar", employee_id="academic"))  # newer, but direct
     await session.commit()
 
     from app.jobs.runner import _post
@@ -514,12 +513,11 @@ async def test_snapshot_endpoint(client: tuple[httpx2.AsyncClient, ScriptedLLM])
         ("career", {"row": "back", "col": 1}, "break"),
         ("startup", {"row": "back", "col": 2}, "break"),
         ("ads", {"row": "back", "col": 3}, "break"),
-        ("research", {"row": "back", "col": 4}, "break"),
         ("content", {"row": "front", "col": 0}, "break"),
         ("social", {"row": "front", "col": 1}, "break"),
     ]
     first = snapshot["employees"][1]
-    assert (first["name"], first["role"], first["color"]) == ("Atlas", "Akademik", "#4cbcff")
+    assert (first["name"], first["role"], first["color"]) == ("Scholar", "Akademik", "#4cbcff")
     assert first["spent_today_usd"] == 0
     assert first["daily_budget_usd"] == 0.2
 
@@ -612,7 +610,7 @@ async def test_changes_mentioning_a_note_are_undoable_via_change_log(
     llm = ScriptedLLM()
     llm.add("discipline", call("add_note", content="Valorant 90 dk"), say("Yazdım."))
     reply = await coordinator_with(llm, office).handle(
-        session, "Kaan, not al: Valorant 90 dk", now=NOW
+        session, "Coach, not al: Valorant 90 dk", now=NOW
     )
 
     entries = (await session.scalars(select(ChangeLog))).all()

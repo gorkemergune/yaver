@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     web_search_provider: str = "auto"  # auto (the first with a key) | tavily | brave
     tavily_api_key: SecretStr | None = None
     brave_api_key: SecretStr | None = None
-    meta_access_token: SecretStr | None = None  # Lyra: Meta Marketing API (skeleton)
+    meta_access_token: SecretStr | None = None  # Metrics: Meta Marketing API (skeleton)
     meta_ad_account_id: str | None = None
 
     # --- Web Push (Phase 1) ---

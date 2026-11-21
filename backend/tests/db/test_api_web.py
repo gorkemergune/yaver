@@ -80,11 +80,11 @@ async def test_stream_reports_progress_then_done(
     assert [t["tool"] for t in tools] == ["add_recurring_block", "add_recurring_block"]
     assert all(t["mutates"] and t["error"] is None for t in tools)
     replies = [e for e in events if e["type"] == "agent_reply"]
-    assert [r["name"] for r in replies] == ["Atlas", "Kaan"]
+    assert [r["name"] for r in replies] == ["Scholar", "Coach"]
     # only the speaker (coordinator) streams text
     text = "".join(e["delta"] for e in events if e["type"] == "text")
     assert {e["agent_id"] for e in events if e["type"] == "text"} == {"yaver"}
-    assert text.strip() == "Atlas derslerini, Kaan sporu ekledi."
+    assert text.strip() == "Scholar derslerini, Coach sporu ekledi."
     done = events[-1]
     assert done["change_set_id"]
     assert {c["entity"] for c in done["changes"]} == {"courses", "recurring_blocks"}
@@ -157,15 +157,14 @@ async def test_plan_attendance_and_team(client: httpx2.AsyncClient, llm: Scripte
     assert {c["course"] for c in courses} == {"EE211", "Linear Algebra"}
     assert team["coordinator"]["name"] == "Yaver"
     assert [(a["name"], a["color"]) for a in team["agents"]] == [
-        ("Atlas", "#4cbcff"),
-        ("Deniz", "#ffa070"),
-        ("Kaan", "#ece35e"),
-        ("Nova", "#4fe0c8"),
-        ("Orion", "#ffb547"),
-        ("Lyra", "#ff7eb0"),
-        ("Arda", "#dfe6f5"),
-        ("Mira", "#d29bff"),
-        ("Ece", "#86e886"),
+        ("Scholar", "#4cbcff"),
+        ("Chrono", "#ffa070"),
+        ("Coach", "#ece35e"),
+        ("Mentor", "#4fe0c8"),
+        ("Venture", "#ffb547"),
+        ("Metrics", "#ff7eb0"),
+        ("Creator", "#d29bff"),
+        ("Buddy", "#86e886"),
     ]
 
 

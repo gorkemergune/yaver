@@ -70,7 +70,7 @@ def week_setup_script() -> ScriptedLLM:
                 {"agent_id": "discipline", "instruction": "Salı ve perşembe 19-20 spor ekle"},
             ),
         ),
-        say("Atlas derslerini, Kaan sporu ekledi."),
+        say("Scholar derslerini, Coach sporu ekledi."),
     )
     llm.add(
         "academic",
@@ -135,7 +135,7 @@ async def test_full_week_story(session: AsyncSession) -> None:
     assert sets == [first.change_set_id]
     agents = set((await session.scalars(select(ChangeLog.agent_id))).all())
     assert agents == {"academic", "discipline"}
-    assert [a["name"] for a in first.agents] == ["Atlas", "Kaan"]
+    assert [a["name"] for a in first.agents] == ["Scholar", "Coach"]
 
     # 2) "Bugün linear iptal, yarın 14'te Iceberg toplantısı var, akşam spora gidemem"
     llm = ScriptedLLM()
@@ -149,7 +149,7 @@ async def test_full_week_story(session: AsyncSession) -> None:
             ),
             ("delegate", {"agent_id": "discipline", "instruction": "Bugün akşam spora gidemem"}),
         ),
-        say("Atlas linear'ı iptal etti, Deniz toplantıyı ekledi; Kaan: bugün spor yok."),
+        say("Scholar linear'ı iptal etti, Chrono toplantıyı ekledi; Coach: bugün spor yok."),
     )
     llm.add(
         "academic",
@@ -206,7 +206,7 @@ async def test_full_week_story(session: AsyncSession) -> None:
     llm.add(
         "yaver",
         call("delegate", agent_id="academic", instruction="Geçen çarşamba EE211'e gitmedim"),
-        say("Atlas devamsızlığı kaydetti."),
+        say("Scholar devamsızlığı kaydetti."),
     )
     llm.add(
         "academic",
@@ -289,7 +289,7 @@ async def test_addressing_a_yaver_by_name_skips_the_coordinator(session: AsyncSe
         say("Yarın 19:00 spor var, dersin yok."),
     )
 
-    reply = await send(session, llm, "Atlas, yarın ne var?")
+    reply = await send(session, llm, "Scholar, yarın ne var?")
 
     assert reply.speaker == "academic"
     assert [agent for agent, _ in llm.requests] == ["academic"] * 3
@@ -370,7 +370,7 @@ async def test_history_is_sent_with_the_next_message(session: AsyncSession) -> N
 
     sent = llm.requests[0][1].messages
     assert [m.role for m in sent] == ["user", "assistant", "user"]
-    assert sent[1].content == "Atlas derslerini, Kaan sporu ekledi."
+    assert sent[1].content == "Scholar derslerini, Coach sporu ekledi."
     assert "Şu an: 2026-11-23 10:00 Pazartesi" in (llm.requests[0][1].system_suffix or "")
 
 
@@ -380,7 +380,7 @@ async def test_tomorrow_quiz(session: AsyncSession) -> None:
     llm.add(
         "yaver",
         call("delegate", agent_id="academic", instruction="Yarın EE211 quiz var"),
-        say("Atlas quiz'i ekledi."),
+        say("Scholar quiz'i ekledi."),
     )
     llm.add(
         "academic",

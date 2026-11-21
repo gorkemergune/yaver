@@ -23,24 +23,23 @@ Boşta olma (break/idle_walk) görsel çeşitlemedir ve frontend'de seçilebilir
 
 | Çalışan | Alan | Otonom mesai (PC hep açık) | Gerekli entegrasyon |
 |---|---|---|---|
-| Yaver — Genel Müdür (kendi odası) | Seninle konuşur, yönlendirir, birleştirir, geri al | 09:00 standup, 21:00 gün sonu raporu | — |
-| Atlas — Akademik | Dersler, devamsızlık, sınav, materyal, çalışma kağıdı | Sınav hazırlığı, haftalık ders özeti | (mevcut) |
-| Nova — Kariyer | Medipol, Iceberg, staj başvuruları | Bekleyen dönüş takibi | Gmail (ileride) |
-| Orion — Startup | Nexa Lab hedefleri, rakipler | Sabah haber/rakip taraması, Pazartesi notu | Web arama API |
-| Lyra — Reklam Analisti | Reklam performansı | Günlük metrik çekme, anomali uyarısı | Meta Marketing API |
-| Mira — İçerik | Post fikirleri, içerik takvimi | Trend tarama, haftalık takvim | Web arama API |
-| Ece — Sosyal Çevre | Arkadaşlar, doğum günleri, planlar | Hatırlatmalar | — |
-| Deniz — Ajanda | Toplantılar, takvim, followup | Çakışma kontrolü, takip soruları | (mevcut) |
-| Kaan — Koç | Spor, disiplin, ekran süresi | 21:00 check-in, Valorant limiti | Desktop (mevcut) |
-| Arda — Araştırma · AI | TÜBİTAK, Medipol model çalışmaları | Haftalık deney özeti, teslim hatırlatma | — |
+| Yaver — Chief of Staff (kendi odası) | Seninle konuşur, yönlendirir, birleştirir, geri al | 09:00 standup, 21:00 gün sonu raporu | — |
+| Scholar — Akademik | Dersler, devamsızlık, sınav, materyal, çalışma kağıdı | Sınav hazırlığı, haftalık ders özeti | (mevcut) |
+| Mentor — Kariyer | Medipol, Iceberg, staj başvuruları | Bekleyen dönüş takibi | Gmail (ileride) |
+| Venture — Startup | Nexa Lab hedefleri, rakipler | Sabah haber/rakip taraması, Pazartesi notu | Web arama API |
+| Metrics — Reklam Analisti | Reklam performansı | Günlük metrik çekme, anomali uyarısı | Meta Marketing API |
+| Creator — İçerik | Post fikirleri, içerik takvimi | Trend tarama, haftalık takvim | Web arama API |
+| Buddy — Sosyal Çevre | Arkadaşlar, doğum günleri, planlar | Hatırlatmalar | — |
+| Chrono — Ajanda | Toplantılar, takvim, followup | Çakışma kontrolü, takip soruları | (mevcut) |
+| Coach — Koç | Spor, disiplin, ekran süresi | 21:00 check-in, Valorant limiti | Desktop (mevcut) |
 
-Mevcut 3 yaver eşlemesi: academic → Atlas, agenda → Deniz, discipline → Kaan. Yeni çalışan = `agents.yaml` kaydı + araçlar + ofiste boş masa (düzen 5 masa çifti; arka/ön sıra).
+Mevcut 3 yaver eşlemesi: academic → Scholar, agenda → Chrono, discipline → Coach. Yeni çalışan = `agents.yaml` kaydı + araçlar + ofiste boş masa (düzen 5 masa çifti; arka/ön sıra).
 
 ## Backend (mevcut çekirdeğin üstüne)
 
 - `employees` tablosu `agents.yaml`'dan senkronlanır: id, ad, rol, renk, masa (sıra + sütun), kişilik, araçlar, `daily_budget_usd`.
 - `employee_state`: activity (yukarıdaki enum), current_task, since, updated_at. Tek yazma noktası: `office/state.py` (`set_state(...)`), her değişiklikte olay yayınlar.
-- `employee_notes` (defter): kısa, tarihli notlar; ajan `add_note` aracıyla yazar, mesai işleri de yazar. Sohbette "Atlas'ın defterinde ne var?" okunabilir.
+- `employee_notes` (defter): kısa, tarihli notlar; ajan `add_note` aracıyla yazar, mesai işleri de yazar. Sohbette "Scholar'ın defterinde ne var?" okunabilir.
 - `employee_tasks` (gelen kutusu): kaynak (kullanıcı / Yaver / mesai), durum, sonuç; koordinatör delegasyonu bunu kullanır.
 - Mesai işleri: mevcut scheduler'a çalışan bazlı işler (`office/shifts.py`). Her iş başında `working`, bitince `break`.
 - Olay akışı: `GET /api/office/stream` (SSE) → `{employee_id, activity, task, needs_user, ts}`; `GET /api/office/snapshot` ilk yükleme için.
@@ -62,6 +61,6 @@ Mevcut 3 yaver eşlemesi: academic → Atlas, agenda → Deniz, discipline → K
 |---|---|---|
 | **O1 – Ofis motoru** | employees/state/notes/tasks tabloları, `set_state`, SSE akışı, koordinatör ve araç çağrılarının durum yayınlaması, doğrudan çalışan sohbeti, `add_note` aracı | Sohbette bir istek verince SSE'de ilgili çalışanın `working` → `break` geçişi görülüyor; defter API'den okunuyor |
 | **O2 – Ofis sahnesi** | Prototipin React'e taşınması, statik SVG katmanları, A* hareket, panel, liste, canlı SSE bağlantısı | Ekranda gerçek isteklerle çalışanlar masaya dönüp çalışıyor, delegasyonda toplantı odasına gidiyor |
-| **O3 – Yeni çalışanlar** | Orion, Lyra, Mira, Ece, Nova, Arda + mesai işleri; web arama ve diğer entegrasyonlar (anahtar yoksa çalışan "entegrasyon bekliyor" durumunda) | Her çalışan en az bir gerçek mesai işini yapıp defterine yazıyor |
+| **O3 – Yeni çalışanlar** | Venture, Metrics, Creator, Buddy, Mentor + mesai işleri (araştırma masası boş); web arama ve diğer entegrasyonlar (anahtar yoksa çalışan "entegrasyon bekliyor" durumunda) | Her çalışan en az bir gerçek mesai işini yapıp defterine yazıyor |
 | **O4 – Ritüeller** | 09:00 standup (herkes toplantı odasında, brifing), 21:00 gün sonu raporu, Pazar haftalık toplantı, görev panosu (kanban) | Standup sahnede görünüyor ve brifing sohbete düşüyor |
 | **O5 – Cila** | Mesai dışı durumu, ses efektleri (kapatılabilir), masaya tıklayınca ekran yakınlaştırma, performans | — |

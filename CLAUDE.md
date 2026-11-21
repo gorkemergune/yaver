@@ -117,14 +117,14 @@ yaver/
 - `screen_sessions`, `app_limits` (Faz 4)
 
 ## Ofis çalışanları (çoklu ajan)
-Sistem adı Yaver; ofiste isimleri kullanıcı tarafından verilen uzman **çalışanlar** (kodda hâlâ "agent"/"yaver") çalışır. Tanımlar `config/agents.yaml`'da, koda gömülmez; `employees` tablosu açılışta oradan senkronlanır. Örnek dosyadaki isimler `docs/OFFICE.md`'deki nötr kadro (Atlas, Deniz, Kaan…); yerel dosya kendi isimlerini korur (id'ler aynı kalır).
+Sistem adı Yaver; ofiste isimleri kullanıcı tarafından verilen uzman **çalışanlar** (kodda hâlâ "agent"/"yaver") çalışır. Tanımlar `config/agents.yaml`'da, koda gömülmez; `employees` tablosu açılışta oradan senkronlanır. Örnek dosyadaki isimler `docs/OFFICE.md`'deki nötr kadro (Scholar, Chrono, Coach…); yerel dosya kendi isimlerini korur (id'ler aynı kalır).
 
 ```
-Kullanıcı ──► Yaver (Genel Müdür, koordinatör, kendi odası)
-                 ├─ delegate("academic",   "...")  → Atlas  (dersler, devamsızlık, sınav, materyal)
-                 ├─ delegate("agenda",     "...")  → Deniz  (toplantı, iş, etkinlik, followup, görevler)
-                 └─ delegate("discipline", "...")  → Kaan   (spor, alışkanlık, ekran süresi)
-   O3: Nova (kariyer), Orion (startup), Lyra (reklam), Mira (içerik), Ece (sosyal), Arda (araştırma)
+Kullanıcı ──► Yaver (Chief of Staff, koordinatör, kendi odası)
+                 ├─ delegate("academic",   "...")  → Scholar  (dersler, devamsızlık, sınav, materyal)
+                 ├─ delegate("agenda",     "...")  → Chrono  (toplantı, iş, etkinlik, followup, görevler)
+                 └─ delegate("discipline", "...")  → Coach   (spor, alışkanlık, ekran süresi)
+   O3: Mentor (kariyer), Venture (startup), Metrics (reklam), Creator (içerik), Buddy (sosyal)
 ```
 
 Ofis durumu (O1):
@@ -139,11 +139,11 @@ Kurallar:
 - Her yaverin sadece kendi araçları ve kısa kendi prompt'u vardır (`agents.yaml` → `tools`). Bu hem doğruluk hem token tasarrufu içindir.
 - Bir kullanıcı mesajındaki tüm delegasyonlar **aynı `change_set_id`'yi** paylaşır; tek "Geri al" hepsini geri alır.
 - Yaverler birbirini doğrudan çağırmaz; sadece koordinatör delege eder (döngü riski yok). Delegasyon derinliği = 1.
-- Kullanıcı bir yaveri adıyla çağırırsa ("Atlas, yarın ne var?") koordinatör doğrudan ona yönlendirir.
+- Kullanıcı bir yaveri adıyla çağırırsa ("Scholar, yarın ne var?") koordinatör doğrudan ona yönlendirir.
 - Cevaplarda hangi yaverin ne yaptığı gösterilir (UI'de isim + renk etiketi).
 - Brifing: her yaver kendi bölümünü üretir; `briefing_style` = `sections` ise kendi adıyla, `single_voice` ise koordinatör ağzından.
 - Yeni çalışan eklemek = `agents.yaml`'a kayıt (rol, masa, renk) + gerekirse yeni araç + ofiste boş masa (5 masa çifti: `back` 0-4, `front` 0-4). Koordinatör prompt'u çalışan listesini config'den otomatik alır.
-- Defter: her çalışan `add_note` (kendi defterine kısa not, yalnızca kullanıcı isteyince ya da kalıcı bir gözlem için) ve `get_notes` (kendi ya da başkasının defteri) araçlarını otomatik alır; koordinatör `get_notes`'u alır ("Atlas'ın defterinde ne var?").
+- Defter: her çalışan `add_note` (kendi defterine kısa not, yalnızca kullanıcı isteyince ya da kalıcı bir gözlem için) ve `get_notes` (kendi ya da başkasının defteri) araçlarını otomatik alır; koordinatör `get_notes`'u alır ("Scholar'ın defterinde ne var?").
 - Maliyet: delegasyon ekstra bir LLM çağrısıdır. Tek alanlı basit mesajlarda (ör. sadece "EE211'e gitmedim") koordinatör ilgili aracı doğrudan çağırabilsin diye `fast_path` opsiyonu düşünülür (Faz 0 sonu değerlendirme).
 
 ## Ajan araçları (ilk set)

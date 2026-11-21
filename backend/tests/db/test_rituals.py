@@ -61,8 +61,8 @@ async def test_standup_meets_everyone_and_joins_the_briefing(
     )
     await session.commit()
     llm = ScriptedLLM()
-    # employees with something to say: Atlas (a note) and the six with shift jobs today;
-    # Deniz and Kaan have nothing, their line is written by code (no LLM call)
+    # employees with something to say: Scholar (a note) and the six with shift jobs today;
+    # Coach has nothing to say: its line is written by code (no LLM call)
     seen: dict[str, str] = {}
 
     def report(agent_id: str, line: str) -> Any:
@@ -73,7 +73,7 @@ async def test_standup_meets_everyone_and_joins_the_briefing(
         return step
 
     llm.add("academic", report("academic", "MATH 221 sınırda; bugün tekrar planına bakacağım."))
-    for agent_id in ("career", "startup", "ads", "research", "content", "social"):
+    for agent_id in ("agenda", "career", "startup", "ads", "content", "social"):
         llm.add(agent_id, report(agent_id, f"{agent_id} bugünkü mesaisini yapacak."))
 
     async with office.hub.subscribe() as queue:
@@ -94,9 +94,9 @@ async def test_standup_meets_everyone_and_joins_the_briefing(
     assert message.kind == "briefing"
     assert message.content.startswith("Günaydın")
     standup = message.content.split("**Standup**\n", 1)[1].splitlines()
-    assert standup[0] == "- **Atlas**: MATH 221 sınırda; bugün tekrar planına bakacağım."
-    assert f"- **Deniz**: {QUIET}" in standup
-    assert len(standup) == 9  # every employee, Yaver hosts
+    assert standup[0] == "- **Scholar**: MATH 221 sınırda; bugün tekrar planına bakacağım."
+    assert f"- **Coach**: {QUIET}" in standup
+    assert len(standup) == 8  # every employee, Yaver hosts
     assert "Defterimdeki son notlar: MATH 221 devamsızlık sınırda" in seen["academic"]
     assert "Bugünkü mesai işlerim: 08:30 Sabah rakip taraması" in seen["startup"]
 
@@ -162,7 +162,8 @@ async def test_day_report_sums_up_the_notebooks(session: AsyncSession, office: O
     def summary(request: LLMRequest) -> Any:
         received.append(lines_from(request))
         return say(
-            "- **Orion**: rakip X yeni yatırım turu aldı.\n- **Deniz**: Cuma toplantısını ekledi."
+            "- **Venture**: rakip X yeni yatırım turu aldı.\n"
+            "- **Chrono**: Cuma toplantısını ekledi."
         )
 
     llm = ScriptedLLM({"yaver": [summary]})
@@ -179,9 +180,9 @@ async def test_day_report_sums_up_the_notebooks(session: AsyncSession, office: O
     message = await session.get(Message, message_id)
     assert message is not None
     assert message.kind == "day_report"
-    assert message.content.startswith("**Gün sonu raporu** · 23.11\n- **Orion**")
-    assert "Orion: not: Tarama · rakip X yeni tur aldı" in received[0]
-    assert "Deniz: iş: Cuma 15:00 toplantı ekle -> Ekledim." in received[0]
+    assert message.content.startswith("**Gün sonu raporu** · 23.11\n- **Venture**")
+    assert "Venture: not: Tarama · rakip X yeni tur aldı" in received[0]
+    assert "Chrono: iş: Cuma 15:00 toplantı ekle -> Ekledim." in received[0]
 
 
 async def test_weekly_meeting_puts_the_planners_in_the_room(office: Office) -> None:

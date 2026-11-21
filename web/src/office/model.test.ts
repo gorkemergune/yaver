@@ -9,7 +9,7 @@ function employee(id: string, desk: OfficeEmployee["desk"], extra: Partial<Offic
   return {
     id,
     employee_id: id,
-    name: id === "yaver" ? "Yaver" : id === "academic" ? "Atlas" : id === "agenda" ? "Deniz" : "Kaan",
+    name: id === "yaver" ? "Yaver" : id === "academic" ? "Scholar" : id === "agenda" ? "Chrono" : "Coach",
     role: "",
     color: "#4cbcff",
     desk,
@@ -74,7 +74,7 @@ describe("applyOfficeEvent", () => {
 
   it("a state event updates one employee and keeps its desk and name", () => {
     const next = applyOfficeEvent(STAFF, state("academic", { activity: "working", task: "Takvime bakıyor", tool: "get_day_plan" }));
-    expect(next.academic).toMatchObject({ name: "Atlas", desk: { row: "back", col: 0 }, activity: "working", task: "Takvime bakıyor" });
+    expect(next.academic).toMatchObject({ name: "Scholar", desk: { row: "back", col: 0 }, activity: "working", task: "Takvime bakıyor" });
     expect(next.agenda).toBe(STAFF.agenda);
     expect(next.academic).not.toHaveProperty("type");
   });
@@ -144,7 +144,7 @@ describe("figures follow the backend state", () => {
     staff = applyOfficeEvent(staff, state("academic", { activity: "meeting", meeting_with: "yaver" }));
     const met = arrive(planFigures({}, staff, 0));
     staff = applyOfficeEvent(staff, state("academic", { activity: "working", tool: "add_note", task: "Defterine yazıyor" }));
-    staff = applyOfficeEvent(staff, state("yaver", { activity: "working", task: "Atlas çalışıyor, bekliyor" }));
+    staff = applyOfficeEvent(staff, state("yaver", { activity: "working", task: "Scholar çalışıyor, bekliyor" }));
     const after = planFigures(met, staff, 1000);
     expect(after.academic?.spot).toBe("seat:back:0");
     expect(after.yaver?.spot).toBe("seat:office");
@@ -193,7 +193,7 @@ describe("figures follow the backend state", () => {
   });
 
   it("the next meeting partner sits across from someone still in the room", () => {
-    // Yaver is still sitting out its meeting with Deniz at meet:0 / meet:3
+    // Yaver is still sitting out its meeting with Chrono at meet:0 / meet:3
     const figures: Record<string, Figure> = {
       yaver: { id: "yaver", spot: "meet:0", act: "meeting", x: 1.21, y: 6.24, path: [], cup: false, idleUntil: 0, holdUntil: 5000 },
       agenda: { id: "agenda", spot: "meet:3", act: "meeting", x: 1.03, y: 8.19, path: [], cup: false, idleUntil: 0, holdUntil: 5000 },
@@ -203,7 +203,7 @@ describe("figures follow the backend state", () => {
     const seats = meetingSeats(staff, figures, 1000);
     expect(seats.yaver).toBe("meet:0");
     expect(seats.agenda).toBe("meet:3");
-    expect(seats.academic).toBe("meet:4"); // across from Yaver's side, next to Deniz
+    expect(seats.academic).toBe("meet:4"); // across from Yaver's side, next to Chrono
   });
 
   it("standup: ten people fit in the meeting room, everyone on a different spot", () => {

@@ -31,7 +31,7 @@ ONBOARDING_TOOLS = (
     "finish_onboarding",
 )
 # Every specialist can read dates and the plan and keep its notebook, whatever agents.yaml
-# lists; the coordinator can read any notebook ("Atlas'ın defterinde ne var?").
+# lists; the coordinator can read any notebook ("Scholar'ın defterinde ne var?").
 COMMON_TOOLS = ("resolve_date", "get_day_plan", "add_note", "get_notes")
 COORDINATOR_COMMON_TOOLS = ("resolve_date", "get_notes")
 DESK_COLUMNS = 5  # the office has 5 desk pairs: back 0-4, front 0-4

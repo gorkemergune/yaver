@@ -20,7 +20,7 @@ office:
 coordinator:
   id: yaver
   name: Yaver
-  role: Genel Müdür
+  role: Chief of Staff
   shift: Gün boyu kendi odasında. Gelen her isteği doğru masaya yönlendirir; sabah brifingini ve haftalık plan taslağını hazırlar.
   persona: >
     Ekibin başı. Kullanıcıyla ilk muhatap olan, isteği parçalara ayırıp doğru yavere
@@ -33,7 +33,7 @@ coordinator:
 
 agents:
   - id: academic
-    name: Atlas
+    name: Scholar
     role: Akademik
     desk: {row: back, col: 0}
     color: "#4cbcff"           # label colour in the web UI and the office
@@ -65,7 +65,7 @@ agents:
     briefing_section: Dersler
 
   - id: agenda
-    name: Deniz
+    name: Chrono
     role: Ajanda · Toplantılar
     desk: {row: front, col: 2}
     color: "#ffa070"           # label colour in the web UI and the office
@@ -74,6 +74,8 @@ agents:
     persona: Sakin, profesyonel bir kişisel asistan. Bekleyen dönüşleri unutmaz, her gün kibarca sorar.
     tier: fast
     model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model
+    shift_jobs:
+      - {job: deadline_watch, at: "09:15", title: Yaklaşan teslimlere bakıyor}
     tools:
       - add_recurring_block      # kind=work
       - apply_proposal           # confirmed events read from an image (poster, invitation)
@@ -90,7 +92,7 @@ agents:
     briefing_section: Ajanda
 
   - id: discipline
-    name: Kaan
+    name: Coach
     role: Koç · Disiplin
     desk: {row: front, col: 3}
     color: "#ece35e"           # label colour in the web UI and the office
@@ -116,7 +118,7 @@ agents:
   # ads_report, social_reminders, followup_watch, deadline_watch.
 
   - id: career
-    name: Nova
+    name: Mentor
     role: Kariyer
     desk: {row: back, col: 1}
     color: "#4fe0c8"
@@ -130,7 +132,7 @@ agents:
     tools: [add_followup, update_followup, add_task, complete_task, add_event, update_event, remember, web_search]
 
   - id: startup
-    name: Orion
+    name: Venture
     role: Startup
     desk: {row: back, col: 2}
     color: "#ffb547"
@@ -144,7 +146,7 @@ agents:
     tools: [web_search, add_task, complete_task, add_followup, update_followup, remember]
 
   - id: ads
-    name: Lyra
+    name: Metrics
     role: Reklam Analisti
     desk: {row: back, col: 3}
     color: "#ff7eb0"
@@ -157,22 +159,8 @@ agents:
       - {job: ads_report, at: "09:30", title: Günlük reklam metrikleri}
     tools: [get_ad_report, add_task, complete_task]
 
-  - id: research
-    name: Arda
-    role: Araştırma · AI
-    desk: {row: back, col: 4}
-    color: "#dfe6f5"
-    domain: Araştırma projeleri - model deneyleri, makaleler, proje başvuruları ve araştırma teslim tarihleri
-    persona: Titiz bir araştırma asistanı. Deney sonuçlarını kısa özetler, teslim tarihlerini önceden hatırlatır.
-    tier: fast
-    model: {groq: openai/gpt-oss-20b}
-    shift: Yaklaşan araştırma teslimlerini her sabah kontrol eder; deney notlarını defterinde tutar.
-    shift_jobs:
-      - {job: deadline_watch, at: "09:15", title: Yaklaşan teslimlere bakıyor}
-    tools: [add_event, update_event, add_task, complete_task, add_followup, update_followup, web_search, remember]
-
   - id: content
-    name: Mira
+    name: Creator
     role: İçerik Üreticisi
     desk: {row: front, col: 0}
     color: "#d29bff"
@@ -186,7 +174,7 @@ agents:
     tools: [web_search, add_task, complete_task, add_event]
 
   - id: social
-    name: Ece
+    name: Buddy
     role: Sosyal Çevre
     desk: {row: front, col: 1}
     color: "#86e886"

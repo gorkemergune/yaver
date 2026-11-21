@@ -38,7 +38,6 @@ class Route:
 ROUTES = [
     Route("Nexa için bu hafta 3 post fikri bul", "content"),
     Route("Nexa Lab'in rakiplerini araştır", "startup"),
-    Route("TÜBİTAK deney özetini deftere yaz: VSR modelinde doğruluk %71'e çıktı", "research"),
     Route("Ali'nin doğum günü 28 Kasım, unutmayayım", "social"),
     Route("Iceberg staj başvuruma dönüş bekliyorum, her gün sor", "career"),
     Route("Bu haftaki reklam performansı nasıl?", "ads"),

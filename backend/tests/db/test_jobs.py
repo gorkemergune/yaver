@@ -108,7 +108,7 @@ async def test_morning_briefing(week: AsyncSession, settings: Settings) -> None:
     assert message is not None
     text = message.content
     assert text.startswith("Günaydın, Görkem! Bugün 23 Kasım Pazartesi.")
-    assert "- **Atlas** · Dersler: 09:00-11:00 Linear Algebra (B204)" in text
+    assert "- **Scholar** · Dersler: 09:00-11:00 Linear Algebra (B204)" in text
     assert "MATH221 Ara Sınav 4 gün sonra (27 Kasım Cuma 10:00)" in text
     assert "MATH221 için 2 saat hakkın kaldı" in text
     assert "14:00 Iceberg toplantısı" in text

@@ -30,18 +30,17 @@ def test_example_team_loads() -> None:
     team = example_team()
 
     assert team.coordinator.can_delegate
-    ids = "academic agenda discipline career startup ads research content social"
+    ids = "academic agenda discipline career startup ads content social"
     assert [a.id for a in team.agents] == ids.split()
     assert [a.name for a in team.agents] == [
-        "Atlas",
-        "Deniz",
-        "Kaan",
-        "Nova",
-        "Orion",
-        "Lyra",
-        "Arda",
-        "Mira",
-        "Ece",
+        "Scholar",
+        "Chrono",
+        "Coach",
+        "Mentor",
+        "Venture",
+        "Metrics",
+        "Creator",
+        "Buddy",
     ]
 
 
@@ -95,11 +94,11 @@ def test_prompts_list_the_team_and_stay_free_of_dates() -> None:
     team = example_team()
 
     prompt = team.coordinator.system_prompt
-    assert 'agent_id "academic" = Atlas' in prompt
+    assert 'agent_id "academic" = Scholar' in prompt
     assert "Görkem" in prompt
     assert "2026" not in prompt  # per-day context goes into the uncached suffix
     agent_prompt = team.agents[0].system_prompt
-    assert "Atlas" in agent_prompt
+    assert "Scholar" in agent_prompt
     assert "resolve_date" in agent_prompt
 
 
@@ -108,16 +107,16 @@ def test_delegate_spec_lists_agent_ids() -> None:
 
     enum = spec.parameters["properties"]["agent_id"]["enum"]
     assert enum == [a.id for a in example_team().agents]
-    assert len(enum) == 9
+    assert len(enum) == 8
 
 
 @pytest.mark.parametrize(
     ("text", "addressed"),
     [
-        ("Atlas, yarın ne var?", ("academic", "yarın ne var?")),
-        ("atlas: yarın ne var?", ("academic", "yarın ne var?")),
-        ("ATLAS,yarın ne var?", ("academic", "yarın ne var?")),
-        ("Kaan! bugün spora gidemem", ("discipline", "bugün spora gidemem")),
+        ("Scholar, yarın ne var?", ("academic", "yarın ne var?")),
+        ("scholar: yarın ne var?", ("academic", "yarın ne var?")),
+        ("SCHOLAR,yarın ne var?", ("academic", "yarın ne var?")),
+        ("Coach! bugün spora gidemem", ("discipline", "bugün spora gidemem")),
         ("Yaver, yarın ne var?", None),  # the coordinator itself: normal flow
         ("Yarın ne var?", None),
         ("Bugün, linear iptal", None),  # "Bugün" is not a yaver
@@ -265,15 +264,15 @@ def test_example_team_has_office_desks_and_notebook_tools() -> None:
     config = TeamConfig.model_validate(_example())
     team = build_team(config, "Görkem")
 
-    # the approved prototype's seating: back row Atlas Nova Orion Lyra Arda, front row
-    # Mira Ece Deniz Kaan (and one free desk)
+    # the approved prototype's seating: back row Scholar Mentor Venture Metrics (and the
+    # research desk, now free), front row
+    # Creator Buddy Chrono Coach (and one free desk)
     assert config.desks() == {
         "yaver": ("office", 0),
         "academic": ("back", 0),
         "career": ("back", 1),
         "startup": ("back", 2),
         "ads": ("back", 3),
-        "research": ("back", 4),
         "content": ("front", 0),
         "social": ("front", 1),
         "agenda": ("front", 2),
@@ -299,7 +298,7 @@ def test_new_employees_have_their_area_tools_budget_and_a_shift_job() -> None:
     assert "add_followup" in tools["career"]
     assert "add_event" in tools["social"]
     assert config.office.daily_budget_usd == Decimal("0.20")
-    new = ["career", "startup", "ads", "research", "content", "social"]
+    new = ["career", "startup", "ads", "content", "social"]
     for agent in config.agents:
         if agent.id in new:
             assert agent.shift_jobs, agent.id
@@ -309,10 +308,10 @@ def test_new_employees_have_their_area_tools_budget_and_a_shift_job() -> None:
 def test_answer_examples_name_the_right_area_whatever_the_team_order() -> None:
     prompt = example_team().coordinator.system_prompt
     # the sport example speaks for the discipline area, not the last agent in the file
-    assert '"Kaan: hangi akşamı kastettiğini soruyor' in prompt
-    assert '"Atlas: bugünkü Linear Algebra dersini iptal etti."' in prompt
-    assert "Deniz: yarın 14:00'e Iceberg toplantısını ekledi." in prompt
-    for name in ("Nova", "Orion", "Lyra", "Arda", "Mira", "Ece"):
+    assert '"Coach: hangi akşamı kastettiğini soruyor' in prompt
+    assert '"Scholar: bugünkü Linear Algebra dersini iptal etti."' in prompt
+    assert "Chrono: yarın 14:00'e Iceberg toplantısını ekledi." in prompt
+    for name in ("Mentor", "Venture", "Metrics", "Creator", "Buddy"):
         assert f"= {name}:" in prompt  # in the team list the coordinator delegates to
 
 
