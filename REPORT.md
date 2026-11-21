@@ -1,142 +1,144 @@
-# REPORT — 21 Kasım 2026 (akşam)
+# REPORT — 21 Kasım 2026 (gece)
 
-Kapsam: `test/e2e-qa` merge'ü, QA bulguları (Y1–Y3, O1–O4, düşükler) ve en yüksek öncelikli
-iki gerçek kullanım hatası (A, B). Canlı/geliştirme ayrımı ve KULLANIM.md isimleri bilerek
-yapılmadı: o işler `feat/live-deploy`'da ikinci ajanda. `docker-compose*`, nginx yapılandırması,
-`scripts/` ve `docs/tr/`'ye dokunmadım. Push yok.
+Branch: `feat/mentor-o5` (`main` `5b40ac3`'ten) · Push yok · Canlıya deploy yok.
+Yalnız `yaver-dev` (8180/8100/5532) ve kendi izole e2e kopyam (`yaver-e2e-o5`) kullanıldı.
+`yaver-live`'a, gerçek veritabanına ve çalışan eski `yaver-*` stack'ine dokunulmadı.
+Önceki rapor (akşam: A/B, QA Y1–Y3, O1–O4) git geçmişinde: `git show e205293:REPORT.md`.
 
-## En yüksek öncelik: gerçek kullanımdaki iki hata (A, B)
+## Özet
 
-### Sebepler (loglardan / veritabanından)
-
-**A**: "yarın sabah Medipoldeki kahvaltıya gidicem" Scholar'a gitti ve hiçbir şey eklenmedi.
-Sebep "Medipol" kelimesi değil. Scholar'ın bir önceki mesajdan **açık sorusu** vardı ("bu telafi
-dersine mi gitmedin?"). Kod, 8 kelimeden kısa ve değişiklik fiili içermeyen her mesajı o sorunun
-cevabı sayıyordu. Fiil listesi "gidicem"i tanımıyordu, bu yüzden mesaj soruyla birlikte doğrudan
-Scholar'a gitti; Scholar "ders değil" deyip durdu (gerçek DB: mesaj 103 → 104, koordinatör
-satırı yok).
-
-**B**: "Pazartesi DSA sınavında ..." mesajına "Cevap gelmedi (zaman aşımı)" geldi.
-Gerçek DB'de bu mesaj **hiç kaydedilmemiş** ve tek bir LLM çağrısı bile yapılmamış (son
-`llm_usage` satırı A'ya ait, 17:45:25). Mesaj uygulamaya hiç ulaşmadı:
-1. Gündelik Yaver'in çalışma klasöründen sıcak yeniden yüklemeyle çalışıyor. O sırada bir
-   dosya kaydettim (`config_problems.py`), uvicorn yeniden yüklemeye başladı.
-2. Açık bir ofis sekmesinin SSE akışı hiç kapanmadığı için `Waiting for connections to close`
-   adımında **sonsuza kadar** bekledi. API 'unhealthy' oldu; o arada gönderilen mesaj cevapsız
-   kaldı.
-3. Y3 düzeltmesiyle gelen 45 sn'lik istemci zamanlayıcısı bunu "zaman aşımı" olarak gösterdi.
-   Düzeltmeden önce sonsuz "yazıyor…" olurdu.
-
-Düzeltme: `uvicorn --timeout-graceful-shutdown 5`. Açık bir akışla yeniden yükleme testinde
-akış 5 sn'de kesildi, yeniden yükleme tamamlandı. Asıl çözüm canlı/geliştirme ayrımı (ikinci
-ajan). LLM yavaşlığı ya da takılan bir döngü değildi.
-
-### Yapılanlar
-
-| # | İş | Commit |
-|---|---|---|
-| 1 | Uzun işler cevabı bekletmiyor. Sınav sohbette eklenince cevap hemen geliyor; tekrar planı mesaj kaydedildikten sonra arka planda üretilip **ayrı mesaj** olarak düşüyor (`after_message` → `run_job("exam_prep", record=False)`, günlük 18:00 işi yine çalışıyor). Sınav konuları kaydediliyor (`add_event topics` → "Konular: linked list, stack, queue"); syllabus yoksa plan bu konulardan çıkıyor. | `9938c5f` |
-| 1 | Yeniden yükleme takılması (B'nin sebebi) | `a7fb731` |
-| 2 | **Niyet bazlı yönlendirme.** Her mesaj önce tek bir hızlı çağrıyla parçalara ve niyetlere ayrılıyor: etkinlik, sınav, ders, devamsızlık, ders notu, görev, takip, spor, içerik, reklam, startup, kariyer, sosyal, hatıra, soru, geri al, cevap. Niyet → sahip eşlemesi kodda sabit (`agent/intent_map.py`). Kod delege ediyor, koordinatör yalnız cevabı yazıyor. Yer adı tek başına hiçbir şeyi belirlemiyor. Açık soru varken gelen mesaj da sınıflandırılıyor: soruya cevapsa ya da soranın alanındaysa ona, yeni bir istekse normal akışa gidiyor (A'nın asıl düzeltmesi). | `3e3ad7d`, `da7ddf2` |
-| 3 | Hiçbir çalışan isteği yapmadan dönmüyor. Alanı dışındaysa `handoff(reason, area)` çağırıyor, koordinatör aynı mesajda doğru çalışana veriyor; bu, doğrudan sohbette ya da adıyla çağrılan çalışanda da geçerli. Kendi alanına handoff reddediliyor. Düz takvim etkinliği (`add_event`) herkesin ortak aracı. Saat yoksa "sabah" 09:00, "öğlen" 12:00, "akşam" 19:00 oluyor. | `6633b0d`, `237c0da` |
-| 4 | Ders takma adları: `courses.aliases`. Bilinmeyen kısaltmada (DSA) çalışan bir kez soruyor ("CSE 211 mi, CSE 221 mi?"); cevap alias olarak kaydediliyor ve geri alınabiliyor. **Gerçek DB'ye migration uygulandı**, önce `scripts/backup.ps1` ile yedek alındı: `backups/yaver-20261121-151256.sql.gz`. | `92f4a5f` |
-| 5 | Gerçek konuşma seti (`tests/db/test_live_real_talk.py`): senin yazım tarzınla 41 mesaj, ilk maddeler A ve B. İçerik: küçük harf, eksik ek, "gidicem / çıkcakmış / uğrıycam", saatsiz etkinlik, Medipol / Iceberg geçen ama ders olmayan şeyler, tek mesajda iki iş. Her biri **veritabanında** kontrol ediliyor: hangi kayıt, hangi gün, hangi saat, hangi ders, konular. | `bf913e7` |
-
-### Canlı set sonuçları (test DB'si, 2 tur)
-
-| Koşu | Tur 1 | Tur 2 | Ne düzeltildi |
+| # | İş | Commit | Doğrulama |
 |---|---|---|---|
-| ilk | 36/41 (%88) | 36/41 (%88) | (başlangıç) |
-| 2 | 40/41 | 41/41 | Kendi alanına handoff reddi, koordinatöre niyet notu, plan maddelerinde ders kodu, "onay isteme, yap" kuralları |
-| 3 | 41/41 | 41/41 | "cuma akşam" bütün ifadeyle `resolve_date`'e |
-| 4 | 40/41 | 41/41 | Hatıra: haftalık saatli bilgi blok olur ("her cuma 9-17 Medipol'de çalışıyorum" eski regresyon setinde bozulmuştu). Kalan hata: soranın alanındaki cevap ("cse 211" → `course_note`) |
-| 5 | 40/41 | 41/41 | Kalan hata: el verilen parça, hedefin aynı mesajdaki kendi parçasını "zaten yapıldı" diye atlatıyordu |
-| 6 | 40/41 | 41/41 | Kalan hata: "13.30da" saat olarak çözülmüyordu (resolver) |
-| **son** | **41/41 (%100)** | **41/41 (%100)** | — |
+| 1 | Kariyer takipleri Mentor'un | `7b50887` | Yönlendirme seti **18/18** (önce 17/18); gerçek konuşma #33 takibin sahibini de kontrol ediyor |
+| 2a | QA O5: tek konuşma, tek konuşan | `31e093e` | pytest (422 + koordinatör reddi + bilinmeyen id) |
+| 2b | QA D6: DST'de yerel saat | `694f7ff` | Europe/Berlin testleri (2027 ilkbahar ve sonbahar geçişi) |
+| 3 | O5 ofis cilası | `71aa913` | Backend testleri sabit saatle + yeni e2e `office-hours.spec.ts` + ekran görüntüleri |
+| 4 | Telefon rehberi ve kontrol listesi | `093fef8` | Belge (Tailscale kurulmadı) |
 
-Düzeltilen hatalar:
-- Chrono "market alışverişi yapmam lazım"ı kendi işi değil sanıp geri verdi, kimse yapmadı.
-- Hatıra parçası blok diye delege edildi.
-- "ee211" ile "Devre Teorisi" bloğu eşleşmedi.
-- "13.30da" saat olarak tanınmadı.
-- "bu perşembe spora gidemicem" için onay istendi.
+Her maddeden sonra: smoke testi, LLM'siz e2e, geliştirme API'si `(healthy)` + `/api/health/ready` 200.
+Son durum: backend **1092** test, ruff/mypy temiz; web `npm run check` temiz (**67** vitest);
+e2e **22/22** (20 eski + 2 yeni).
 
-Eski setler son kodla:
-- regresyon **25/25**
-- yönlendirme **17/18**: kalan "Iceberg staj başvuruma dönüş bekliyorum, her gün sor". Takip niyetiyle Chrono'ya gidiyor ve takip oluşuyor; set Mentor'u bekliyor (ROADMAP backlog'unda).
+## 1. Mentor'un kariyer takipleri
 
-## QA bulguları (kod bazında)
+- `followups.owner_id`: takibi ekleyen çalışan. NULL = Chrono'nun.
+- Migration (`5c2d8e1f0a37`) eski satırları da dolduruyor:
+  - başlığında staj / başvuru / mülakat / intern / iş teklif geçenler → `career`
+  - `[github:` notlu olanlar → `startup`
+- Sınıflandırıcı: staj / iş başvurusunun takibi ve haberi artık `career` niyeti. Örnekler:
+  "dönüş bekliyorum, her gün sor", "kabul geldi". Hackathon gibi diğer takipler Chrono'da kaldı.
+- Mentor'un 10:00 `followup_watch`'ı yalnız kendi takiplerine bakıyor. Önce herkesinkini yazıyordu.
+- Öğlen takip mesajı sahibine göre gruplu: "**Mentor** · Başvurular: haber var mı?" ve
+  "**Chrono** · Takip: ...".
+- Canlı ölçüm (test DB'si):
+  - yönlendirme **18/18** ($0.016)
+  - gerçek konuşma seti tur başına 40/41; iki hata da bu değişiklikle ilgisiz (aşağıda),
+    tekrar koşuda 3/3 × 2
+  - toplam ~$0.08
 
-| Kod | Durum | Ne yapıldı | Commit |
-|---|---|---|---|
-| **Y1** | ✅ | Kimlik kontrolü DB bağlantısını hemen bırakıyor (`Depends(get_session, scope="function")`). Yeni e2e testi 18 açık ofis akışını açıyor: pano ve `/health/ready` ~100 ms'de 200. Düzeltmeden önce aynı test 500 verdi. | `185c148` |
-| **Y2** | ✅ (backend) | `X-Forwarded-For` yalnız güvenilen proxy'den geliyorsa sayılıyor (`TRUSTED_PROXIES`, varsayılan: bu makine + Docker ağları), o zaman da yalnız proxy'nin gördüğü son adres. Limiter en fazla 1000 adres tutuyor. pytest + e2e: her denemede farklı başlıkla nginx üzerinden 429. nginx'teki `$remote_addr` satırı ikinci ajanın işi. | `0a2555b` |
-| **Y3** | ✅ | Sunucu 15 sn'de bir ping atıyor, 240 sn üst sınır var (`error timeout`, rollback). İstemcide 45 sn hareketsizlik sınırı var; `done`/`error` gelmeden kapanan akışta görünür hata çıkıyor; hatalı cevapta "Tekrar dene" düğmesi var. **E2E'deki 2 kırmızı test yeşil.** | `3569472` |
-| **O1** | ✅ | Geçersiz `.env` değeri varsayılana düşüyor (`9:00`, `21.00` artık geçerli). Bozuk `agents.yaml` / `providers.yaml` yerine example dosyası okunuyor. Açılışta ERROR logu ve arayüzde uyarı bandı çıkıyor. QA'nın kendi denemesi (`BRIEFING_TIME=9h`, `APP_TIMEZONE=Istanbul`, kapanmamış tırnaklı agents.yaml) artık açılıyor. `e16b843` kuralıyla birleştirildi (CLAUDE.md). | `9190f80` |
-| **O2** | ✅ | `ShiftContext.search` zaten düzelmişti (`websearch` takma adı). Tarama `backend/scripts/shadow_scan.py`'ye taşındı, bulgu olursa çıkış 1. Pytest'te (smoke) ve pre-commit'te (`.pre-commit-config.yaml`) çalışıyor. Bulduğu son 3 isim düzeltildi; biri benim yeni eklediğim `ChatReply.intents`'ti. Ayrıca `app.agent.intents` önce import edilince ortaya çıkan döngüsel import da düzeltildi. | `2506e18`, `da7ddf2` |
-| **O3** | ✅ (api) | Takvim token'ı (ve her `token=/key=/password=` değeri) api erişim logunda `***` oluyor; e2e stack'inde doğrulandı. nginx logu ikinci ajanın işi. | `060ea32` |
-| **O4** | ✅ | `httpx2` artık çalışma zamanı bağımlılığı (önce yalnız dev grubundaydı); prod imajında doğrulandı. | `ab0f1b5` |
-| O5 | ⏭ backlog | Listede yoktu; ROADMAP backlog'unda. | — |
-| D1 | ✅ | Rollback de patlarsa çalışan "working"de kalmıyor, ilk hata korunuyor. | `0cf04f7` |
-| D2 | ✅ | Otomatik yedek sıkıştırmayı thread'de yapıyor; stderr aynı anda okunuyor. | `0cf04f7` |
-| D3 | ✅ | Ekler event loop dışında okunuyor. | `0cf04f7` |
-| D4 | ✅ | Toplu yüklemede reddedilen dosya, öncekileri diskten siliyor. | `0cf04f7` |
-| D5 | ✅ | `X-Forwarded-Proto` da yalnız güvenilen proxy'den (Y2 ile). | `0a2555b` |
-| D6 | ⏭ backlog | DST (Europe/Istanbul'da etkisiz). | — |
+## 2. QA O5 ve D6
 
-## e2e sonucu
+İkisi de bir saatin içinde çözülebilecek boyuttaydı, yaptım.
 
-**20/20 yeşil**:
-- QA'nın 17 testi, bunların içinde Y3'ün 2 kırmızısı
-- 3 yeni test: Y1 açık akışlar, Y2 başlıkla limit aşma, O1 uyarı bandı
+**O5:**
+- Doğrudan sohbet uçları zaten 422 veriyordu.
+- Açık kalan taraf ana sohbetti: `/api/chat` bir çalışanın konuşma id'siyle o konuşmaya
+  yazabiliyordu. Artık `422 not_the_main_chat` dönüyor.
+- `Coordinator` da başkasının konuşmasını reddediyor; API'yi atlayan bir yol kalmadı.
+- Bilinmeyen id için QA 404 önermişti. Bunu bilerek yapmadım: yeni konuşma açılıyor
+  ve bu artık loglanıyor. Sebebi, istemcinin cevaptaki yeni id'yi zaten saklaması.
+  DB sıfırlanınca 404 + yeniden deneme yerine sohbet kesintisiz sürüyor.
 
-Her maddeden sonra smoke testi ve LLM'siz e2e suite çalıştı. O2'de e2e'yi commit'ten hemen
-sonra koştum (yeşil); diğerlerinde commit'ten önce. Backend: 1081 test, ruff, mypy temiz; web:
-`npm run check` temiz. Kural CLAUDE.md'de ("kırmızıysa commit yok").
+**D6:**
+- `core/localtime.local_datetime`, kodda geçen bütün `combine(..., tzinfo=tz)` kullanımlarının
+  yerini aldı:
+  - saat ileri alınırken atlanan saat → saatin atladığı yer (02:30 → 03:30)
+  - iki kez yaşanan saat → ilki
+- Süreler gerçek geçen zamanla hesaplanıyor: ders saati sayısı, sınav tekrar planındaki boş
+  saatler.
+- Europe/Istanbul'da hiçbir şey değişmedi (testte 24 saatin hepsi karşılaştırıldı).
 
-## Sana düşenler / bilmen gerekenler
+## 3. O5 – Ofis cilası
 
-- **Geliştirme API'si (gündelik Yaver) bugün üç kez etkilendi:**
-  - A mesajından hemen sonra (17:46 civarı) yeniden yükleme takıldı (B'nin sebebi); `docker compose restart api` ile
-    açtım.
-  - Dockerfile bayrağı için `up -d --build api` ile yeniden kuruldu.
-  - D3'te benim bozuk kaydettiğim bir satır yüzünden ~1 dk açılamadı; hemen geri aldım.
-  - Şu an `(healthy)`, `/api/health/ready` 200. Bu kırılganlığın kalıcı çözümü canlı stack.
-- **Gerçek DB'ye migration uygulandı** (`courses.aliases`), yedek
-  `backups/yaver-20261121-151256.sql.gz`. Gerçek DB'nde CSE 211'in adı yok, bu yüzden ilk
-  "DSA" mesajında Scholar bir kez soracak; sonra hep bilecek.
-- **Yerel config'e** iki satır ekledim (gitignored, commit'lenmedi):
-  - `config/providers.yaml`: `intent_classify: fast`
-  - `config/agents.yaml`: Scholar'a `add_course_alias`
-- **Yeni `.env` alanları** (opsiyonel, `.env.example`'da): `TRUSTED_PROXIES`, `CHAT_TIMEOUT_SECONDS`.
-- Her mesajda bir hızlı sınıflandırma çağrısı daha var: ~$0.0003–0.0005 ve ~1 sn.
-- **Harcama:** bugünkü bu iş için ~$0.45 (hepsi test DB'sinde canlı testler: gerçek konuşma seti
-  7 koşu, eski regresyon ve yönlendirme setleri).
-- Pre-commit kancası istersen bir kez: `pip install pre-commit && pre-commit install`.
-- **deploy-live:** bu işi ikinci ajan `feat/live-deploy`'da yapıyor; ben dokunmadım. Kullanım
-  rehberi o branch'in `docs/tr/` dosyasında olacak.
-- Kalanlar `ROADMAP.md` → Backlog: O5, D6, Y2/O3'ün nginx yarısı, sınav planının SSE ile anında
-  görünmesi.
+- **Mesai saatleri:** `agents.yaml` → `office.open_at` / `close_at` (varsayılan 08:00–23:00;
+  ikisi aynıysa ofis hep açık).
+  - Saat dışında boştaki çalışan `off` olur: kapıdan çıkıp gider, masası sönük.
+  - Gece bir istek gelirse ilgili çalışan kapıdan gelir. Durumu "Gece mesaisine geliyor",
+    sonra "Gece mesaisi: <iş>". Masası çalışanın renginde yanar, iş bitince yine gider.
+  - Başlıkta "Mesai dışı · açılış 08:00" yazar.
+- **Backend (ilke 8: sahte değil):**
+  - Tek yazma noktası `Office.set_state`, boşta durumunu saate göre `break` ya da `off` seçer.
+  - Geçişleri `Office.refresh_hours` yapar; her snapshot'ta ve akışın 15 sn'lik ping'inde
+    çalışır, zamanlayıcı gerekmez (geliştirmede zamanlayıcı kapalı).
+  - Değişiklik `hours` SSE olayıyla yayınlanır; snapshot da `hours` taşır.
+- **Masaya tıklayınca** (ya da paneldeki *Ekranına bak*) ekran masadan büyüyerek açılır.
+  - İçerik: durum, araç, başlangıç saati, elindeki iş (yoksa son bitirdiği), defterden iki satır.
+  - Mesai dışında "Ekran kapalı".
+  - Esc / ✕ / dışına tıklama ile kapanır.
+- **Ses:** Web Audio ile üretilen dört hafif ses (iş başladı, toplantı, seni bekliyor, bitti).
+  Dosya yok. En fazla 300 ms'de bir çalar, gizli sekmede çalmaz. Varsayılan kapalı,
+  başlıktaki hoparlörle açılır, tarayıcıda hatırlanır.
+- **Yapılmayan:** "performans" ayrıca ele alınmadı. Ölçülen bir sorun yok; ROADMAP O5'te not edildi.
+
+## 4. Telefon (`docs/tr/telefon.md`)
+
+- **Canlı / geliştirme:**
+  - Telefon her gün canlıyı kullanır (443 → 8080).
+  - Geliştirme yalnız deploy öncesi denemek için, kendi portunda açılır (8443 → 8180) ve sonra
+    tek başına kapatılır. `tailscale serve reset` canlıyı da kapatır, belgede uyarısı var.
+- **İki adres = iPhone'da iki ayrı uygulama:** giriş, bildirim izni ve abonelik ayrı. Geliştirme
+  ikonunun adı "Yaver Dev" olmalı.
+- **Önkoşullar:** parola, VAPID anahtarları (sonradan değiştirilmemeli), bilgisayarın uyumaması.
+- Zamanlı bildirimlerin tablosu ve kontrol listesi var:
+  - Kontrol listesinin bölümleri: bağlantı, ana ekran uygulaması, sohbet + Geri al, mikrofon,
+    bildirimler, ofis, isteğe bağlılar.
+  - Hangi satırların ROADMAP Faz 1'deki açık maddeleri kapattığı yazılı.
+- `KURULUM_WINDOWS.md`'deki iki çelişki düzeltildi: "geliştirme de telefonda çalışır" notu ve
+  "Blocked request" satırı.
+- `tailscale serve` sözdizimi resmi belgeden alındı (ikinci HTTPS portu, tekini `off`). Tailscale
+  bu makinede kurulu değil, komutları çalıştırmadım. Belgenin açıkça yazmadığı tek şey `off`'un
+  bayrak tekrarı istemesi; rehberde "reddedilirse aynı bayraklarla `off`" diye yazdım.
+
+## Bilmen gerekenler
+
+1. **Geliştirme stack'i şu an bu worktree'den çalışıyor:** `C:\Users\PC\Desktop\yaver-qa`, branch
+   `feat/mentor-o5`.
+   - Kodun yeni migration'ı görmesi için gerekliydi. Geliştirme DB'si `5c2d8e1f0a37`'de.
+   - `main`'de bu revizyon yok: merge'den önce ana klasörden `alembic` çalıştırırsan
+     "revision bulunamadı" der.
+   - Merge'den sonra ana klasörde `docker compose up -d` geliştirmeyi oraya geri alır.
+2. **Canlıda migration deploy ile gelir:** önce yedek alınır ve prova yapılır.
+   - Eski takipler başlıklarına göre sahiplenir. Gerçek DB'deki "Iceberg staj başvurusu dönüşü"
+     Mentor'a geçmeli.
+   - Deploy'dan sonra öğlen takip mesajında bunu görebilirsin.
+3. **Yerel config:**
+   - Worktree'ye `config/agents.yaml` ve `providers.yaml` kopyaladım (gitignored, commit'lenmedi).
+   - Kendi `agents.yaml`'ında `office.open_at` / `close_at` yok; varsayılan 08:00–23:00 geçerli.
+     Farklı istersen ekle (örnek dosyada var).
+   - Chrono'nun `domain` metnine "staj / iş başvuruları hariç" eklemek istersen örnek dosyada var.
+     Yönlendirmeyi niyet sınıflandırıcısı yaptığı için şart değil.
+4. **Bir kaza ve dersi:** canlı konuşma seti çalışırken aynı test DB'sinde (`yaver_test`) birim
+   testlerini başlattım.
+   - Bir mesaj "deadlock detected" aldı (r2 #3).
+   - Takılan koşuyu öldürünce PostgreSQL'de yetim bir sıfırlama sorgusu kaldı ve canlı seti
+     dondurdu. `pg_terminate_backend` ile yalnız onu kapattım, set tamamlandı.
+   - Sonraki birim testlerini ayrı bir DB'de (`_unit_test`) koştum, sonra o DB'leri sildim.
+   - r1 #17 ("27 kasım cuma 10da math221 vizesi var") bir kez tarihi tanımadı. Bu prompt
+     değişikliğiyle ilgisiz bir model dalgalanmasıydı; tekrar koşuda #3, #17, #33 2 turda 6/6.
+5. **iPhone'da ses:** Web Audio, iPhone'un sessiz anahtarına uyar. Sessiz modda ofis sesleri
+   çıkmaz.
+6. **Temizlik:**
+   - Kendi e2e kopyamı (`yaver-e2e-o5`: 8091/8002/5434) volume ve imajlarıyla kaldırdım.
+   - `yaver-e2e`'ye dokunmadım (çalışmıyordu).
+   - Ekran görüntüleri yalnız `e2e/test-results/` altında (gitignored). Oradaki "Bağlantı koptu"
+     yazısı mock'lu akışın kapanmasından.
 
 ## Commit'ler (push yok)
 
 ```
-40c1c10 docs: CLAUDE.md + ROADMAP backlog
-0cf04f7 fix: QA D1-D4
-ab0f1b5 fix(deps): O4
-060ea32 fix(logs): O3
-2506e18 fix(ci): O2
-bf913e7 test(live): real talk (41 mesaj, 82/82)
-237c0da fix(agents): yap, sorma; ders kodu; 13.30da
-da7ddf2 fix(routing): canlı setin bulduğu yönlendirme hataları
-9938c5f feat(exams): konular + arka planda tekrar planı
-92f4a5f feat(courses): ders takma adları (gerçek DB migration'ı yedekten sonra)
-6633b0d feat(agents): handoff + ortak add_event + varsayılan saat
-3e3ad7d feat(routing): niyet bazlı yönlendirme + açık soru koruması
-a7fb731 fix(api): graceful shutdown 5 sn (B'nin sebebi)
-9190f80 fix(config): O1
-0a2555b fix(auth): Y2 + D5
-3569472 fix(chat): Y3
-185c148 fix(api): Y1
-dcef6c1 Merge test/e2e-qa
+093fef8 docs(tr): telefon.md - Tailscale, iPhone uygulaması, Web Push (canlı / geliştirme), kontrol listesi
+71aa913 feat(office): O5 - mesai saatleri, gece mesaisi, masa ekranı yakınlaştırma, ses
+694f7ff fix(time): QA D6 - DST'de yerel saatler, gerçek süreler
+31e093e fix(chat): QA O5 - ana sohbet bir çalışanın konuşmasına yazamaz
+7b50887 feat(career): staj / iş başvurusu takipleri Mentor'un (owner_id, yönlendirme 18/18)
 ```
