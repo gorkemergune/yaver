@@ -57,6 +57,7 @@ agents:
       - delete_attendance
       - set_attendance_baseline  # absence hours from before Yaver
       - set_absence_limit
+      - add_course_alias
       - set_week_label           # "bu haftanın adı Hackathon Haftası olsun"
       - search_materials         # uploaded notes / syllabi, with file + page
       - get_syllabus             # weekly topics ("bu hafta ne işlendi?")

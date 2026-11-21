@@ -3,6 +3,7 @@
 import datetime as dt
 
 from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -54,6 +55,9 @@ class Course(TimestampMixin, Base):
     )
     code: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(200))
+    # other names the user calls it ("DSA", "Veri Yapıları"); saved when the user tells
+    # which course an unknown abbreviation is (add_course_alias)
+    aliases: Mapped[list[str]] = mapped_column(ARRAY(String(60)), default=list, server_default="{}")
     instructor: Mapped[str | None] = mapped_column(String(200))
     absence_limit: Mapped[int | None]
     color: Mapped[str | None] = mapped_column(String(7))  # "#4f46e5"

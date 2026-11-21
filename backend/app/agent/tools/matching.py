@@ -52,13 +52,13 @@ async def current_term(ctx: ToolContext) -> Term | None:
 
 
 async def find_course(ctx: ToolContext, query: str) -> Course | None:
+    """By code, name or one of the aliases the user taught ("DSA" -> CSE 211)."""
     courses = (await ctx.session.scalars(select(Course))).all()
+    wanted = _compact(query)
     exact = [
-        c
-        for c in courses
-        if normalize(c.code).replace(" ", "") == normalize(query).replace(" ", "")
+        c for c in courses if wanted in (_compact(c.code), *(_compact(a) for a in c.aliases or []))
     ]
-    found = exact or [c for c in courses if matches(query, c.code, c.name)]
+    found = exact or [c for c in courses if matches(query, c.code, c.name, *(c.aliases or []))]
     if len(found) > 1:
         raise ToolError(
             f"'{query}' matches several courses; ask the user which one",
@@ -70,8 +70,14 @@ async def find_course(ctx: ToolContext, query: str) -> Course | None:
 async def require_course(ctx: ToolContext, query: str) -> Course:
     course = await find_course(ctx, query)
     if course is None:
-        known = (await ctx.session.scalars(select(Course.code))).all()
-        raise ToolError(f"no course matches '{query}'", known_courses=list(known))
+        known = (await ctx.session.scalars(select(Course).order_by(Course.code))).all()
+        raise ToolError(
+            f"no course matches '{query}': ask the user once which of known_courses it is; "
+            "with the answer call add_course_alias(course, alias) and then do the job",
+            known_courses=[
+                c.code if c.name in (c.code, "") else f"{c.code} ({c.name})" for c in known
+            ],
+        )
     return course
 
 

@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.agent.context import ToolContext
 from app.agent.tools import HHMM_PATTERN, ToolError, ToolResult, tool
-from app.agent.tools.matching import require_course
+from app.agent.tools.matching import find_course, require_course
 from app.agent.tools.schedule import ISO_DATE
 from app.db.models import Attendance, AttendanceBaseline, Course, RecurringBlock
 from app.db.models.enums import AttendanceStatus
@@ -225,6 +225,32 @@ async def set_absence_limit(args: SetLimitArgs, ctx: ToolContext) -> ToolResult:
     course.absence_limit = args.hours
     await ctx.recorder.updated(course, before)
     return {"summary": await course_summary(ctx.session, course)}
+
+
+class AliasArgs(BaseModel):
+    course: str = Field(description="the course's code or name as the tools know it")
+    alias: str = Field(max_length=60, description="the user's word for it: DSA, Veri Yapıları")
+
+
+@tool(
+    "add_course_alias",
+    "Remember another name the user calls a course by (an abbreviation, a nickname, the "
+    "English name) after they told you which course it is.",
+    AliasArgs,
+    mutates=True,
+)
+async def add_course_alias(args: AliasArgs, ctx: ToolContext) -> ToolResult:
+    course = await require_course(ctx, args.course)
+    alias = args.alias.strip()
+    other = await find_course(ctx, alias) if alias else None
+    if other is not None and other.id != course.id:
+        raise ToolError(f"'{alias}' already means {other.code}")
+    if not alias or alias.casefold() in (a.casefold() for a in [course.code, *course.aliases]):
+        return {"course": course.code, "aliases": list(course.aliases), "unchanged": True}
+    before = ctx.recorder.before_update(course)
+    course.aliases = [*course.aliases, alias]
+    await ctx.recorder.updated(course, before)
+    return {"course": course.code, "aliases": list(course.aliases)}
 
 
 class SummaryArgs(BaseModel):
