@@ -51,7 +51,10 @@ def _https(request: Request) -> bool:
 
 async def require_auth(
     request: Request,
-    session: AsyncSession = Depends(get_session),
+    # scope="function": the session closes (its connection goes back to the pool) as soon as
+    # the check is done, not when the response ends - an open office stream (SSE) would
+    # otherwise hold a connection "idle in transaction" for hours and 15 tabs fill the pool.
+    session: AsyncSession = Depends(get_session, scope="function", use_cache=False),
     settings: Settings = Depends(get_settings),
 ) -> None:
     """Router dependency: 401 without a valid session or device key (when a password is
