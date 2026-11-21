@@ -1,0 +1,77 @@
+# Isolated end-to-end stack. Never touches the main stack (project "yaver", ports 8080/8000/5432).
+#   docker compose -p yaver-e2e -f e2e/docker-compose.e2e.yml --env-file .env up -d --build
+# e2e/stack.sh / e2e/stack.ps1 wrap this. Only GROQ/ANTHROPIC/OPENROUTER keys are read from the
+# repo .env (for @live tests); everything else is fixed here: own DB, own volumes, test password.
+name: yaver-e2e
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: yaver_e2e
+      POSTGRES_PASSWORD: yaver_e2e
+      POSTGRES_DB: yaver_e2e
+    volumes:
+      - e2e_pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yaver_e2e -d yaver_e2e"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  api:
+    build:
+      context: ../backend
+      target: prod
+    environment:
+      DATABASE_URL: postgresql+asyncpg://yaver_e2e:yaver_e2e@db:5432/yaver_e2e
+      APP_NAME: Yaver
+      APP_USER_NAME: Test
+      APP_TIMEZONE: Europe/Istanbul
+      APP_PASSWORD: e2e-test-password
+      CONFIG_DIR: /config
+      UPLOAD_DIR: /uploads
+      BACKUP_DIR: /backups
+      MODEL_CACHE_DIR: /models
+      BACKUP_ON_STARTUP: "false"
+      SCHEDULER_ENABLED: "false"
+      LLM_CHECK_MODELS_ON_STARTUP: "false"
+      # @live tests: hard cap on Claude spend in this throwaway DB (budget guard: >=100% -> Groq only)
+      CLAUDE_MONTHLY_BUDGET_USD: "0.30"
+      DEEP_MONTHLY_BUDGET_USD: "0"
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - ../config:/config:ro     # *.example.yaml only (agents.yaml / providers.yaml are gitignored)
+      - e2e_uploads:/uploads
+      - e2e_backups:/backups
+      - e2e_models:/models
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  web:
+    build:
+      context: ../web
+      target: prod
+    ports:
+      - "127.0.0.1:8090:80"
+    depends_on:
+      - api
+
+volumes:
+  e2e_pgdata:
+  e2e_uploads:
+  e2e_backups:
+  e2e_models:
