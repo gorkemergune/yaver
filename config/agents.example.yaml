@@ -71,7 +71,7 @@ agents:
     desk: {row: front, col: 2}
     color: "#ffa070"           # label colour in the web UI and the office
     shift: Bekleyen takipleri her gün sorar.
-    domain: Toplantılar, takvim, etkinlikler, hackathonlar, takip edilecek dönüşler ve görevler (yapılacaklar)
+    domain: Toplantılar, takvim, etkinlikler, hackathonlar, takip edilecek dönüşler (staj / iş başvuruları hariç, onlar Mentor'un) ve görevler (yapılacaklar)
     persona: Sakin, profesyonel bir kişisel asistan. Bekleyen dönüşleri unutmaz, her gün kibarca sorar.
     tier: fast
     model: {groq: openai/gpt-oss-20b}   # on Groq (fast or fallback): the small model; limits are per model

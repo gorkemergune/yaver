@@ -81,6 +81,9 @@ class Followup(TimestampMixin, Base):
         ForeignKey("events.id", ondelete="SET NULL"), index=True
     )
     notes: Mapped[str | None] = mapped_column(Text)
+    # The employee whose follow-up this is (agents.yaml id: "career" for internship / job
+    # applications, "startup" for the repo's dated items); NULL = the agenda employee's.
+    owner_id: Mapped[str | None] = mapped_column(String(40))
 
 
 class Memory(TimestampMixin, Base):

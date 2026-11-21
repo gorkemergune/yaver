@@ -12,7 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.context import ToolContext
 from app.agent.tools import run_tool
 from app.core.change_log import ChangeRecorder, latest_change_set, undo_change_set
-from app.db.models import BlockOverride, ChangeLog, Course, Event, RecurringBlock, Term
+from app.db.models import (
+    BlockOverride,
+    ChangeLog,
+    Course,
+    Event,
+    Followup,
+    RecurringBlock,
+    Term,
+)
 from app.db.models.enums import ChangeOp, OverrideAction
 
 IST = ZoneInfo("Europe/Istanbul")
@@ -327,3 +335,16 @@ async def test_tasks_followups_and_memories(session: AsyncSession) -> None:
     assert forgotten["forgotten"]["memory_id"] == memory["remembered"]["memory_id"]
     assert "exactly one of date / week_of" in both_scopes["error"]
     assert {a["agent_id"] for a in ctx.actions} == {"agenda"}
+
+
+async def test_a_followup_belongs_to_the_employee_that_added_it(session: AsyncSession) -> None:
+    mentor = context(session, "career")
+    chrono = context(session, "agenda")
+
+    staj = await tool(mentor, "add_followup", title="Iceberg staj dönüşü", check_rule="daily")
+    hackathon = await tool(chrono, "add_followup", title="Hackathon kabulü", check_rule="daily")
+
+    rows = {f.title: f.owner_id for f in (await session.scalars(select(Followup))).all()}
+    assert "error" not in staj
+    assert "error" not in hackathon
+    assert rows == {"Iceberg staj dönüşü": "career", "Hackathon kabulü": "agenda"}

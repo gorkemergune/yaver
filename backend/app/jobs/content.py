@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.intent_map import followup_owner
 from app.agent.team import Team
 from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
 from app.db.models import Course, Event, Followup
@@ -22,6 +23,7 @@ ACADEMIC_KINDS = frozenset({"class", "lab", "exam", "quiz", "makeup"})
 SPORT_KINDS = frozenset({"sport"})
 EXAM_KINDS = frozenset({EventKind.EXAM, EventKind.QUIZ})
 EXAM_HORIZON_DAYS = 14
+FOLLOWUP_TOPICS = {"career": "Başvurular", "startup": "Startup"}  # else "Takip"
 ABSENCE_WARNING_HOURS = 2  # "limitine 2 saat kaldı"
 
 
@@ -212,7 +214,13 @@ async def build_followups(
         return None
     for followup in due:
         followup.next_check_at = next_check(followup, today, at, tz)
-    lines = [f"{voice.label('agenda', 'Takip')}: haber var mı?"]
-    lines += [f"- {f.title}" for f in due]
+    # each owner asks about its own: Mentor the applications, Chrono the rest
+    by_owner: dict[str, list[Followup]] = {}
+    for followup in due:
+        by_owner.setdefault(followup_owner(followup.owner_id), []).append(followup)
+    lines: list[str] = []
+    for owner, items in by_owner.items():
+        lines.append(f"{voice.label(owner, FOLLOWUP_TOPICS.get(owner, 'Takip'))}: haber var mı?")
+        lines += [f"- {f.title}" for f in items]
     lines.append('Cevap verirsen işlerim ("hackathon kabul geldi", "henüz yok").')
     return "\n".join(lines)

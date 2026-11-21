@@ -7,12 +7,12 @@ Split the message into its separate requests (usually one; "X, ayrıca Y" is two
 - attendance: missed classes, absence limits and totals ("dersine gitmedim", "kaç devamsızlığım var").
 - course_note: lecture notes, syllabus, course content questions, study sheets.
 - task: a to-do ("görev ekle", "rapor yazmam lazım", "bitirdim").
-- followup: waiting for news and being reminded to ask ("dönüş bekliyorum, her gün sor"), or that news arriving.
+- followup: waiting for news and being reminded to ask ("hackathon başvurumun sonucunu bekliyorum, her gün sor"), or that news arriving - except internship / job applications, which are career.
 - sport: sport, workouts, the gym, running, screen time, games.
 - content: social media posts, content ideas, a content calendar.
 - ads: ad reports, campaigns, ad spend and performance.
 - startup: the user's startup, its product, repo, competitors.
-- career: internships, jobs, CV, job applications.
+- career: internships (staj), jobs, CV, interviews (mülakat), job applications - including waiting for an application's answer and being reminded to ask ("X staj başvuruma dönüş bekliyorum, her gün sor"), and that answer arriving ("X'ten staj kabulü geldi").
 - social: friends, birthdays, gifts, social plans with people.
 - memory: a lasting fact about the user's life to remember, with no date and no hours ("cuma günleri Medipol'deyim"). With weekly hours it is a weekly block, not a memory: "her cuma 9-17 Medipol'de çalışıyorum" is an event (work), a class schedule is class.
 - question: a question about the plan or the past ("yarın ne var?", "bu hafta neler var"), or anything asked of the assistant.

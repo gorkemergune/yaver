@@ -132,6 +132,7 @@ async def add_followup(args: AddFollowupArgs, ctx: ToolContext) -> ToolResult:
         every_n_days=args.every_n_days,
         check_on=args.check_on,
         related_event_id=args.related_event_id,
+        owner_id=ctx.agent_id,  # Mentor's application follow-ups stay Mentor's
     )
     ctx.session.add(followup)
     await ctx.recorder.created(followup)

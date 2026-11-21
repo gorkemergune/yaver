@@ -47,3 +47,8 @@ OWNERS: dict[str, str | None] = {
 }
 # Areas a specialist may hand a message back with (handoff): every owned intent.
 AREAS = tuple(intent for intent, owner in OWNERS.items() if owner is not None)
+
+
+def followup_owner(owner_id: str | None) -> str:
+    """Whose a follow-up is: its owner (Mentor for applications), else the agenda's."""
+    return owner_id or str(OWNERS["followup"])

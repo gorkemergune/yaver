@@ -199,6 +199,35 @@ async def test_followups_are_asked_when_due(session: AsyncSession, settings: Set
     assert staj.next_check_at == dt.datetime(2026, 11, 26, 9, 0, tzinfo=dt.UTC)  # 12:00 Istanbul
 
 
+async def test_each_owner_asks_about_its_own_followups(
+    session: AsyncSession, settings: Settings
+) -> None:
+    session.add_all(
+        [
+            Followup(title="Hackathon kabulü", check_rule=FollowupCheckRule.DAILY),
+            Followup(
+                title="Iceberg staj dönüşü", check_rule=FollowupCheckRule.DAILY, owner_id="career"
+            ),
+        ]
+    )
+    await session.commit()
+
+    message = await job(session, settings, "followups", at(23, 12))
+
+    assert message is not None
+    team = example_team()
+    chrono, mentor = team.get("agenda"), team.get("career")
+    assert chrono is not None
+    assert mentor is not None
+    lines = message.content.splitlines()
+    assert lines[:4] == [
+        f"**{chrono.name}** · Takip: haber var mı?",
+        "- Hackathon kabulü",
+        f"**{mentor.name}** · Başvurular: haber var mı?",
+        "- Iceberg staj dönüşü",
+    ]
+
+
 def test_due_now_windows() -> None:
     # 08:00 briefing, 21:00 check-in, 12:00 follow-ups, 21:15 day report
     settings = Settings(_env_file=None, briefing_time="08:00")

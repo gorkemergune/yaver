@@ -364,6 +364,7 @@ async def sync_items(
                 check_on=item.day,
                 related_event_id=event.id,
                 notes=tag,
+                owner_id=recorder.agent_id,
             )
             session.add(followup)
             await recorder.created(followup)

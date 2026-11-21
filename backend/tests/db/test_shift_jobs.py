@@ -268,7 +268,10 @@ async def test_data_jobs_note_what_is_coming_or_stay_quiet(
                 status=FollowupStatus.WAITING,
                 check_rule=FollowupCheckRule.DAILY,
                 created_at=NOW - dt.timedelta(days=3),
+                owner_id="career",
             ),
+            # Chrono's (no owner = the agenda's): not on Mentor's desk
+            Followup(title="Hackathon kabulü", check_rule=FollowupCheckRule.DAILY),
         ]
     )
     await session.commit()

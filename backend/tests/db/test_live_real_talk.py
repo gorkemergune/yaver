@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.coordinator import ChatReply, Coordinator
+from app.agent.intent_map import followup_owner
 from app.agent.team import get_team
 from app.agent.tools import run_tool
 from app.config import Settings
@@ -170,13 +171,17 @@ def task(on: str | None, word: str, done: bool = False) -> Check:
     return check
 
 
-def followup(word: str, status: FollowupStatus = FollowupStatus.WAITING) -> Check:
+def followup(
+    word: str, status: FollowupStatus = FollowupStatus.WAITING, owner: str | None = None
+) -> Check:
     async def check(session: AsyncSession, replies: list[ChatReply]) -> Problem:
         found = [f for f in await rows(session, Followup) if normalize(word) in normalize(f.title)]
         if not found:
             return ("missing_change", f"no follow-up {word}; tools {tools(replies)}")
         if found[0].status is not status:
             return ("wrong_status", f"{found[0].status.value} != {status.value}")
+        if owner is not None and followup_owner(found[0].owner_id) != owner:
+            return ("wrong_owner", f"{found[0].owner_id} != {owner}")
         return None
 
     return check
@@ -319,7 +324,11 @@ CASES = [
     Case(31, "rapor yaz görevini bitirdim", task(None, "rapor", done=True)),
     Case(32, "bugün market alışverişi yapmam lazım", task("2026-11-23", "market")),
     # follow-ups
-    Case(33, "iceberge staj başvurusu yaptım her gün dönüş geldi mi diye sor", followup("iceberg")),
+    Case(
+        33,
+        "iceberge staj başvurusu yaptım her gün dönüş geldi mi diye sor",
+        followup("iceberg", owner="career"),  # Mentor's, not Chrono's
+    ),
     Case(34, "hackathon kabul geldi", followup("hackathon", FollowupStatus.POSITIVE)),
     # a lasting fact with Medipol: no event, no class
     Case(35, "bu dönem cuma günleri medipoldeyim", remembered("medipol")),

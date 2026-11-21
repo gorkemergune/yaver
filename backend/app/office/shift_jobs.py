@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.agent.intent_map import followup_owner
 from app.agent.team import SHIFT_JOB_KINDS, ShiftJobConfig, TeamConfig, load_team_config
 from app.config import Settings, get_settings
 from app.content import calendar
@@ -171,10 +172,12 @@ async def followup_watch(ctx: ShiftContext) -> str | None:
             select(Followup).where(Followup.status == FollowupStatus.WAITING).order_by(Followup.id)
         )
     ).all()
-    if not waiting:
+    # only this employee's own (Mentor: the applications it was given, not the hackathon)
+    mine = [f for f in waiting if followup_owner(f.owner_id) == ctx.employee_id]
+    if not mine:
         return None
     items = []
-    for f in waiting:
+    for f in mine:
         days = (ctx.now - f.created_at).days
         items.append(f"{f.title} ({days} gündür)" if days >= 1 else f.title)
     return "Dönüş bekleniyor: " + ", ".join(items)
