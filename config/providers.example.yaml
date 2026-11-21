@@ -65,6 +65,7 @@ routing:
     study_sheet: smart
     syllabus_parse: smart          # syllabus PDF -> topics per week
     document_classify: fast        # PDF: syllabus, notes or other (first pages)
+    intent_classify: fast          # every chat message: its parts and their intents (routing)
     schedule_parse: smart          # long pasted schedules (onboarding)
     # Images go to Claude only (providers without vision are skipped):
     image_read: fallback           # Haiku: what is it, dates of a notice / poster

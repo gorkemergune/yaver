@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ads.intake import CSV_MIME, AdFileInput, read_ad_files
 from app.ads.report import analyze
+from app.agent import intents
 from app.agent.context import ToolContext
 from app.agent.documents import DocumentInput, read_documents
 from app.agent.loop import AgentRun, Emit, LLMClient, OnTool, run_agent
@@ -43,7 +44,7 @@ from app.core.time_resolver import (
 )
 from app.db.models import AdReport, Attachment, Conversation, Followup, Memory, Message
 from app.db.models.enums import ConversationMode, FollowupStatus, MessageRole, TaskOrigin
-from app.llm.types import ChatMessage, ImagePart, LLMRequest
+from app.llm.types import ChatMessage, ImagePart, LLMRequest, ToolCall
 from app.office.activity import MessageActivity
 from app.office.state import Office
 from app.services.images import resolve_stored
@@ -312,10 +313,10 @@ class Coordinator:
             addressed = (analyst, text)
         final_member: Member = self.team.coordinator
         final_messages = [*history, ChatMessage("user", model_text)]
-        final_delegate: Any = None
         # Instruction each yaver got this turn (the open question's context).
         instructions: dict[str, str] = {}
 
+        classified: list[intents.Routed] | None = None
         waiting = PendingAction.load(conversation.pending_action)
         conversation.pending_action = None  # answered now, or replaced at the end
         binding = None
@@ -331,6 +332,13 @@ class Coordinator:
                 # "Geçen salı EE211'e gitmedim" after Karen's question: a new request (live
                 # run), not an answer; picked options ("evet, kaydet") are not affected
                 binding = Binding("other")
+            if binding.kind == "reply":
+                # A new request right after a question is not its answer (real use: "yarın
+                # sabah Medipoldeki kahvaltıya gidicem" went to Scholar, who had asked about
+                # a class, and Scholar did nothing). The intent decides, not the length.
+                classified = await self._classify(text, waiting.question)
+                if classified is not None and not any(r.intent == "answer" for r in classified):
+                    binding = Binding("other")
             logger.info(
                 "Open question of %s, answer %r -> %s", waiting.agent_id, text, binding.kind
             )
@@ -340,6 +348,112 @@ class Coordinator:
             if answering is self.team.coordinator and binding.kind == "reply":
                 answering = None  # the coordinator sees its own question in the history
 
+        delegated: dict[str, dict[str, Any]] = {}
+
+        async def delegate(arguments: dict[str, Any]) -> dict[str, Any]:
+            agent = self.team.get(str(arguments.get("agent_id", "")))
+            instruction = str(arguments.get("instruction", "")).strip()
+            if agent is None or not instruction:
+                return {"error": "unknown agent_id or empty instruction"}
+            if agent.id in delegated:  # one delegation per yaver per message
+                return {"already_done": True, **delegated[agent.id]}
+            instructions[agent.id] = instruction
+            await activity.delegate(self.team.coordinator.id, agent.id, instruction)
+            if emit is not None:
+                await emit(
+                    {
+                        "type": "delegate",
+                        "agent_id": agent.id,
+                        "name": agent.name,
+                        "instruction": instruction,
+                    }
+                )
+            sub = await run_agent(
+                self.llm,
+                agent,
+                [ChatMessage("user", instruction)],
+                ctx,
+                system_suffix=suffix,
+                max_steps=self.max_steps,
+                emit=emit,
+                on_tool=on_tool,
+            )
+            await activity.delegated(agent.id, sub.reply, sub.tool_calls)
+            if sub.handoff is not None:
+                # not its area: the owner of the area it names gets the same words, once
+                delegated[agent.id] = {"agent": agent.name, "handoff": sub.handoff.get("reason")}
+                instructions.pop(agent.id, None)
+                target = intents.owner_of(str(sub.handoff.get("area", "")), self._team_ids())
+                if target is not None and target != agent.id and target not in delegated:
+                    return await delegate({"agent_id": target, "instruction": instruction})
+                return {
+                    **delegated[agent.id],
+                    "note": "not this yaver's area: do it yourself or ask the user",
+                }
+            runs.append(sub)
+            delegated[agent.id] = {"agent": agent.name, "reply": sub.reply}
+            if emit is not None:
+                await emit(
+                    {
+                        "type": "agent_reply",
+                        "agent_id": agent.id,
+                        "name": agent.name,
+                        "reply": sub.reply,
+                    }
+                )
+            return {**delegated[agent.id], "tools_used": sub.tool_calls}
+
+        async def coordinate() -> AgentRun:
+            """The main chat: the intents decide who gets which part (in code), then the
+            coordinator writes the answer from their results (and handles its own parts)."""
+            nonlocal classified
+            await activity.begin(self.team.coordinator.id, text, source=TaskOrigin.USER)
+            if classified is None and not attachments:
+                classified = await self._classify(text)
+            messages = list(final_messages)
+            owned: dict[str, list[str]] = {}
+            for part in classified or []:
+                if part.owner is not None and part.owner not in delegated:
+                    owned.setdefault(part.owner, []).append(part.text)
+            calls: list[ToolCall] = []
+            results: list[ChatMessage] = []
+            for number, (owner, parts) in enumerate(owned.items(), start=1):
+                instruction = "\n".join(dict.fromkeys(parts))
+                if len(classified or []) > 1:
+                    instruction += f"\nKullanıcının mesajı: {text}"
+                arguments = {"agent_id": owner, "instruction": instruction}
+                result = await delegate(arguments)
+                call_id = f"route_{number}"
+                calls.append(ToolCall(call_id, "delegate", arguments))
+                results.append(ChatMessage("tool", dump_result(result), tool_call_id=call_id))
+                ctx.trace.append(
+                    {
+                        "agent_id": self.team.coordinator.id,
+                        "tool": "delegate",
+                        "arguments": arguments,
+                        "error": result.get("error"),
+                        "routed": True,
+                    }
+                )
+            if calls:
+                # as if the coordinator had delegated itself: now it only writes the answer
+                messages += [ChatMessage("assistant", "", tool_calls=calls), *results]
+            holder["delegate"] = delegate
+            return await run_agent(
+                self.llm,
+                self.team.coordinator,
+                messages,
+                ctx,
+                system_suffix=suffix,
+                max_steps=self.max_steps,
+                delegate=delegate,
+                delegate_spec=self.team.delegate_spec(),
+                emit=emit,
+                stream_text=True,
+                on_tool=on_tool,
+            )
+
+        holder: dict[str, Any] = {}
         if waiting is not None and binding is not None and answering is not None:
             final_member = answering
             final_messages = [
@@ -410,65 +524,15 @@ class Coordinator:
                 on_tool=on_tool,
             )
         else:
-            delegated: dict[str, dict[str, Any]] = {}
+            final = await coordinate()
 
-            async def delegate(arguments: dict[str, Any]) -> dict[str, Any]:
-                agent = self.team.get(str(arguments.get("agent_id", "")))
-                instruction = str(arguments.get("instruction", "")).strip()
-                if agent is None or not instruction:
-                    return {"error": "unknown agent_id or empty instruction"}
-                if agent.id in delegated:  # one delegation per yaver per message
-                    return {"already_done": True, **delegated[agent.id]}
-                instructions[agent.id] = instruction
-                await activity.delegate(self.team.coordinator.id, agent.id, instruction)
-                if emit is not None:
-                    await emit(
-                        {
-                            "type": "delegate",
-                            "agent_id": agent.id,
-                            "name": agent.name,
-                            "instruction": instruction,
-                        }
-                    )
-                sub = await run_agent(
-                    self.llm,
-                    agent,
-                    [ChatMessage("user", instruction)],
-                    ctx,
-                    system_suffix=suffix,
-                    max_steps=self.max_steps,
-                    emit=emit,
-                    on_tool=on_tool,
-                )
-                runs.append(sub)
-                await activity.delegated(agent.id, sub.reply, sub.tool_calls)
-                delegated[agent.id] = {"agent": agent.name, "reply": sub.reply}
-                if emit is not None:
-                    await emit(
-                        {
-                            "type": "agent_reply",
-                            "agent_id": agent.id,
-                            "name": agent.name,
-                            "reply": sub.reply,
-                        }
-                    )
-                return {**delegated[agent.id], "tools_used": sub.tool_calls}
-
-            final_delegate = delegate
-            await activity.begin(self.team.coordinator.id, text, source=TaskOrigin.USER)
-            final = await run_agent(
-                self.llm,
-                self.team.coordinator,
-                final_messages,
-                ctx,
-                system_suffix=suffix,
-                max_steps=self.max_steps,
-                delegate=delegate,
-                delegate_spec=self.team.delegate_spec(),
-                emit=emit,
-                stream_text=True,
-                on_tool=on_tool,
-            )
+        if final.handoff is not None and final_member is not self.team.coordinator:
+            # the employee the message went straight to says it is not its area: the
+            # coordinator routes it, in this same message (same change set)
+            logger.info("%s handed %r back: %s", final_member.id, text, final.handoff)
+            final_member = self.team.coordinator
+            final_messages = [*history, ChatMessage("user", model_text)]
+            final = await coordinate()
 
         if (
             not ctx.actions
@@ -493,8 +557,8 @@ class Coordinator:
                 ctx,
                 system_suffix=f"{suffix}\n{NO_TOOL_RAN}",
                 max_steps=self.max_steps,
-                delegate=final_delegate,
-                delegate_spec=self.team.delegate_spec() if final_delegate else None,
+                delegate=holder.get("delegate"),
+                delegate_spec=self.team.delegate_spec() if holder.get("delegate") else None,
                 emit=emit,
                 stream_text=True,
                 on_tool=on_tool,
@@ -589,6 +653,16 @@ class Coordinator:
             if report is not None:
                 blocks.append(f"[Rapor #{report.id}] " + await analyze(ctx, report, agent_id))
         return "\n\n".join(blocks)
+
+    def _team_ids(self) -> set[str]:
+        return {a.id for a in self.team.agents}
+
+    async def _classify(
+        self, text: str, open_question: str | None = None
+    ) -> list[intents.Routed] | None:
+        if not text.strip():
+            return None
+        return await intents.classify(self.llm, text, self._team_ids(), open_question=open_question)
 
     def _member(self, agent_id: str) -> Member | None:
         if agent_id == self.team.coordinator.id:

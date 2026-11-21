@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 Delegate = Callable[[dict[str, Any]], Awaitable[ToolResult]]
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
+HANDOFF = "handoff"  # app.agent.tools.routing
 # Called with (agent_id, tool name) right before a tool runs (the office shows it).
 OnTool = Callable[[str, str], Awaitable[None]]
 
@@ -58,6 +59,8 @@ class AgentRun:
     responses: list[LLMResponse] = field(default_factory=list)
     tool_calls: list[str] = field(default_factory=list)
     hit_step_limit: bool = False
+    # {reason, area}: the yaver said it is not its area (tool `handoff`)
+    handoff: dict[str, Any] | None = None
 
 
 async def run_agent(
@@ -182,6 +185,9 @@ async def run_agent(
                     is_error="error" in result,
                 )
             )
+            if call.name == HANDOFF and "error" not in result:
+                run.handoff = dict(call.arguments or {})
+                return run  # the coordinator takes it from here
 
     # Out of steps: one last turn without tools to report what was done.
     run.hit_step_limit = True

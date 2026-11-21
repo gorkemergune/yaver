@@ -39,6 +39,11 @@ def calls(*items: tuple[str, dict[str, Any]]) -> LLMResponse:
     )
 
 
+def route_as(*parts: tuple[str, str]) -> LLMResponse:
+    """The intent classifier's answer: (intent, the user's words) per part."""
+    return call("route", parts=[{"intent": i, "text": t} for i, t in parts])
+
+
 def say(text: str) -> LLMResponse:
     return LLMResponse(text, [], "end", TokenUsage(100, 20), "", "")
 
@@ -74,10 +79,21 @@ class ScriptedLLM:
         on_retry: Callable[[], Awaitable[None]] | None = None,
         on_wait: Callable[[float, str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
+        key = agent_id or ""
+        if purpose == "intent_classify":
+            # the coordinator's intent routing: scripted under "intent"; unscripted it is
+            # "other" and not recorded (the coordinator routes on its own, as older tests
+            # expect)
+            key = "intent"
+            if not self.scripts.get(key):
+                content = request.messages[-1].content
+                text = content.split("Mesaj: ", 1)[-1]
+                # with an open question the short reply is its answer (the older behaviour)
+                return route_as(("answer" if "Açık soru" in content else "other", text))
         self.requests.append((agent_id, request))
         self.models.append(model)
         self.purposes.append(purpose)
-        queue = self.scripts.get(agent_id or "")
+        queue = self.scripts.get(key)
         assert queue, f"unexpected LLM call for {agent_id!r}"
         step = queue.pop(0)
         response = step(request) if callable(step) else step
