@@ -17,6 +17,7 @@ export function useEmployeeChat(employeeId: string, names: Record<string, string
   const [busy, setBusy] = useState(false);
   const [undo, setUndo] = useState<UndoState>({ pending: new Set(), failed: new Set() });
   const counter = useRef(0);
+  const asked = useRef(new Map<string, string>()); // answer id -> question, for "Tekrar dene"
   const namesRef = useRef(names);
   useEffect(() => {
     namesRef.current = names;
@@ -58,6 +59,7 @@ export function useEmployeeChat(employeeId: string, names: Record<string, string
       if (!message || busy) return;
       counter.current += 1;
       const answerId = `e${String(counter.current)}`;
+      asked.current.set(answerId, message);
       setItems((prev) => [...prev, { kind: "user", id: `q${String(counter.current)}`, text: message, images: [] }, pendingAssistant(answerId)]);
       setBusy(true);
       const update = (fn: (item: AssistantItem) => AssistantItem): void => {
@@ -77,6 +79,21 @@ export function useEmployeeChat(employeeId: string, names: Record<string, string
       }
     },
     [busy, conversationId, employeeId, refresh],
+  );
+
+  const retry = useCallback(
+    (answerId: string) => {
+      const question = asked.current.get(answerId);
+      if (question === undefined || busy) return;
+      setItems((prev) => {
+        const at = prev.findIndex((item) => item.id === answerId);
+        if (at < 0) return prev;
+        const from = at > 0 && prev[at - 1]?.kind === "user" ? at - 1 : at;
+        return [...prev.slice(0, from), ...prev.slice(at + 1)];
+      });
+      void send(question);
+    },
+    [busy, send],
   );
 
   const undoChange = useCallback(
@@ -105,5 +122,5 @@ export function useEmployeeChat(employeeId: string, names: Record<string, string
     [refresh],
   );
 
-  return { items, busy, undo, send, undoChange };
+  return { items, busy, undo, send, retry, undoChange };
 }

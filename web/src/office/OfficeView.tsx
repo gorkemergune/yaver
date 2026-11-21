@@ -228,6 +228,9 @@ function LastAnswer({ chat, members }: { chat: Chat; members: Record<string, Mem
           members={members}
           undo={chat.undo}
           onUndo={(changeSetId) => void chat.undoChange(last.id, changeSetId)}
+          onRetry={chat.busy ? undefined : () => {
+            chat.retry(last.id);
+          }}
         />
       </ul>
     </section>

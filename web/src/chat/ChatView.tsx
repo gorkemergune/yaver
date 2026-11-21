@@ -133,6 +133,9 @@ export function ChatView() {
                   members={members}
                   undo={chat.undo}
                   onUndo={(changeSetId) => void chat.undoChange(item.id, changeSetId)}
+                  onRetry={chat.busy ? undefined : () => {
+                    chat.retry(item.id);
+                  }}
                   quickReplies={
                     item.origin === "checkin" && item.id === last?.id && !chat.busy
                       ? {
@@ -195,12 +198,14 @@ export function Answer({
   members,
   undo,
   onUndo,
+  onRetry,
   quickReplies,
 }: {
   item: AssistantItem;
   members: Record<string, Member>;
   undo: UndoState;
   onUndo: (changeSetId: string) => void;
+  onRetry?: () => void; // shown on a failed answer
   quickReplies?: { onAllDone: () => void; onEdit: () => void };
 }) {
   const speaker = item.speaker ? members[item.speaker] : undefined;
@@ -238,9 +243,20 @@ export function Answer({
           </p>
         )}
         {item.error && (
-          <p className="text-sm text-rose-600 dark:text-rose-400">
-            {tr.chat.errors[item.error] ?? tr.chat.errors.internal}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-sm text-rose-600 dark:text-rose-400" role="alert">
+              {tr.chat.errors[item.error] ?? tr.chat.errors.internal}
+            </p>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="min-h-8 rounded-full px-3 text-xs font-medium text-indigo-600 ring-1 ring-indigo-500/40 hover:bg-indigo-500/10 dark:text-[#b3a6ff]"
+              >
+                {tr.chat.retry}
+              </button>
+            )}
+          </div>
         )}
         {quickReplies && (
           <div className="mt-3 flex flex-wrap gap-2">

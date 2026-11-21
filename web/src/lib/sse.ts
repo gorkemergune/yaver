@@ -2,8 +2,13 @@
  * Minimal server-sent-events parser for a fetch() body (EventSource can't POST).
  * Yields the JSON payload of every `data:` event.
  */
-export async function* readEvents<T>(body: ReadableStream<Uint8Array>): AsyncGenerator<T> {
+export async function* readEvents<T>(body: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncGenerator<T> {
   const reader = body.getReader();
+  // aborting ends a pending read (not every body errors on abort by itself)
+  const cancel = (): void => {
+    void reader.cancel().catch(() => undefined);
+  };
+  signal?.addEventListener("abort", cancel, { once: true });
   const decoder = new TextDecoder();
   let buffer = "";
   try {
@@ -16,6 +21,7 @@ export async function* readEvents<T>(body: ReadableStream<Uint8Array>): AsyncGen
     buffer += decoder.decode();
     yield* drain<T>(`${buffer}\n\n`, () => undefined);
   } finally {
+    signal?.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
 }

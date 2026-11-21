@@ -230,6 +230,7 @@ export type ChatEvent =
   | { type: "agent_reply"; agent_id: string; name: string; reply: string }
   | { type: "status"; agent_id: string; code: "rate_limited"; provider: string; seconds: number }
   | { type: "status"; agent_id: string; code: "reading_images"; count: number }
+  | { type: "ping" } // keep-alive while an answer is slow (api/chat.ts drops it)
   | DoneEvent
   | { type: "error"; code: string };
 

@@ -74,6 +74,7 @@ export function applyEvent(
   event: ChatEvent,
   names: Record<string, string>,
 ): AssistantItem {
+  if (event.type === "ping") return item;
   if (event.type === "status") {
     const status: StatusLine =
       event.code === "reading_images"

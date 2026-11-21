@@ -51,6 +51,8 @@ export function useChat() {
   const [loaded, setLoaded] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const counter = useRef(0);
+  // what each answer was asked, for "Tekrar dene"
+  const asked = useRef(new Map<string, { text: string; mode: ChatMode; files: PendingImage[] }>());
 
   const refreshData = useCallback(() => {
     for (const key of MUTABLE_KEYS) void queryClient.invalidateQueries({ queryKey: key });
@@ -94,6 +96,7 @@ export function useChat() {
       const userId = `u${String(counter.current)}`;
       const answerId = `a${String(counter.current)}`;
       const images = files.map((f) => ({ url: f.url, name: f.file.name }));
+      asked.current.set(answerId, { text: message, mode, files });
       setItems((prev) => [...prev, { kind: "user", id: userId, text: message, images }, pendingAssistant(answerId)]);
       setBusy(true);
       const controller = new AbortController();
@@ -203,6 +206,22 @@ export function useChat() {
     };
   }, [loaded, team.data, busy, conversationId, names]);
 
+  /** "Tekrar dene" on a failed answer: drop it and its question, send the question again. */
+  const retry = useCallback(
+    (answerId: string) => {
+      const request = asked.current.get(answerId);
+      if (!request || busy) return;
+      setItems((prev) => {
+        const at = prev.findIndex((item) => item.id === answerId);
+        if (at < 0) return prev;
+        const from = at > 0 && prev[at - 1]?.kind === "user" ? at - 1 : at;
+        return [...prev.slice(0, from), ...prev.slice(at + 1)];
+      });
+      void send(request.text, request.mode, request.files);
+    },
+    [busy, send],
+  );
+
   const newChat = useCallback(() => {
     abort.current?.abort();
     setItems([]);
@@ -210,5 +229,5 @@ export function useChat() {
     storeConversation(null);
   }, []);
 
-  return { items, busy, send, undoChange, undo, newChat, team: team.data, names };
+  return { items, busy, send, retry, undoChange, undo, newChat, team: team.data, names };
 }

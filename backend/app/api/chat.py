@@ -107,9 +107,20 @@ def sse(event: dict[str, Any]) -> str:
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
-def stream_reply(answer: Callable[[Emit], Awaitable[ChatReply]]) -> StreamingResponse:
+def stream_reply(
+    answer: Callable[[Emit], Awaitable[ChatReply]],
+    *,
+    timeout: float | None = None,
+    ping: float | None = None,
+) -> StreamingResponse:
     """Runs `answer` with an emitter and streams its events, then `done` or `error`.
-    Closing the connection cancels it (the coordinator rolls back: nothing is saved)."""
+    Closing the connection cancels it (the coordinator rolls back: nothing is saved).
+    While nothing happens a `ping` event goes out every `ping` seconds (the client's idle
+    timer and proxies see a live stream); after `timeout` seconds the answer is cancelled
+    and the stream ends with `error` code `timeout`."""
+    settings = get_settings()
+    timeout = settings.chat_timeout_seconds if timeout is None else timeout
+    ping = settings.chat_ping_seconds if ping is None else ping
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
 
     async def emit(event: dict[str, Any]) -> None:
@@ -117,8 +128,12 @@ def stream_reply(answer: Callable[[Emit], Awaitable[ChatReply]]) -> StreamingRes
 
     async def run() -> None:
         try:
-            reply = await answer(emit)
+            async with asyncio.timeout(timeout):
+                reply = await answer(emit)
             await emit({"type": "done", **response_of(reply).model_dump(mode="json")})
+        except TimeoutError:
+            logger.warning("Chat message took longer than %s s: cancelled", timeout)
+            await emit({"type": "error", "code": "timeout"})
         except LLMUnavailableError:
             logger.warning("No LLM tier could answer", exc_info=True)
             await emit({"type": "error", "code": "llm_unavailable"})
@@ -132,7 +147,14 @@ def stream_reply(answer: Callable[[Emit], Awaitable[ChatReply]]) -> StreamingRes
 
     async def events() -> AsyncIterator[str]:
         try:
-            while (event := await queue.get()) is not None:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), ping)
+                except TimeoutError:
+                    yield sse({"type": "ping"})
+                    continue
+                if event is None:
+                    break
                 yield sse(event)
         finally:
             if not task.done():  # client went away mid-answer

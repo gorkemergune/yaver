@@ -32,5 +32,6 @@ npm run typecheck
 - `tools/shadow_scan.py`: modül / import adını gölgeleyen sınıf alanlarını bulan salt-okur AST
   taraması (`python -I e2e/tools/shadow_scan.py backend/app`).
 
-Bilerek kırmızı kalan iki test (`tests/chat-errors.spec.ts`) gerçek bir hatayı yakalar:
-sonu gelmeyen ya da `done`/`error` olmadan kapanan sohbet akışı. Ayrıntı: `docs/QA_REPORT.md`.
+`tests/chat-errors.spec.ts`'deki iki test (sonu gelmeyen ya da `done`/`error` olmadan kapanan
+sohbet akışı) QA bulgusu Y3'ü yakalamıştı; düzeltmeden sonra yeşil. `tests/streams.spec.ts` Y1'i
+(18 açık ofis akışında pano ve `/api/health/ready` hemen cevap verir) korur. Ayrıntı: `docs/QA_REPORT.md`.

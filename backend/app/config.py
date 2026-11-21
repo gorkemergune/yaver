@@ -78,6 +78,10 @@ class Settings(BaseSettings):
 
     # --- Scheduler: briefing, evening check-in, follow-ups (local times, APP_TIMEZONE) ---
     scheduler_enabled: bool = True
+    # A chat message that takes longer ends with error "timeout" (rolled back). The stream
+    # sends a ping every CHAT_PING_SECONDS meanwhile, so proxies don't cut a slow answer.
+    chat_timeout_seconds: float = 240.0
+    chat_ping_seconds: float = 15.0
     briefing_time: str = "09:00"  # with the office: the standup, then the briefing
     checkin_time: str = "21:00"
     followup_time: str = "12:00"

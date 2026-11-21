@@ -159,6 +159,9 @@ function DirectChat({ employee: e, members }: { employee: OfficeEmployee; member
                 members={members}
                 undo={chat.undo}
                 onUndo={(changeSetId) => void chat.undoChange(item.id, changeSetId)}
+                onRetry={chat.busy ? undefined : () => {
+                  chat.retry(item.id);
+                }}
               />
             ),
           )}
