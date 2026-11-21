@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.localtime import local_datetime
 from app.core.time_resolver import week_start
 from app.db.models import Attendance, Event, Holiday, Term, WeekLabel
 from app.db.models.enums import AttendanceStatus, EventKind
@@ -105,8 +106,8 @@ async def weeks_facts(
             select(Holiday).where(Holiday.start_date < last, Holiday.end_date >= first)
         )
     ).all()
-    start = dt.datetime.combine(first, dt.time(), tzinfo=tz)
-    end = dt.datetime.combine(last, dt.time(), tzinfo=tz)
+    start = local_datetime(first, dt.time(), tz)
+    end = local_datetime(last, dt.time(), tz)
     events = (
         await session.scalars(select(Event).where(Event.start_at >= start, Event.start_at < end))
     ).all()

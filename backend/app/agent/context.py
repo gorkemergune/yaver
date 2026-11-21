@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.change_log import ChangeRecorder
+from app.core.localtime import local_datetime
 from app.core.time_resolver import DEFAULT_CLOCK, ClockConvention
 
 
@@ -43,4 +44,4 @@ class ToolContext:
         return self.now.astimezone(self.tz).date()
 
     def local(self, day: dt.date, time: dt.time) -> dt.datetime:
-        return dt.datetime.combine(day, time, tzinfo=self.tz)
+        return local_datetime(day, time, self.tz)

@@ -8,13 +8,14 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.localtime import local_datetime
 from app.db.models import LlmUsage
 
 
 def day_start(now: dt.datetime, tz: ZoneInfo) -> dt.datetime:
     """Local midnight of `now`'s day, as a UTC instant."""
     local = now.astimezone(tz)
-    return dt.datetime.combine(local.date(), dt.time(), tzinfo=tz).astimezone(dt.UTC)
+    return local_datetime(local.date(), dt.time(), tz).astimezone(dt.UTC)
 
 
 async def spent_today(

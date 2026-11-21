@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.intent_map import followup_owner
 from app.agent.team import Team
+from app.core.localtime import local_datetime
 from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
 from app.db.models import Course, Event, Followup
 from app.db.models.enums import EventKind, FollowupStatus, TaskStatus
@@ -110,7 +111,7 @@ async def build_briefing(
 async def _exam_countdown(
     session: AsyncSession, today: dt.date, tz: ZoneInfo, voice: Voice
 ) -> list[str]:
-    start = dt.datetime.combine(today, dt.time(), tzinfo=tz)
+    start = local_datetime(today, dt.time(), tz)
     end = start + dt.timedelta(days=EXAM_HORIZON_DAYS + 1)
     exams = (
         await session.scalars(
@@ -197,7 +198,7 @@ def followup_due(followup: Followup, now: dt.datetime, today: dt.date) -> bool:
 def next_check(followup: Followup, today: dt.date, at: dt.time, tz: ZoneInfo) -> dt.datetime:
     """When to ask again: tomorrow (daily, and every day after an on_date), or in N days."""
     days = followup.every_n_days if followup.check_rule.value == "every_n_days" else 1
-    return dt.datetime.combine(today + dt.timedelta(days=days or 1), at, tzinfo=tz)
+    return local_datetime(today + dt.timedelta(days=days or 1), at, tz)
 
 
 async def build_followups(

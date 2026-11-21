@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.team import TeamConfig
 from app.config import Settings
+from app.core.localtime import local_datetime
 from app.db.models import EmployeeTask, JobRun
 from app.db.models.enums import EmployeeTaskStatus, TaskOrigin
 from app.office.budget import day_start
@@ -74,7 +75,7 @@ async def board(
                 "title": title,
                 "source": "shift",
                 "status": "scheduled",
-                "at": dt.datetime.combine(today, dt.time.fromisoformat(at), tzinfo=tz).isoformat(),
+                "at": local_datetime(today, dt.time.fromisoformat(at), tz).isoformat(),
             }
         )
 

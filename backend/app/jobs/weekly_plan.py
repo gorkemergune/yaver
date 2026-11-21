@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.tools import json_schema
+from app.core.localtime import local_datetime
 from app.db.models import Course, Event, Followup, Proposal, Task
 from app.db.models.enums import EventKind, FollowupStatus, ProposalKind, TaskStatus
 from app.jobs.content import day_name
@@ -60,7 +61,7 @@ async def week_facts(session: AsyncSession, monday: dt.date, tz: ZoneInfo) -> st
         ]
         holiday = f" [tatil: {', '.join(plan.holidays)}]" if plan.holidays else ""
         lines.append(f"- {day.isoformat()} {day_name(day)}{holiday}: {'; '.join(items) or 'boş'}")
-    start = dt.datetime.combine(monday, dt.time(), tzinfo=tz)
+    start = local_datetime(monday, dt.time(), tz)
     exams = (
         await session.scalars(
             select(Event)

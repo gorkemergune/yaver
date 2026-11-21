@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.localtime import elapsed
 from app.core.time_resolver import WEEKDAY_NAMES_TR
 from app.db.models import Attendance, AttendanceBaseline, Course, RecurringBlock
 from app.db.models.enums import AttendanceStatus
@@ -24,7 +25,7 @@ SUGGESTION_WINDOW_DAYS = 21
 def class_hours(start: dt.datetime | dt.time, end: dt.datetime | dt.time) -> int:
     """Whole class hours of a session: 09:00-11:00 = 2, 13:00-13:50 = 1."""
     if isinstance(start, dt.datetime) and isinstance(end, dt.datetime):
-        minutes = (end - start).total_seconds() / 60
+        minutes = elapsed(start, end).total_seconds() / 60  # real time (DST)
     else:
         minutes = (end.hour * 60 + end.minute) - (start.hour * 60 + start.minute)
         if minutes <= 0:

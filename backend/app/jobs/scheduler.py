@@ -18,6 +18,7 @@ from sqlalchemy import make_url
 
 from app.agent.team import TeamConfig, load_team_config
 from app.config import Settings, get_settings
+from app.core.localtime import local_datetime
 from app.jobs.runner import JOB_IDS, JobId, parse_hhmm, run_job
 from app.office.shift_jobs import is_shift, run_shift_job, shift_plans
 from app.office.state import get_office
@@ -122,7 +123,7 @@ def due_now(settings: Settings, now: dt.datetime, team: TeamConfig | None = None
     for plan in plans(settings, team):
         if plan.weekday is not None and local.weekday() != plan.weekday:
             continue
-        start = dt.datetime.combine(local.date(), plan.at, tzinfo=settings.tz)
+        start = local_datetime(local.date(), plan.at, settings.tz)
         if start <= local <= start + plan.window:
             due.append(plan.job_id)
     return due

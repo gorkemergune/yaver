@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.change_log import ChangeRecorder
+from app.core.localtime import local_datetime
 from app.db.models import EmployeeNote, Event, Followup
 from app.db.models.enums import EventKind, FollowupCheckRule, FollowupStatus
 from app.integrations.github import GitHub, RepoEntry, commit_author
@@ -347,7 +348,7 @@ async def sync_items(
         tag = marker(item)
         event_id = await session.scalar(select(Event.id).where(Event.notes.contains(tag)))
         if event_id is None:
-            start = dt.datetime.combine(item.day, dt.time(), tzinfo=tz)
+            start = local_datetime(item.day, dt.time(), tz)
             event = Event(
                 kind=EventKind.DEADLINE,
                 title=item.title[:200],

@@ -20,6 +20,7 @@ from app.agent.intent_map import followup_owner
 from app.agent.team import SHIFT_JOB_KINDS, ShiftJobConfig, TeamConfig, load_team_config
 from app.config import Settings, get_settings
 from app.content import calendar
+from app.core.localtime import local_datetime
 from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
 from app.db.models import Event, Followup, JobRun
 from app.db.models.enums import EventKind, FollowupStatus
@@ -94,7 +95,7 @@ def _day(local: dt.datetime) -> str:
 
 
 async def _upcoming(ctx: ShiftContext) -> list[Event]:
-    start = dt.datetime.combine(ctx.today, dt.time(), tzinfo=ctx.tz)
+    start = local_datetime(ctx.today, dt.time(), ctx.tz)
     end = start + dt.timedelta(days=HORIZON_DAYS + 1)
     rows = await ctx.session.scalars(
         select(Event).where(Event.start_at >= start, Event.start_at < end).order_by(Event.start_at)

@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.localtime import local_datetime
 from app.db.models import BlockOverride, Course, Event, Holiday, RecurringBlock, Term
 from app.services.schedule import PlanItem, PlanSources, compute_day_plan
 
@@ -39,8 +40,8 @@ class FeedItem:
 async def feed_items(session: AsyncSession, today: dt.date, tz: ZoneInfo) -> list[FeedItem]:
     first = today - dt.timedelta(days=PAST_DAYS)
     last = today + dt.timedelta(days=FUTURE_DAYS)
-    window_start = dt.datetime.combine(first - dt.timedelta(days=1), dt.time(), tzinfo=tz)
-    window_end = dt.datetime.combine(last + dt.timedelta(days=1), dt.time(), tzinfo=tz)
+    window_start = local_datetime(first - dt.timedelta(days=1), dt.time(), tz)
+    window_end = local_datetime(last + dt.timedelta(days=1), dt.time(), tz)
     sources = PlanSources(
         terms=(await session.scalars(select(Term))).all(),
         holidays=(await session.scalars(select(Holiday))).all(),

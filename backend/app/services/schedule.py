@@ -33,6 +33,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.core.localtime import local_datetime
 from app.db.models import (
     BlockOverride,
     Course,
@@ -146,8 +147,8 @@ class PlanSources:
 def day_window(day: dt.date, tz: ZoneInfo) -> tuple[dt.datetime, dt.datetime]:
     """[local midnight of `day`, local midnight of the next day)."""
     return (
-        dt.datetime.combine(day, dt.time.min, tzinfo=tz),
-        dt.datetime.combine(day + ONE_DAY, dt.time.min, tzinfo=tz),
+        local_datetime(day, dt.time.min, tz),
+        local_datetime(day + ONE_DAY, dt.time.min, tz),
     )
 
 
@@ -158,9 +159,9 @@ def week_start(day: dt.date) -> dt.date:
 def occurrence_interval(
     block: RecurringBlock, on: dt.date, tz: ZoneInfo
 ) -> tuple[dt.datetime, dt.datetime]:
-    start = dt.datetime.combine(on, block.start_time, tzinfo=tz)
+    start = local_datetime(on, block.start_time, tz)
     end_day = on if block.end_time > block.start_time else on + ONE_DAY
-    return start, dt.datetime.combine(end_day, block.end_time, tzinfo=tz)
+    return start, local_datetime(end_day, block.end_time, tz)
 
 
 def _overlaps(

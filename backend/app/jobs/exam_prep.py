@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.localtime import elapsed, local_datetime
 from app.core.time_resolver import week_start
 from app.db.models import Course, CourseMaterial, Event, Proposal, SyllabusWeek
 from app.db.models.enums import EventKind, ProposalKind
@@ -65,8 +66,8 @@ async def free_slot(
         ]
         + (taken.get(day, []) if taken is not None else [])
     )
-    cursor = dt.datetime.combine(day, DAY_START, tzinfo=tz)
-    end_of_day = dt.datetime.combine(day, DAY_END, tzinfo=tz)
+    cursor = local_datetime(day, DAY_START, tz)
+    end_of_day = local_datetime(day, DAY_END, tz)
     gaps: list[Slot] = []
     for start, end in busy:
         if start > cursor:
@@ -74,18 +75,18 @@ async def free_slot(
         cursor = max(cursor, end)
     if cursor < end_of_day:
         gaps.append(Slot(cursor, end_of_day))
-    gaps = [g for g in gaps if g.end - g.start >= MIN_SLOT]
+    gaps = [g for g in gaps if elapsed(g.start, g.end) >= MIN_SLOT]
     if not gaps:
         return None
     chosen: Slot | None = None
     evening = [g for g in gaps if g.start.time() >= EVENING or g.end.time() > EVENING]
     for gap in evening:
-        start = max(gap.start, dt.datetime.combine(day, EVENING, tzinfo=tz))
-        if gap.end - start >= SLOT:
+        start = max(gap.start, local_datetime(day, EVENING, tz))
+        if elapsed(start, gap.end) >= SLOT:
             chosen = Slot(start, start + SLOT)
             break
     if chosen is None:
-        best = max(gaps, key=lambda g: g.end - g.start)
+        best = max(gaps, key=lambda g: elapsed(g.start, g.end))
         chosen = Slot(best.start, min(best.end, best.start + SLOT))
     if taken is not None:
         taken.setdefault(day, []).append((chosen.start, chosen.end))
@@ -221,8 +222,8 @@ async def draft_exam_prep(
     session: AsyncSession, today: dt.date, tz: ZoneInfo, voice: Voice
 ) -> tuple[str, str] | None:
     """(message, context) for the chat: one plan per exam 2-7 days away that has none yet."""
-    start = dt.datetime.combine(today + dt.timedelta(days=MIN_LEAD_DAYS), dt.time(), tzinfo=tz)
-    end = dt.datetime.combine(today + dt.timedelta(days=LEAD_DAYS + 1), dt.time(), tzinfo=tz)
+    start = local_datetime(today + dt.timedelta(days=MIN_LEAD_DAYS), dt.time(), tz)
+    end = local_datetime(today + dt.timedelta(days=LEAD_DAYS + 1), dt.time(), tz)
     exams = (
         await session.scalars(
             select(Event)
