@@ -2,7 +2,7 @@
 
 from app.db.models.academic import Course, Holiday, Term
 from app.db.models.audit import ChangeLog, LlmUsage
-from app.db.models.auth import AuthSession
+from app.db.models.auth import AuthSession, DeviceKey
 from app.db.models.conversation import Attachment, Conversation, Message
 from app.db.models.jobs import JobRun
 from app.db.models.materials import CourseMaterial, MaterialChunk, SyllabusWeek
@@ -33,6 +33,7 @@ __all__ = [
     "Conversation",
     "Course",
     "CourseMaterial",
+    "DeviceKey",
     "Employee",
     "EmployeeNote",
     "EmployeeState",

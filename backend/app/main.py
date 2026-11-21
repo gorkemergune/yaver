@@ -11,6 +11,7 @@ from app.api import (
     auth,
     calendar,
     chat,
+    devices,
     employees,
     health,
     jobs,
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
         calendar,
         office,
         employees,
+        devices,
     ):
         app.include_router(module.router, prefix="/api", dependencies=guarded)
     return app

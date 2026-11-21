@@ -154,3 +154,43 @@ def test_limiter_window() -> None:
     assert limiter.retry_after("ip", now=61) == 0  # the first one aged out
     limiter.succeeded("ip")
     assert limiter.retry_after("ip", now=11) == 0
+
+
+async def test_device_keys_last_until_revoked(
+    locked: httpx2.AsyncClient, session: AsyncSession
+) -> None:
+    """Desktop app / Siri shortcut: a key made from a logged-in page, sent as a bearer."""
+    from sqlalchemy import select
+
+    from app.db.models import DeviceKey
+
+    login = await locked.post("/api/auth/login", json={"password": "doğru-parola"})
+    assert login.status_code == 200  # the browser cookie stays on the client
+    made = (await locked.post("/api/devices", json={"name": "Masaüstü"})).json()
+    key = made["key"]
+    assert key.startswith("yvk_")
+    assert made["prefix"] == key[:8]
+    locked.cookies.clear()  # the device has no browser login
+
+    device = {"Authorization": f"Bearer {key}"}
+    assert (await locked.get("/api/team", headers=device)).status_code == 200
+    assert (await locked.post("/api/chat", json={}, headers=device)).status_code == 422  # past auth
+    # only the hash is stored, and the list never shows the key
+    row = await session.scalar(select(DeviceKey))
+    assert row is not None
+    assert row.key_hash == hash_token(key)
+    assert row.last_used_at is not None
+    listed = (await locked.get("/api/devices", headers=device)).json()["devices"]
+    assert listed[0]["name"] == "Masaüstü"
+    assert "key" not in listed[0]
+    # a key never expires like a session does, but it can be revoked
+    assert (await locked.delete(f"/api/devices/{made['id']}", headers=device)).status_code == 200
+    gone = await locked.get("/api/team", headers=device)
+    assert gone.status_code == 401
+    assert gone.json()["detail"]["code"] == "device_key_invalid"
+    wrong = {"Authorization": "Bearer yvk_not-a-key"}
+    assert (await locked.get("/api/team", headers=wrong)).status_code == 401
+
+
+async def test_device_keys_need_a_login_to_be_made(locked: httpx2.AsyncClient) -> None:
+    assert (await locked.post("/api/devices", json={"name": "x"})).status_code == 401

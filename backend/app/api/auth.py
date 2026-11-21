@@ -11,7 +11,9 @@ from app.config import Settings, get_settings
 from app.db.session import get_session
 from app.services.auth import (
     COOKIE,
+    KEY_PREFIX,
     auth_enabled,
+    check_device_key,
     check_session,
     create_session,
     end_session,
@@ -28,7 +30,7 @@ def _now() -> dt.datetime:
 
 
 def request_token(request: Request) -> str | None:
-    """The browser's cookie, or `Authorization: Bearer ...` (desktop app)."""
+    """`Authorization: Bearer ...` (a device key or a desktop login), else the cookie."""
     header = request.headers.get("authorization", "")
     if header.lower().startswith("bearer "):
         return header[7:].strip() or None
@@ -52,10 +54,15 @@ async def require_auth(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> None:
-    """Router dependency: 401 without a valid session (when a password is set)."""
+    """Router dependency: 401 without a valid session or device key (when a password is
+    set). Device keys (`yvk_...`, desktop app / Siri shortcut) don't expire."""
     if not auth_enabled(settings):
         return
     token = request_token(request)
+    if token is not None and token.startswith(KEY_PREFIX):
+        if await check_device_key(session, token, _now()):
+            return
+        raise HTTPException(401, detail={"code": "device_key_invalid"})
     if token is None or not await check_session(session, settings, token, _now()):
         raise HTTPException(401, detail={"code": "login_required"})
 

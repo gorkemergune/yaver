@@ -13,7 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.db.models import AuthSession
+from app.db.models import AuthSession, DeviceKey
 
 COOKIE = "yaver_session"
 # .env.example used to ship this value; a stack still carrying it has no real password.
@@ -82,6 +82,37 @@ async def check_session(
 async def end_session(session: AsyncSession, token: str) -> None:
     await session.execute(delete(AuthSession).where(AuthSession.token_hash == hash_token(token)))
     await session.commit()
+
+
+# Device keys (desktop app, Siri shortcut): long-lived, revocable, told apart from session
+# tokens by their prefix.
+KEY_PREFIX = "yvk_"
+
+
+async def create_device_key(
+    session: AsyncSession, name: str, now: dt.datetime
+) -> tuple[DeviceKey, str]:
+    """(row, key); the key itself is returned once and never stored."""
+    key = KEY_PREFIX + secrets.token_urlsafe(32)
+    row = DeviceKey(
+        name=name.strip()[:100] or "Cihaz",
+        key_hash=hash_token(key),
+        prefix=key[: len(KEY_PREFIX) + 4],
+        created_at=now,
+    )
+    session.add(row)
+    await session.commit()
+    return row, key
+
+
+async def check_device_key(session: AsyncSession, key: str, now: dt.datetime) -> bool:
+    row = await session.scalar(select(DeviceKey).where(DeviceKey.key_hash == hash_token(key)))
+    if row is None or row.revoked_at is not None:
+        return False
+    if row.last_used_at is None or now - row.last_used_at >= TOUCH_EVERY:
+        row.last_used_at = now
+        await session.commit()
+    return True
 
 
 class LoginLimiter:
