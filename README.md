@@ -74,16 +74,26 @@ iPhone / browser (PWA) ──► web (React, nginx) ──► api (FastAPI) ─�
 git clone https://github.com/gorkemergune/yaver.git
 cd yaver
 cp .env.example .env      # add at least GROQ_API_KEY (ANTHROPIC_API_KEY for images / smart tier)
-docker compose up -d --build
-docker compose exec api alembic upgrade head
+.\scripts\deploy-live.ps1 -NewDatabase   # first time: builds and starts the live stack
 # open http://localhost:8080 - the first chat walks you through the setup
 ```
 
-Check a running stack: `.\scripts\smoke.ps1` (health, API, a real chat message and its undo;
-`-NoChat` skips the model call). Development: `docker compose exec api pytest` (backend,
-~14 s), `cd web && npm run check` (frontend); live model tests are opt-in: `pytest -m live`.
+**Two stacks.** The Yaver you use every day is `yaver-live` (http://localhost:8080, built
+images, your real database). It is updated **only** with `.\scripts\deploy-live.ps1`: the
+latest commit of `main` → pytest + smoke + the LLM-free e2e suite → build → backup and a
+migration rehearsal → switch → health check; on any failure it stays on (or goes back to) the
+previous images. `.\scripts\rollback-live.ps1` goes back by hand, `.\scripts\live.ps1 ps | logs
+| restart` manages it. Development is `yaver-dev`: plain `docker compose up -d --build` in the
+repo folder, hot reload, its own database - web http://localhost:8180, api http://localhost:8100,
+db 127.0.0.1:5532, scheduler off. Coding agents work on `yaver-dev` only and never touch
+`yaver-live` or the real database. Guide (Turkish): [docs/tr/canli-ve-gelistirme.md](docs/tr/canli-ve-gelistirme.md).
 
-Try the scheduled messages without waiting: `curl -X POST "localhost:8000/api/jobs/briefing/run?force=true"`
+Check a running stack: `.\scripts\smoke.ps1` (health, API, a real chat message and its undo;
+`-NoChat` skips the model call). Development: `docker compose exec api pytest` (backend),
+`cd web && npm run check` (frontend), `cd e2e && npx playwright test` (LLM-free end-to-end,
+`e2e/README.md`); live model tests are opt-in: `pytest -m live`.
+
+Try the scheduled messages without waiting (development stack): `curl -X POST "localhost:8100/api/jobs/briefing/run?force=true"`
 (also `checkin`, `followups`, `weekly_plan`). Times: `BRIEFING_TIME`, `CHECKIN_TIME`,
 `FOLLOWUP_TIME`, `WEEKLY_PLAN_TIME` in `.env`.
 
@@ -105,8 +115,9 @@ passwords in ten minutes lock the login for a while.
   `backups/yaver-YYYYMMDD-HHMMSS.sql.gz` (UTC), the newest 14 are kept. Folder: `BACKUP_DIR` in `.env`.
 - By hand: `.\scripts\backup.ps1` (Windows) or `scripts/backup.sh`.
 - Restore into a scratch database first: `.\scripts\backup.ps1 restore backups\yaver-....sql.gz`
-  (creates `yaver_restore`). Over the live database: `docker compose stop api`, then
-  `.\scripts\backup.ps1 restore <file> yaver -Yes`, then `docker compose start api`.
+  (creates `yaver_restore`). Over the live database: `.\scripts\live.ps1 stop api`, then
+  `.\scripts\backup.ps1 restore <file> yaver -Yes`, then `.\scripts\live.ps1 start api`
+  (`-Stack dev` for the development database). A failed deploy restores its own backup.
 
 Details (Turkish): [docs/tr/yedekleme.md](docs/tr/yedekleme.md).
 

@@ -204,15 +204,29 @@ Kurallar:
 - ORM modellerinde (`app/db/`) `datetime` modülü her zaman `import datetime as dt` ile alınır, tipler `Mapped[dt.date]`, `Mapped[dt.datetime]`, `Mapped[dt.time]` diye yazılır. `from datetime import date` yasak: `date` adlı bir kolon (ör. `tasks.date`, `attendance.date`) class gövdesinde tipi gölgeler ve SQLAlchemy `MappedAnnotationError` verir.
 - Config yükleyici önce `config/<ad>.yaml`, yoksa `config/<ad>.example.yaml` okur. Yeni config alanı eklenirse example dosyası da güncellenir.
 
-## Çalıştırma
+## Canlı ve geliştirme (iki ayrı stack)
+**Kural: canlıya YALNIZCA `scripts/deploy-live.ps1` ile çıkılır (Görkem çalıştırır). Ajanlar
+`yaver-live` stack'ine ve gerçek DB'ye (`yaver_pgdata`) asla doğrudan dokunmaz, yalnızca
+`yaver-dev` ile çalışır.** Canlıda `docker compose`, `scripts/live.ps1`, `deploy-live.ps1`,
+`rollback-live.ps1`, canlıya karşı `backup.ps1` yok; migration da yalnız deploy içinde (önce yedek + prova).
+
+| | Canlı `yaver-live` | Geliştirme `yaver-dev` |
+|---|---|---|
+| Ne | Build edilmiş imaj (`main`'in commit'i), reload yok | Çalışma klasörü, hot reload |
+| Adres | web http://localhost:8080 (telefon / Tailscale, masaüstü uygulaması) | web http://localhost:8180, api http://localhost:8100, db 127.0.0.1:5532 |
+| DB | gerçek `yaver_pgdata` (external volume) | `yaver-dev_pgdata` (uydurma veri), testler `yaver_test`'te |
+| Zamanlayıcı | açık | kapalı (`DEV_SCHEDULER_ENABLED`) |
+| Komutlar | `.\scripts\deploy-live.ps1`, `.\scripts\live.ps1 ...` | `docker compose ...` (ana klasörde artık `yaver-dev`'i yönetir) |
+
+Rehber: `docs/tr/canli-ve-gelistirme.md`. Deploy: `main`'in son commit'i → pytest + smoke + LLM'siz e2e
+(geçici `yaver-e2e-release` stack'i) → build → canlı DB yedeği + migration provası → geçiş → sağlık;
+başarısızsa eski imajda kalır (gerekirse yedek geri yüklenir).
+
 ```bash
 # Geliştirme: docker-compose.override.yml otomatik yüklenir (hot reload, Vite dev server)
-docker compose up -d --build          # web: http://localhost:8080, api: http://localhost:8000/docs
-docker compose exec api alembic upgrade head
+docker compose up -d --build          # web: http://localhost:8180, api: http://localhost:8100/docs
+docker compose exec api alembic upgrade head   # geliştirme DB'si
 docker compose exec api pytest
-
-# Prod benzeri (nginx + build edilmiş web, override'sız)
-docker compose -f docker-compose.yml up -d --build
 ```
 `web/package.json` değişince node_modules volume'ünü yenile: `docker compose up -d --build -V web`.
 
@@ -227,11 +241,10 @@ cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy
 cd web && npm run check        # tsc + eslint + vitest
 ```
 
-**Her maddeden sonra testlere ek olarak çalışan uygulamayı doğrula** (dev'de api sıcak yeniden yüklenir; testler geçse de canlı süreç çökmüş olabilir):
+**Her maddeden sonra testlere ek olarak çalışan geliştirme uygulamasını doğrula** (dev'de api sıcak yeniden yüklenir; testler geçse de süreç çökmüş olabilir). Canlıyı kontrol etmek ajanın işi değil:
 ```bash
-docker compose ps api                                   # STATUS: (healthy)
-curl -s -o /dev/null -w "%{http_code}
-" http://localhost:8000/api/health/ready   # 200
+docker compose ps api                                                    # yaver-dev, STATUS: (healthy)
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8100/api/health/ready   # 200
 ```
 `tests/test_smoke.py` uvicorn'un yüklediği `app.main:app` nesnesiyle `/health`'i çağırır, `app/` altındaki her modülü içe aktarır ve isim gölgeleme taramasını (`backend/scripts/shadow_scan.py`, pre-commit'te de) çalıştırır.
 
