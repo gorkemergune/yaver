@@ -69,6 +69,25 @@ async def upload_images(
         raise HTTPException(422, detail={"code": "too_many_files", "max": MAX_FILES})
     max_bytes = int(settings.upload_max_mb * 1024 * 1024)
     stored: list[Attachment] = []
+    try:
+        await _store_all(files, stored, session, settings, max_bytes)
+    except HTTPException:
+        # one file refused: nothing is saved, so the files written before it go too (QA D4)
+        await session.rollback()
+        for attachment in stored:
+            resolve_stored(settings.upload_dir, attachment.path).unlink(missing_ok=True)
+        raise
+    await session.commit()
+    return {"attachments": [attachment_view(a) for a in stored]}
+
+
+async def _store_all(
+    files: list[UploadFile],
+    stored: list[Attachment],
+    session: AsyncSession,
+    settings: Settings,
+    max_bytes: int,
+) -> None:
     for upload in files:
         raw = await upload.read(max_bytes + 1)  # one byte over the limit is enough to refuse
         if is_pdf(raw):
@@ -128,8 +147,6 @@ async def upload_images(
         )
         session.add(attachment)
         stored.append(attachment)
-    await session.commit()
-    return {"attachments": [attachment_view(a) for a in stored]}
 
 
 @router.get("/uploads/{attachment_id}")

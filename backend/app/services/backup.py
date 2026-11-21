@@ -86,10 +86,13 @@ async def run_backup(settings: Settings, now: dt.datetime | None = None) -> Path
     assert process.stdout is not None
     assert process.stderr is not None
     try:
+        # compressing is CPU work: in a thread, so the chat is not paused during a backup;
+        # stderr is read at the same time (a full stderr pipe would block pg_dump) (QA D2)
+        stderr_read = asyncio.create_task(process.stderr.read())
         with gzip.open(partial, "wb") as out:
             while chunk := await process.stdout.read(1 << 16):
-                out.write(chunk)
-        errors = await process.stderr.read()
+                await asyncio.to_thread(out.write, chunk)
+        errors = await stderr_read
         code = await process.wait()
         if code != 0:
             raise BackupError(errors.decode(errors="replace").strip() or f"pg_dump exit {code}")

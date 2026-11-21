@@ -2,6 +2,7 @@
 which splits the message and delegates to yavers. Everything changed while answering one
 message shares one change_set_id, so a single undo reverts all of it."""
 
+import asyncio
 import datetime as dt
 import logging
 import re
@@ -271,8 +272,12 @@ class Coordinator:
                 employee_id,
             )
         except BaseException:
-            await session.rollback()
-            await activity.close()
+            try:
+                await session.rollback()
+            except Exception:  # e.g. the connection is gone: the first error is the one
+                logger.exception("Rollback after a failed message failed too")
+            finally:
+                await activity.close()  # never left "working" in the office (QA D1)
             raise
         await session.commit()
         await activity.close()
@@ -853,21 +858,27 @@ class Coordinator:
                 }
             )
 
-        def data(attachment: Attachment) -> bytes:
-            return resolve_stored(self.settings.upload_dir, attachment.path).read_bytes()
+        async def data(attachment: Attachment) -> bytes:
+            # up to 6 x 20 MB: read off the event loop (QA D3)
+            path = resolve_stored(self.settings.upload_dir, attachment.path)
+            return await asyncio.to_thread(path.read_bytes)
 
         images = [a for a in attachments if a.mime not in (PDF_MIME, CSV_MIME)]
         pdfs = [a for a in attachments if a.mime == PDF_MIME]
         csvs = [a for a in attachments if a.mime == CSV_MIME]
         blocks = []
         if csvs:
-            files = [AdFileInput(a.id, a.filename or "reklam.csv", data(a), a.sha256) for a in csvs]
+            files = [
+                AdFileInput(a.id, a.filename or "reklam.csv", await data(a), a.sha256) for a in csvs
+            ]
             blocks.append(await read_ad_files(ctx, files))
         if images:
-            inputs = [ImageInput(a.id, ImagePart(a.mime, data(a))) for a in images]
+            inputs = [ImageInput(a.id, ImagePart(a.mime, await data(a))) for a in images]
             blocks.append(await read_images(ctx, inputs))
         if pdfs:
-            documents = [DocumentInput(a.id, a.filename or "belge.pdf", data(a)) for a in pdfs]
+            documents = [
+                DocumentInput(a.id, a.filename or "belge.pdf", await data(a)) for a in pdfs
+            ]
             blocks.append(await read_documents(ctx, documents))
         return attachments, "\n\n".join(blocks)
 
