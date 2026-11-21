@@ -37,6 +37,7 @@ docker compose exec api python -m app.materials.bundle export
 
 Pakette veritabanı kimliği yok: dersler kod (ve takma ad), dosyalar SHA-256 ile eşleşir;
 embedding'ler aynen taşınır (yeniden hesaplanmaz). Model farklıysa yükleme reddedilir.
+Paylaşılan not kaynakları da pakettedir (aşağıda).
 
 ## 4. Canlıya yükleme (Görkem çalıştırır)
 
@@ -54,3 +55,24 @@ yeni tablolar o migration'la gelir). Sonra:
 - Tekrar çalıştırmak güvenli: aynı paket ikinci kez hiçbir şey yazmaz.
 - Yükleme tek transaction: yarıda hata olursa hiçbir şey yazılmaz.
 - Geri alma: yüklemenin eklediği her şey silinir, güncellediği satırlar eski hâline döner.
+
+## Paylaşılan not kaynakları (CSE 221 Google Sheets)
+
+```powershell
+docker compose exec api python -m app.materials.sources add "CSE 221" "https://docs.google.com/spreadsheets/d/<id>"
+docker compose exec api python -m app.materials.sources check     # hemen oku
+docker compose exec api python -m app.materials.sources list
+```
+
+- Herkese açık tablo `/export?format=xlsx` ile bütün olarak indirilir ve kodda okunur
+  (sekme, hücre metni, bağlantılar, görseller; ek bağımlılık yok).
+- Her sekmenin özeti (metin + bağlantılar + görsel hash'leri) saklanır. **Yalnız yeni ya da
+  değişen sekme** modele gider (Sonnet, `source_notes`: görseller → metin; okunamayan el yazısı
+  tahmin edilmez, "belirsiz"e yazılır), syllabus haftalarına eşlenir (`material_map`) ve
+  "CSE 221 notları: Map" adıyla aranabilir materyal olur. Değişmeyen kaynak = bir indirme, sıfır maliyet.
+- Bir sekme okunamazsa ötekiler kaydedilir; o sekme bir sonraki kontrolde yeniden denenir.
+- Sekmenin bağladığı herkese açık PDF'ler (Drive dosyası, Google Doc, .pdf) materyale eklenir.
+- **Scholar'ın mesai işi** `source_watch` (her gün; `agents.yaml` → academic → `shift_jobs`):
+  yeni / değişen sekme olursa deftere not + sohbete kısa mesaj ("CSE 221'e yeni not: Map") + bildirim.
+- Paket kaynakları da taşır (sekmeler, haftaları, okunmuş metinleri ve embedding'leri):
+  canlıda ilk günlük kontrol yeniden okumaz, yalnız sonradan değişeni okur.

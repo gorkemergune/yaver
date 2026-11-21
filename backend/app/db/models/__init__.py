@@ -9,8 +9,10 @@ from app.db.models.jobs import JobRun
 from app.db.models.materials import (
     CourseBook,
     CourseMaterial,
+    CourseSource,
     MaterialChunk,
     MaterialSection,
+    SourceItem,
     SyllabusWeek,
 )
 from app.db.models.office import Employee, EmployeeNote, EmployeeState, EmployeeTask
@@ -43,6 +45,7 @@ __all__ = [
     "Course",
     "CourseBook",
     "CourseMaterial",
+    "CourseSource",
     "DeviceKey",
     "Employee",
     "EmployeeNote",
@@ -61,6 +64,7 @@ __all__ = [
     "PushSubscription",
     "RecurringBlock",
     "ScreenTimeDay",
+    "SourceItem",
     "StudySheet",
     "SyllabusWeek",
     "Task",

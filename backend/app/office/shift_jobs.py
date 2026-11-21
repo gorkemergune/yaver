@@ -9,7 +9,7 @@ Job keys are "shift:<employee id>:<kind>" (job_runs keeps each to once a day).
 import datetime as dt
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import select
@@ -22,16 +22,18 @@ from app.config import Settings, get_settings
 from app.content import calendar
 from app.core.localtime import local_datetime
 from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
-from app.db.models import Event, Followup, JobRun
-from app.db.models.enums import EventKind, FollowupStatus
+from app.db.models import Conversation, CourseSource, Event, Followup, JobRun, Message
+from app.db.models.enums import ConversationMode, EventKind, FollowupStatus, MessageRole
 from app.db.session import get_sessionmaker
 from app.integrations import github as gh
 from app.integrations import web_search as websearch
 from app.integrations.meta_ads import NO_CREDENTIALS, NOT_BUILT, ads_status
 from app.llm.router import get_router
+from app.materials import sources as course_sources
 from app.office.notebook import note_event, record_shift, write_note
 from app.office.shifts import OverBudgetError, run_shift
 from app.office.state import Office
+from app.services.push import Notification, preview, send_push
 from app.startup import repo as startup_repo
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ DEFAULT_TITLES = {
     "deadline_watch": "Yaklaşan teslimlere bakıyor",
     "github_watch": "Startup deposuna bakıyor",
     "content_calendar": "İçerik takvimi hazırlıyor",
+    "source_watch": "Ders notlarına bakıyor",
 }
 # Status notes (no data source yet) are written once a day, not on every run.
 STATUS_NOTES = frozenset({websearch.PENDING_NOTE, NO_CREDENTIALS, NOT_BUILT, gh.PENDING_NOTE})
@@ -83,7 +86,9 @@ class ShiftContext:
     search: websearch.WebSearch | None
     employee_id: str = ""
     github: gh.GitHub | None = None
-    llm: Any = None  # content_calendar only: the router (the other jobs use no model)
+    llm: Any = None  # content_calendar, source_watch: the router (the others use no model)
+    # chat messages to push once the job is committed (a failed push never undoes it)
+    pushes: list[Notification] = field(default_factory=list)
 
     @property
     def today(self) -> dt.date:
@@ -196,6 +201,61 @@ async def deadline_watch(ctx: ShiftContext) -> str | None:
     return "Yaklaşan teslimler: " + "; ".join(items)
 
 
+async def _tell_user(ctx: ShiftContext, text: str, kind: str) -> None:
+    """A short message from the employee into the latest main chat (a new one if none)."""
+    conversation = await ctx.session.scalar(
+        select(Conversation)
+        .where(Conversation.mode == ConversationMode.CHAT, Conversation.employee_id.is_(None))
+        .order_by(Conversation.updated_at.desc(), Conversation.id.desc())
+        .limit(1)
+    )
+    if conversation is None:
+        conversation = Conversation(title="Yaver")
+        ctx.session.add(conversation)
+        await ctx.session.flush()
+    ctx.session.add(
+        Message(
+            conversation_id=conversation.id,
+            role=MessageRole.ASSISTANT,
+            agent_id=ctx.employee_id,
+            content=text,
+            kind=kind,
+        )
+    )
+    conversation.updated_at = ctx.now
+    conversation.pending_action = None  # a newer message: an older question is not answered next
+    ctx.pushes.append(Notification(title="Ders notları 📒", body=preview(text), tag=kind))
+
+
+async def source_watch(ctx: ShiftContext) -> str | None:
+    """Scholar: the courses' shared notes (app.materials.sources). An unchanged source is one
+    download; a new / changed tab is read by the model (the job's only cost) and told to the
+    user in the chat ("CSE 221'e yeni not: Map")."""
+    rows = (await ctx.session.scalars(select(CourseSource).order_by(CourseSource.id))).all()
+    if not rows:
+        return None
+    llm = ctx.llm if ctx.llm is not None else get_router()
+    lines: list[str] = []
+    news: list[str] = []
+    for source in rows:
+        first = source.checked_at is None
+        result = await course_sources.check_source(
+            ctx.session, llm, source, ctx.now, agent_id=ctx.employee_id
+        )
+        if result.error:
+            lines.append(f"{source.title} okunamadı: {result.error}")
+            continue
+        text = result.message(first)
+        if text:
+            lines.append(text)
+            news.append(text)
+        if result.removed:
+            lines.append(f"{source.title}: kaldırılan sekme {', '.join(result.removed)}")
+    if news:
+        await _tell_user(ctx, " ".join(news), "source_watch")
+    return " | ".join(lines) or None
+
+
 JOBS: dict[str, Callable[[ShiftContext], Awaitable[str | None]]] = {
     "web_scan": web_scan,
     "ads_report": ads_report,
@@ -204,6 +264,7 @@ JOBS: dict[str, Callable[[ShiftContext], Awaitable[str | None]]] = {
     "deadline_watch": deadline_watch,
     "github_watch": github_watch,
     "content_calendar": content_calendar,
+    "source_watch": source_watch,
 }
 assert set(JOBS) == set(SHIFT_JOB_KINDS), "every kind agents.yaml accepts has a job"
 
@@ -274,6 +335,12 @@ async def run_shift_job(
         except IntegrityError:  # another process ran it first
             await session.rollback()
             return None
+        for notification in ctx.pushes:  # committed: a failed push changes nothing
+            try:
+                await send_push(session, settings, notification, now)
+            except Exception:
+                logger.exception("Web Push for %s failed", plan.key)
+                await session.rollback()
     if note is not None and office is not None:
         office.publish_notes([note_event(note)])
     logger.info("Shift job %s: %s", plan.key, text or "nothing to note")

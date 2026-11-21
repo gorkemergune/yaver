@@ -42,8 +42,10 @@ from app.db.models import (
     Course,
     CourseBook,
     CourseMaterial,
+    CourseSource,
     MaterialChunk,
     MaterialSection,
+    SourceItem,
     SyllabusWeek,
     Term,
 )
@@ -51,12 +53,20 @@ from app.db.models.enums import ChangeOp
 from app.db.models.materials import EMBEDDING_DIM
 from app.db.session import get_sessionmaker
 from app.materials.ingest import MIME, Courses, compact
+from app.materials.sources import export_sources
 
 logger = logging.getLogger("app.materials.bundle")
 
 FORMAT = "yaver-materials"
 VERSION = 1
-REQUIRED_TABLES = ("course_materials", "material_chunks", "material_sections", "course_books")
+REQUIRED_TABLES = (
+    "course_materials",
+    "material_chunks",
+    "material_sections",
+    "course_books",
+    "course_sources",
+    "source_items",
+)
 
 
 class BundleError(ValueError):
@@ -98,8 +108,8 @@ def _sha256(raw: bytes) -> str:
 # ---- export -----------------------------------------------------------------------------
 
 
-async def _material_dict(
-    session: AsyncSession, material: CourseMaterial, code: str | None, sha: str
+async def material_dict(
+    session: AsyncSession, material: CourseMaterial, code: str | None, sha: str | None
 ) -> dict[str, Any]:
     chunks = (
         await session.scalars(
@@ -185,7 +195,7 @@ async def export_bundle(
         extension = Path(attachment.path).suffix.lower()
         name = f"files/{attachment.sha256}{extension}"
         await asyncio.to_thread((out / name).write_bytes, raw)
-        item = await _material_dict(session, material, by_id[course_id].code, attachment.sha256)
+        item = await material_dict(session, material, by_id[course_id].code, attachment.sha256)
         item["file"] = {
             "path": name,
             "filename": attachment.filename or material.title,
@@ -233,6 +243,7 @@ async def export_bundle(
             }
         )
         used.add(book.course_id)
+    data["sources"] = await export_sources(session, by_id, used)
     data["courses"] = [
         {"code": c.code, "name": c.name, "aliases": list(c.aliases or [])}
         for c in courses
@@ -424,6 +435,7 @@ async def _material(
     report: ImportReport,
     now: dt.datetime,
 ) -> CourseMaterial:
+    """A material with a file: found by the file's SHA-256, else created with its file."""
     sha = item["sha256"]
     found = (
         await session.execute(
@@ -433,14 +445,54 @@ async def _material(
             .order_by(CourseMaterial.id)
         )
     ).first()
-    item = {**item, "course": course.code}
     if found is not None:
-        material = found[0]
+        return await write_material(session, log, course, item, report, now, found[0])
+    attachment = await session.scalar(
+        select(Attachment).where(Attachment.sha256 == sha).order_by(Attachment.id)
+    )
+    if attachment is None:
+        raw = await asyncio.to_thread((folder / item["file"]["path"]).read_bytes)
+        extension = Path(item["file"]["path"]).suffix.lower()
+        path = (
+            f"{now:%Y/%m}/{sha}{extension}"
+            if report.dry_run
+            else await asyncio.to_thread(_store, upload_dir, sha, extension, raw, now)
+        )
+        report.files_written += 0 if report.dry_run else 1
+        attachment = Attachment(
+            path=path,
+            mime=item["file"]["mime"] or MIME.get(extension, "application/octet-stream"),
+            width=0,
+            height=0,
+            size_bytes=item["file"]["size_bytes"],
+            sha256=sha,
+            filename=item["file"]["filename"],
+        )
+        session.add(attachment)
+        await log.created(attachment)
+    return await write_material(session, log, course, item, report, now, None, attachment.id)
+
+
+async def write_material(
+    session: AsyncSession,
+    log: Log,
+    course: Course,
+    item: dict[str, Any],
+    report: ImportReport,
+    now: dt.datetime,
+    existing: CourseMaterial | None,
+    attachment_id: int | None = None,
+) -> CourseMaterial:
+    """`existing` the same (nothing written), repaired (old passages logged) or None
+    (created; its passages and sections go with it on undo: ON DELETE CASCADE)."""
+    item = {**item, "course": course.code}
+    if existing is not None:
+        material = existing
         current_course = (
             await session.get(Course, material.course_id) if material.course_id else None
         )
-        current = await _material_dict(
-            session, material, current_course.code if current_course else None, sha
+        current = await material_dict(
+            session, material, current_course.code if current_course else None, None
         )
         if fingerprint(current) == fingerprint(item):
             report.materials.same += 1
@@ -471,32 +523,9 @@ async def _material(
         report.materials.updated += 1
         logged = True
     else:
-        attachment = await session.scalar(
-            select(Attachment).where(Attachment.sha256 == sha).order_by(Attachment.id)
-        )
-        if attachment is None:
-            raw = await asyncio.to_thread((folder / item["file"]["path"]).read_bytes)
-            extension = Path(item["file"]["path"]).suffix.lower()
-            path = (
-                f"{now:%Y/%m}/{sha}{extension}"
-                if report.dry_run
-                else await asyncio.to_thread(_store, upload_dir, sha, extension, raw, now)
-            )
-            report.files_written += 0 if report.dry_run else 1
-            attachment = Attachment(
-                path=path,
-                mime=item["file"]["mime"] or MIME.get(extension, "application/octet-stream"),
-                width=0,
-                height=0,
-                size_bytes=item["file"]["size_bytes"],
-                sha256=sha,
-                filename=item["file"]["filename"],
-            )
-            session.add(attachment)
-            await log.created(attachment)
         material = CourseMaterial(
             course_id=course.id,
-            attachment_id=attachment.id,
+            attachment_id=attachment_id,
             kind=item["kind"],
             title=item["title"],
             pages=item["pages"],
@@ -507,7 +536,7 @@ async def _material(
         session.add(material)
         await log.created(material)
         report.materials.new += 1
-        logged = False  # its passages and sections go with it on undo (ON DELETE CASCADE)
+        logged = False
     added: list[Any] = []
     for chunk in item["chunks"]:
         vector = unpack_vector(chunk["embedding"])
@@ -553,7 +582,7 @@ async def _upsert(
     where: dict[str, Any],
     values: dict[str, Any],
     counts: Counts,
-) -> None:
+) -> Any:
     row = await session.scalar(
         select(model).where(*(getattr(model, k) == v for k, v in where.items()))
     )
@@ -562,16 +591,17 @@ async def _upsert(
         session.add(row)
         await log.created(row)
         counts.new += 1
-        return
+        return row
     if all(getattr(row, k) == v for k, v in values.items()):
         counts.same += 1
-        return
+        return row
     before = plain(row)
     for key, value in values.items():
         setattr(row, key, value)
     await session.flush()
     log.updated(row, before)
     counts.updated += 1
+    return row
 
 
 async def import_bundle(
@@ -628,6 +658,8 @@ async def import_bundle(
             },
             report.books,
         )
+    for source in data.get("sources", []):
+        await _source(session, log, by_code[source["course"]], source, report, now)
     await session.flush()
     if log.count:
         report.change_set_id = str(log.change_set_id)
@@ -636,6 +668,64 @@ async def import_bundle(
     else:
         await session.commit()
     return report
+
+
+def _when(value: str | None) -> dt.datetime | None:
+    return dt.datetime.fromisoformat(value) if value else None
+
+
+async def _source(
+    session: AsyncSession,
+    log: Log,
+    course: Course,
+    data: dict[str, Any],
+    report: ImportReport,
+    now: dt.datetime,
+) -> None:
+    """A course source by its url, its tabs by name, each tab's material through the tab."""
+    source = await _upsert(
+        session,
+        log,
+        CourseSource,
+        {"url": data["url"]},
+        {"course_id": course.id, "kind": data["kind"], "title": data["title"]},
+        Counts(),
+    )
+    checked = _when(data["checked_at"])
+    if checked and (source.checked_at is None or source.checked_at < checked):
+        source.checked_at = checked  # the next daily check starts from the bundle's state
+        source.changed_at = _when(data["changed_at"])
+    for item in data["items"]:
+        row = await session.scalar(
+            select(SourceItem).where(
+                SourceItem.source_id == source.id, SourceItem.key == item["key"]
+            )
+        )
+        existing = (
+            await session.get(CourseMaterial, row.material_id) if row and row.material_id else None
+        )
+        material = (
+            await write_material(session, log, course, item["material"], report, now, existing)
+            if item["material"]
+            else None
+        )
+        await _upsert(
+            session,
+            log,
+            SourceItem,
+            {"source_id": source.id, "key": item["key"]},
+            {
+                "position": item["position"],
+                "topic": item["topic"],
+                "week_nos": item["week_nos"],
+                "digest": item["digest"],
+                "links": item["links"],
+                "material_id": material.id if material else None,
+                "changed_at": _when(item["changed_at"]),
+                "removed_at": _when(item["removed_at"]),
+            },
+            report.sources,
+        )
 
 
 # ---- command line -------------------------------------------------------------------------

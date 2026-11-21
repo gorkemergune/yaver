@@ -73,6 +73,7 @@ SHIFT_JOB_KINDS = (
     "deadline_watch",  # deadlines in the next days
     "github_watch",  # the startup repo (read only): week hand-ins, dated items, reminders
     "content_calendar",  # Creator: next week's post drafts (one LLM call; nothing is posted)
+    "source_watch",  # Scholar: shared course notes (a model reads only new / changed tabs)
 )
 
 
@@ -85,6 +86,7 @@ class ShiftJobConfig(_Strict):
         "deadline_watch",
         "github_watch",
         "content_calendar",
+        "source_watch",
     ]
     at: str = Field(pattern=HHMM_PATTERN)  # local time
     weekday: int | None = Field(None, ge=0, le=6)  # 0 = Monday; None = every day

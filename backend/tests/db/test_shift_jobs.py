@@ -196,6 +196,7 @@ def test_every_new_employee_has_a_scheduled_shift_job() -> None:
     config = example_config()
     keys = [p.key for p in shift_plans(config)]
     assert keys == [
+        "shift:academic:source_watch",  # Scholar: shared course notes
         "shift:agenda:deadline_watch",  # the research employee's job, now the agenda's
         "shift:career:followup_watch",
         "shift:startup:github_watch",  # the startup repo, read only

@@ -109,3 +109,44 @@ class MaterialSection(Base):
     page_start: Mapped[int]  # PDF pages, 1-based
     page_end: Mapped[int]
     week_nos: Mapped[list[int]] = mapped_column(ARRAY(Integer), default=list, server_default="{}")
+
+
+class CourseSource(TimestampMixin, Base):
+    """A shared source of a course checked every day (app.materials.sources): a public
+    Google Sheets of notes, one tab per topic ("CSE 221: num1, compl., ... Map")."""
+
+    __tablename__ = "course_sources"
+    __table_args__ = (UniqueConstraint("url", name="uq_course_sources_url"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(20), default="gsheet")
+    url: Mapped[str] = mapped_column(String(500))
+    title: Mapped[str] = mapped_column(String(200))
+    checked_at: Mapped[dt.datetime | None]
+    changed_at: Mapped[dt.datetime | None]
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class SourceItem(CreatedAtMixin, Base):
+    """One tab of a source: its topic, term weeks, a digest of its content (cell text,
+    links, image hashes) and the material its text became (searchable)."""
+
+    __tablename__ = "source_items"
+    __table_args__ = (UniqueConstraint("source_id", "key", name="uq_source_items_source_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("course_sources.id", ondelete="CASCADE"), index=True
+    )
+    key: Mapped[str] = mapped_column(String(100))  # the tab's name
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    topic: Mapped[str | None] = mapped_column(String(300))
+    week_nos: Mapped[list[int]] = mapped_column(ARRAY(Integer), default=list, server_default="{}")
+    digest: Mapped[str] = mapped_column(String(64))
+    links: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list, server_default="{}")
+    material_id: Mapped[int | None] = mapped_column(
+        ForeignKey("course_materials.id", ondelete="SET NULL")
+    )
+    changed_at: Mapped[dt.datetime | None]
+    removed_at: Mapped[dt.datetime | None]  # the tab is gone from the source

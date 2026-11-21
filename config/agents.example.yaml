@@ -68,6 +68,9 @@ agents:
       - save_material            # uploaded notes -> course + week, searchable
       - generate_study_sheet     # writes with the smart tier, sources from search_materials
     briefing_section: Dersler
+    shift_jobs:
+      # shared course notes (python -m app.materials.sources add ...): new / changed tabs
+      - {job: source_watch, at: "08:20", title: Ders notlarına bakıyor}
 
   - id: agenda
     name: Chrono
@@ -120,7 +123,8 @@ agents:
   # --- O3: the rest of the office (docs/OFFICE.md). Without a web search key (TAVILY_API_KEY /
   # BRAVE_API_KEY in .env) web_search answers "entegrasyon bekliyor" and the employee notes it.
   # shift_jobs: scheduled work (local time; weekday 0 = Monday). Kinds: web_scan (topics),
-  # ads_report, social_reminders, followup_watch, deadline_watch.
+  # ads_report, social_reminders, followup_watch, deadline_watch, github_watch, content_calendar,
+# source_watch (Scholar: shared course notes, app.materials.sources).
 
   - id: career
     name: Mentor
