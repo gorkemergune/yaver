@@ -18,6 +18,8 @@ services:
       # personal course materials (syllabi, books, lab sheets; gitignored), read only:
       # python -m app.materials.ingest /materials
       - ./syllabus:/materials:ro
+      # material bundles for live (gitignored data/): python -m app.materials.bundle export
+      - ./data/bundles:/bundles
     ports:
       - "127.0.0.1:${DEV_API_PORT:-8100}:8000"
 
