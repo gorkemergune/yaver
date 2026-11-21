@@ -255,7 +255,7 @@ Ayrıntılar: [yedekleme.md](yedekleme.md).
 | Bir şeyi yanlış kaydetti | Kartta **Geri al**, sonra doğrusunu yaz. |
 | Tarihi yanlış anladı | Tarihi açık yaz: "27 Kasım Cuma". Gün adı tutmazsa Yaver sorar. |
 | Bir çalışanda kırmızı nokta | Sohbette cevap bekleyen sorusu var ya da günlük bütçesi doldu (panelde yazar). |
-| Venture / Creator / Mentor "entegrasyon bekliyor" | `GITHUB_TOKEN` + `GITHUB_STARTUP_REPO` (Venture) ya da `TAVILY_API_KEY` / `BRAVE_API_KEY` (web arama) `.env`'de yok. Ekledikten sonra `.\scripts\live.ps1 restart api`. |
+| Venture / Creator / Mentor "entegrasyon bekliyor" | `GITHUB_TOKEN` + `GITHUB_STARTUP_REPO` (Venture) ya da `TAVILY_API_KEY` / `BRAVE_API_KEY` (web arama) `.env`'de yok. Ekledikten sonra `.\scripts\live.ps1 up -d` (`restart` `.env`'i yeniden okumaz). |
 | Metrics CSV'yi okumadı | Ads Manager'dan **CSV** olarak dışa aktar (Excel değil). Ekran görüntüsü için Claude anahtarı gerekir. |
 | Görsel okunmadı | `ANTHROPIC_API_KEY` gerekir; Claude bütçesi dolduysa (%100) görseller okunmaz. |
 | Bildirim gelmiyor | Durum → Bildirimler → *Deneme bildirimi gönder*. iPhone'da uygulama ana ekrandan açılmış olmalı. |

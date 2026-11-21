@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * End-to-end tests against the isolated stack (e2e/stack.sh up): web 8090, api 8001, db 5433.
+ * End-to-end tests against the isolated stack (e2e/stack.sh up): web 8090, api 8001, db 5433
+ * (another copy: E2E_WEB_URL, E2E_API_URL, E2E_DB_CONTAINER, E2E_WEB_CONTAINER).
  * `@live` tests call real LLMs (Groq first; Claude capped by CLAUDE_MONTHLY_BUDGET_USD=0.30 in
  * the e2e stack and by helpers/db.ts spentUsd()) and only run with LIVE=1.
  */

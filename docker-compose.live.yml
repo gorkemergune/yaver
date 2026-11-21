@@ -1,0 +1,88 @@
+# LIVE stack (project yaver-live): the real database, prebuilt images, no reload.
+# Started and updated only by the scripts, never with `docker compose up` by hand:
+#   .\scripts\deploy-live.ps1     test main's last commit, back up, switch, health check
+#   .\scripts\rollback-live.ps1   back to the previous release
+#   .\scripts\live.ps1 ps|logs -f api|restart api ...   docker compose for this stack
+# The scripts run this file from the release folder with --project-directory = the repo
+# root, so ./config, ./uploads, ./backups and .env below are the repo's, and set
+# YAVER_LIVE_TAG (images yaver-live-api:<tag>, yaver-live-web:<tag>; prefix YAVER_LIVE_IMAGE).
+# Guide: docs/tr/canli-ve-gelistirme.md
+name: yaver-live
+
+x-db-env: &db-env
+  POSTGRES_USER: ${POSTGRES_USER:-yaver}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yaver}
+  POSTGRES_DB: ${POSTGRES_DB:-yaver}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # The prod api runs as uid 1000; named volumes start out root-owned (the model download failed).
+  volume-perms:
+    image: pgvector/pgvector:pg16
+    entrypoint: ["chown", "-R", "1000:1000", "/models"]
+    restart: "no"
+    volumes:
+      - models:/models
+
+  api:
+    image: ${YAVER_LIVE_IMAGE:-yaver-live}-api:${YAVER_LIVE_TAG:?run through scripts/live.ps1 or deploy-live.ps1}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-yaver}:${POSTGRES_PASSWORD:-yaver}@db:5432/${POSTGRES_DB:-yaver}
+      CONFIG_DIR: /config
+      UPLOAD_DIR: /uploads
+      BACKUP_DIR: /backups        # host side: BACKUP_DIR in .env (default ./backups)
+      MODEL_CACHE_DIR: /models
+      # from .env (or the shell) like everything else; listed so a test copy can turn them off
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      BACKUP_ON_STARTUP: ${BACKUP_ON_STARTUP:-true}
+    volumes:
+      - ./config:/config:ro
+      - ./examples:/examples:ro
+      - ./uploads:/uploads        # images, PDFs, CSVs sent in the chat (gitignored)
+      - ${BACKUP_DIR:-./backups}:/backups
+      - models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+      volume-perms:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  web:
+    image: ${YAVER_LIVE_IMAGE:-yaver-live}-web:${YAVER_LIVE_TAG:?run through scripts/live.ps1 or deploy-live.ps1}
+    restart: unless-stopped
+    ports:
+      - "${LIVE_WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  # The real database: the volume the old single stack (project "yaver") created. External, so
+  # `docker compose down -v` on this project can never delete it.
+  pgdata:
+    external: true
+    name: ${YAVER_LIVE_DB_VOLUME:-yaver_pgdata}
+  models:
+    external: true
+    name: ${YAVER_LIVE_MODELS_VOLUME:-yaver_models}

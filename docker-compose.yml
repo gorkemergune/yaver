@@ -1,7 +1,12 @@
-# Production-like stack. For development, docker-compose.override.yml is loaded automatically
-# by `docker compose up` (hot reload, Vite dev server, exposed ports).
-# Production only:  docker compose -f docker-compose.yml up -d --build
-name: yaver
+# DEVELOPMENT stack (project yaver-dev): its own database, uploads and backups, never the real
+# data. docker-compose.override.yml is loaded automatically by `docker compose up` (hot reload,
+# Vite dev server). Ports: web 8180, api 8100 (127.0.0.1), db 5532 (127.0.0.1).
+#   docker compose up -d --build                      dev, hot reload
+#   docker compose -f docker-compose.yml up -d --build   prod-like build, still on the dev DB
+#
+# The real data runs in the LIVE stack (project yaver-live, docker-compose.live.yml, port 8080),
+# deployed only by scripts/deploy-live.ps1. Guide: docs/tr/canli-ve-gelistirme.md
+name: yaver-dev
 
 x-db-env: &db-env
   POSTGRES_USER: ${POSTGRES_USER:-yaver}
@@ -15,12 +20,22 @@ services:
     environment:
       <<: *db-env
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data   # yaver-dev_pgdata: the dev / test database
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 20
+
+  # The prod api runs as uid 1000; named volumes start out root-owned (the model download failed).
+  volume-perms:
+    image: pgvector/pgvector:pg16
+    entrypoint: ["chown", "-R", "1000:1000", "/uploads", "/backups", "/models"]
+    restart: "no"
+    volumes:
+      - uploads:/uploads
+      - backups:/backups
+      - models:/models
 
   api:
     build:
@@ -34,17 +49,23 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-yaver}:${POSTGRES_PASSWORD:-yaver}@db:5432/${POSTGRES_DB:-yaver}
       CONFIG_DIR: /config
       UPLOAD_DIR: /uploads
-      BACKUP_DIR: /backups        # host side: BACKUP_DIR in .env (default ./backups)
+      BACKUP_DIR: /backups
       MODEL_CACHE_DIR: /models    # embedding model for course materials (downloaded once)
+      # Dev: no morning briefing / check-in / push from the dev database and no LLM spend
+      # behind your back; DEV_SCHEDULER_ENABLED=true in .env to try the rituals here.
+      SCHEDULER_ENABLED: ${DEV_SCHEDULER_ENABLED:-false}
+      BACKUP_ON_STARTUP: "false"
     volumes:
       - ./config:/config:ro
       - ./examples:/examples:ro   # sample data (onboarding paste, live tests)
-      - ./uploads:/uploads        # images sent in the chat (gitignored)
-      - ${BACKUP_DIR:-./backups}:/backups   # pg_dump backups (gitignored)
+      - uploads:/uploads          # dev uploads (./uploads belongs to the live stack)
+      - backups:/backups          # dev dumps never mix with the real backups in ./backups
       - models:/models            # embedding model cache
     depends_on:
       db:
         condition: service_healthy
+      volume-perms:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 15s
@@ -58,10 +79,12 @@ services:
       target: prod
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "127.0.0.1:${DEV_WEB_PORT:-8180}:80"
     depends_on:
       - api
 
 volumes:
   pgdata:
+  uploads:
+  backups:
   models:

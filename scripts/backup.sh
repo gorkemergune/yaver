@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# Yaver database backups (Linux / macOS / Git Bash). Needs the `db` container running.
+# Yaver database backups (Linux / macOS / Git Bash). Needs the stack's `db` container running.
+# Default: the LIVE stack (project yaver-live, the real data). STACK=dev: the development
+# database (project yaver-dev); its dumps go to $BACKUP_DIR/dev.
 #
 #   scripts/backup.sh                         new backup -> $BACKUP_DIR/yaver-YYYYMMDD-HHMMSS.sql.gz (UTC),
 #                                             keeps the newest $BACKUP_KEEP (14)
 #   scripts/backup.sh list                    backups, newest first
 #   scripts/backup.sh restore FILE [DB]       restore into DB (default: yaver_restore, created if missing)
 #   scripts/backup.sh restore FILE yaver --yes   restore over the live database (stop the api first:
-#                                             docker compose stop api)
+#                                             pwsh scripts/live.ps1 stop api)
+#   STACK=dev scripts/backup.sh               the dev stack instead
 #
 # BACKUP_DIR, BACKUP_KEEP, POSTGRES_USER, POSTGRES_DB come from the environment or .env.
 set -euo pipefail
@@ -19,7 +22,14 @@ DB_USER="${POSTGRES_USER:-$(env_value POSTGRES_USER)}"; DB_USER="${DB_USER:-yave
 DB_NAME="${POSTGRES_DB:-$(env_value POSTGRES_DB)}"; DB_NAME="${DB_NAME:-yaver}"
 export MSYS_NO_PATHCONV=1  # Git Bash: keep /tmp/... container paths as they are
 
-db() { docker compose exec -T db "$@"; }
+STACK="${STACK:-live}"
+if [ "$STACK" = dev ]; then PROJECT=yaver-dev; BACKUP_DIR="$BACKUP_DIR/dev"
+else PROJECT="${YAVER_LIVE_PROJECT:-$(env_value YAVER_LIVE_PROJECT)}"; PROJECT="${PROJECT:-yaver-live}"; fi
+DB_CONTAINER="$(docker ps -q --filter "label=com.docker.compose.project=$PROJECT" --filter label=com.docker.compose.service=db)"
+if [ -z "$DB_CONTAINER" ] && [ "${1:-backup}" != list ]; then
+  echo "the db container of $PROJECT is not running" >&2; exit 1
+fi
+db() { docker exec -i "$DB_CONTAINER" "$@"; }
 
 backup() {
   mkdir -p "$BACKUP_DIR"
@@ -28,7 +38,7 @@ backup() {
   file="$BACKUP_DIR/$name"
   # Dump and gzip inside the container, then copy the file out (no binary data through pipes).
   db sh -c "pg_dump -U '$DB_USER' -d '$DB_NAME' --clean --if-exists --no-owner --no-privileges | gzip > /tmp/$name"
-  docker compose cp "db:/tmp/$name" "$file.part" >/dev/null
+  docker cp "$DB_CONTAINER:/tmp/$name" "$file.part" >/dev/null
   db rm -f "/tmp/$name"
   gzip -t "$file.part"
   mv "$file.part" "$file"
@@ -50,7 +60,7 @@ restore() {
     db createdb -U "$DB_USER" "$target"
     db psql -q -U "$DB_USER" -d "$target" -c "CREATE EXTENSION IF NOT EXISTS vector" >/dev/null
   fi
-  docker compose cp "$file" db:/tmp/yaver-restore.sql.gz >/dev/null
+  docker cp "$file" "$DB_CONTAINER:/tmp/yaver-restore.sql.gz" >/dev/null
   db sh -c "gunzip -c /tmp/yaver-restore.sql.gz | psql -v ON_ERROR_STOP=1 -q -U '$DB_USER' -d '$target' >/dev/null"
   db rm -f /tmp/yaver-restore.sql.gz
   echo "restored $file into database '$target'"
