@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.team import TeamConfig
 from app.config import Settings
 from app.db.models import EmployeeTask, JobRun
-from app.db.models.enums import EmployeeTaskStatus
+from app.db.models.enums import EmployeeTaskStatus, TaskOrigin
 from app.office.budget import day_start
 from app.office.shift_jobs import shift_plans
 from app.office.state import QUESTION, Office
@@ -115,11 +115,13 @@ async def board(
     for task in tasks:
         if task.employee_id not in ids:
             continue
-        first_of_employee = task.employee_id not in latest_seen
-        latest_seen.add(task.employee_id)
+        # the question waits on the latest chat task (shift jobs never ask the user)
+        asked_here = task.source is not TaskOrigin.SHIFT and task.employee_id not in latest_seen
+        if task.source is not TaskOrigin.SHIFT:
+            latest_seen.add(task.employee_id)
         if task.status is EmployeeTaskStatus.RUNNING:
             cards.append(_task_card(task, "running"))
-        elif first_of_employee and task.employee_id in asking:
+        elif asked_here and task.employee_id in asking:
             cards.append(_task_card(task, "approval"))
         elif done < DONE_LIMIT:
             cards.append(_task_card(task, "done"))

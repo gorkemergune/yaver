@@ -237,6 +237,14 @@ async def test_board_columns(session: AsyncSession, office: Office) -> None:
                 status=EmployeeTaskStatus.FAILED,
                 created_at=NOW,
             ),
+            # a shift job after the question: the question still waits on the chat task
+            EmployeeTask(
+                employee_id="agenda",
+                source=TaskOrigin.SHIFT,
+                instruction="Yaklaşan teslimlere bakıyor",
+                status=EmployeeTaskStatus.DONE,
+                created_at=NOW + dt.timedelta(minutes=1),
+            ),
         ]
     )
     await session.commit()
@@ -249,7 +257,11 @@ async def test_board_columns(session: AsyncSession, office: Office) -> None:
 
     assert by_column["running"] == [("academic", "EE211 notlarına bak")]
     assert by_column["approval"] == [("agenda", "toplantı ekle")]
-    assert set(by_column["done"]) == {("social", "doğum günü ekle"), ("ads", "rapor")}
+    assert set(by_column["done"]) == {
+        ("social", "doğum günü ekle"),
+        ("ads", "rapor"),
+        ("agenda", "Yaklaşan teslimlere bakıyor"),
+    }
     waiting = by_column["waiting"]
     # 10:00 now: the 08:30 scan and the 09:00 standup are past; later jobs wait
     assert ("career", "Bekleyen başvuru dönüşlerine bakıyor") in waiting  # 10:00: due now
