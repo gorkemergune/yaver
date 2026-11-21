@@ -116,11 +116,13 @@ async def check_device_key(session: AsyncSession, key: str, now: dt.datetime) ->
 
 
 class LoginLimiter:
-    """At most `attempts` wrong passwords per client in `window` seconds (in memory)."""
+    """At most `attempts` wrong passwords per client in `window` seconds (in memory). At most
+    `max_clients` addresses are remembered: the oldest go first."""
 
-    def __init__(self, attempts: int = 5, window: float = 600) -> None:
+    def __init__(self, attempts: int = 5, window: float = 600, max_clients: int = 1000) -> None:
         self.attempts = attempts
         self.window = window
+        self.max_clients = max_clients
         self.failures: dict[str, deque[float]] = defaultdict(deque)
 
     def _recent(self, key: str, now: float) -> deque[float]:
@@ -140,6 +142,8 @@ class LoginLimiter:
     def failed(self, key: str, now: float | None = None) -> None:
         now = time.monotonic() if now is None else now
         self._recent(key, now).append(now)
+        while len(self.failures) > self.max_clients:
+            del self.failures[next(iter(self.failures))]  # dicts keep insertion order
 
     def succeeded(self, key: str) -> None:
         self.failures.pop(key, None)

@@ -1,6 +1,7 @@
 """Login / logout and the dependency that guards every other API route."""
 
 import datetime as dt
+import ipaddress
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -37,16 +38,32 @@ def request_token(request: Request) -> str | None:
     return request.cookies.get(COOKIE) or None
 
 
-def _client_key(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "?"
+def _from_trusted_proxy(request: Request, settings: Settings) -> bool:
+    host = request.client.host if request.client else ""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return any(address in network for network in settings.trusted_networks)
 
 
-def _https(request: Request) -> bool:
-    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
-    return proto.split(",")[0].strip() == "https"
+def client_address(request: Request, settings: Settings) -> str:
+    """Who is trying to log in. X-Forwarded-For counts only when the connection comes from a
+    trusted proxy (TRUSTED_PROXIES), and then only its last entry: the address that proxy
+    saw itself. Anything before it was written by the client and could be anything."""
+    peer = request.client.host if request.client else "?"
+    if not _from_trusted_proxy(request, settings):
+        return peer
+    hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+    return hops[-1] if hops else peer
+
+
+def _https(request: Request, settings: Settings) -> bool:
+    """The cookie is Secure on HTTPS; X-Forwarded-Proto only from a trusted proxy (D5)."""
+    proto = request.url.scheme
+    if _from_trusted_proxy(request, settings):
+        proto = request.headers.get("x-forwarded-proto", proto).split(",")[-1].strip()
+    return proto == "https"
 
 
 async def require_auth(
@@ -99,7 +116,7 @@ async def login(
 ) -> dict[str, Any]:
     if not auth_enabled(settings):
         return {"enabled": False, "authenticated": True}
-    key = _client_key(request)
+    key = client_address(request, settings)
     wait = limiter.retry_after(key)
     if wait:
         raise HTTPException(
@@ -121,7 +138,7 @@ async def login(
         max_age=COOKIE_MAX_AGE,  # the server-side session expires after SESSION_DAYS idle
         httponly=True,
         samesite="lax",
-        secure=_https(request),
+        secure=_https(request, settings),
         path="/",
     )
     return {"enabled": True, "authenticated": True}

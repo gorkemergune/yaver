@@ -194,3 +194,62 @@ async def test_device_keys_last_until_revoked(
 
 async def test_device_keys_need_a_login_to_be_made(locked: httpx2.AsyncClient) -> None:
     assert (await locked.post("/api/devices", json={"name": "x"})).status_code == 401
+
+
+async def wrong_logins(client: httpx2.AsyncClient, forwarded: list[str]) -> list[int]:
+    return [
+        (
+            await client.post(
+                "/api/auth/login", json={"password": "x"}, headers={"x-forwarded-for": value}
+            )
+        ).status_code
+        for value in forwarded
+    ]
+
+
+async def test_a_made_up_forwarded_for_does_not_get_past_the_limit(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    """Y2: from a client that isn't a trusted proxy the header is ignored."""
+    settings = settings_with("doğru-parola", tmp_path).model_copy(
+        update={"trusted_proxies": "10.0.0.1"}  # the test client (127.0.0.1) is not a proxy
+    )
+    async for http in make_client(session, settings):
+        codes = await wrong_logins(http, [f"10.9.8.{n}" for n in range(8)])
+        assert codes == [401] * 5 + [429] * 3
+
+
+async def test_behind_a_proxy_only_the_address_it_saw_counts(locked: httpx2.AsyncClient) -> None:
+    """nginx appends the address it saw ($proxy_add_x_forwarded_for): the client's own part,
+    in front of it, changes nothing."""
+    codes = await wrong_logins(locked, [f"10.9.8.{n}, 203.0.113.7" for n in range(7)])
+    assert codes == [401] * 5 + [429] * 2
+    # another real client behind the same proxy is not blocked
+    assert await wrong_logins(locked, ["198.51.100.2"]) == [401]
+
+
+async def test_the_secure_cookie_trusts_forwarded_proto_only_from_a_proxy(
+    session: AsyncSession, tmp_path: Path
+) -> None:
+    https = {"x-forwarded-proto": "https"}
+    for trusted, secure in (("127.0.0.1", True), ("10.0.0.1", False)):
+        settings = settings_with("doğru-parola", tmp_path).model_copy(
+            update={"trusted_proxies": trusted}
+        )
+        async for http in make_client(session, settings):
+            response = await http.post(
+                "/api/auth/login", json={"password": "doğru-parola"}, headers=https
+            )
+            assert ("secure" in response.headers["set-cookie"].lower()) is secure
+
+
+def test_the_limiter_forgets_the_oldest_clients() -> None:
+    limiter = LoginLimiter(attempts=1, window=60, max_clients=3)
+    for n in range(5):
+        limiter.failed(f"ip{n}", now=0)
+    assert list(limiter.failures) == ["ip2", "ip3", "ip4"]
+
+
+def test_trusted_proxies_setting() -> None:
+    settings = Settings(_env_file=None, trusted_proxies="127.0.0.1, 172.16.0.0/12, nonsense")
+    assert [str(n) for n in settings.trusted_networks] == ["127.0.0.1/32", "172.16.0.0/12"]

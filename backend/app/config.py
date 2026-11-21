@@ -1,6 +1,7 @@
 """Application settings, loaded from environment variables / `.env` (pydantic-settings)."""
 
 import datetime as dt
+import ipaddress
 import logging
 import re
 from functools import lru_cache
@@ -100,6 +101,13 @@ class Settings(BaseSettings):
     github_token: SecretStr | None = None
     github_startup_repo: str | None = None
 
+    # --- Login ---
+    # Proxies allowed to say who the client is (X-Forwarded-For / X-Forwarded-Proto): their
+    # addresses or networks, comma separated. Default: this machine and Docker's networks
+    # (nginx in the web container). From anyone else the headers are ignored, so a client
+    # can't pose as a new address to get past the wrong-password limit.
+    trusted_proxies: str = "127.0.0.1,::1,172.16.0.0/12"
+
     # --- Web Push (Phase 1) ---
     vapid_public_key: str | None = None
     vapid_private_key: SecretStr | None = None
@@ -128,6 +136,18 @@ class Settings(BaseSettings):
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise ValueError(f"Unknown timezone: {value!r}") from exc
         return value
+
+    @property
+    def trusted_networks(self) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        networks = []
+        for item in self.trusted_proxies.split(","):
+            if not item.strip():
+                continue
+            try:
+                networks.append(ipaddress.ip_network(item.strip(), strict=False))
+            except ValueError:
+                logging.getLogger(__name__).warning("TRUSTED_PROXIES: %r skipped", item)
+        return networks
 
     @property
     def tz(self) -> ZoneInfo:
