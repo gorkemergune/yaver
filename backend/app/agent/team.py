@@ -294,6 +294,7 @@ def build_team(
                 "agenda", config.agents[1].name if len(config.agents) > 1 else first
             ),
             "sport": by_id.get("discipline", config.agents[-1].name if config.agents else first),
+            "sport_id": "discipline" if "discipline" in by_id else "",
         },
     }
     coordinator = Member(

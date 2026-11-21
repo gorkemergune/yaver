@@ -45,6 +45,17 @@ ROUTES = [
     Route("Geçen salı EE211'e gitmedim", "academic"),
     Route("Cuma 15:00'te proje toplantısı ekle", "agenda", fast_path=True),
     Route("Bugün spora gidemeyeceğim", "discipline"),
+    # sport, workouts, screen time: always the discipline employee (coordinator rule 2a)
+    Route("Bu akşam antrenmanı atlıyorum", "discipline"),
+    Route("Yarınki spor seansını iptal et", "discipline"),
+    Route("Bugün 45 dakika koştum", "discipline"),
+    Route("Salı ve perşembe 19:00-20:00 spor ekle", "discipline"),
+    Route("Bugün ne kadar Valorant oynadım?", "discipline"),
+    Route("Ekran sürem bugün ne kadar?", "discipline"),
+    Route("Bu haftaki sporu cumartesiye al", "discipline"),
+    Route("Dizim ağrıyor, bu hafta spor yapamam", "discipline"),
+    Route("Spora gittim, check-in'e yaz", "discipline"),
+    Route("Spor salonuna yarın sabah gideceğim", "discipline"),
 ]
 
 
