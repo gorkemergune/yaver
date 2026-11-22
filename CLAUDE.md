@@ -225,7 +225,7 @@ Kurallar:
 | Zamanlayıcı | açık | kapalı (`DEV_SCHEDULER_ENABLED`) |
 | Komutlar | `.\scripts\deploy-live.ps1`, `.\scripts\live.ps1 ...` | `docker compose ...` (ana klasörde artık `yaver-dev`'i yönetir) |
 
-Rehber: `docs/tr/canli-ve-gelistirme.md`. Deploy: `main`'in son commit'i → pytest + smoke + LLM'siz e2e
+Rehber: `docs/tr/canli-ve-gelistirme.md`. Deploy: `main`'in son commit'i → prod imajında her modül tek başına import → pytest + smoke + LLM'siz e2e
 (geçici `yaver-e2e-release` stack'i) → build → canlı DB yedeği + migration provası → geçiş → sağlık;
 başarısızsa eski imajda kalır (gerekirse yedek geri yüklenir).
 
@@ -254,6 +254,7 @@ docker compose ps api                                                    # yaver
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8100/api/health/ready   # 200
 ```
 `tests/test_smoke.py` uvicorn'un yüklediği `app.main:app` nesnesiyle `/health`'i çağırır, `app/` altındaki her modülü içe aktarır ve isim gölgeleme taramasını (`backend/scripts/shadow_scan.py`, pre-commit'te de) çalıştırır.
+`tests/test_import_each.py` (`backend/scripts/import_each.py`; pre-commit ve deploy'da da) `app/` altındaki her modülü **ayrı, temiz bir süreçte ilk iş olarak** import eder: tek süreçteki sıra döngüsel import'u gizler (canlıda `python -m app.materials.bundle` böyle düştü). LLM şeması için `app.agent.schema.json_schema` kullanılır; `app.agent.tools` import edilince bütün araç modülleri yüklenir, alt katmanlar (`materials/`, `jobs/`, `ads/`, `agent/vision.py`…) onu yalnız şema için import etmez.
 
 **Her maddeden sonra smoke testi + LLM'siz e2e suite; kırmızıysa commit yok:**
 ```bash

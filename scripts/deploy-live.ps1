@@ -4,7 +4,8 @@
 # 1. export the commit into its own folder (git archive; nothing in the working tree is used)
 # 2. build its images (api, web, and the api dev image for pytest)
 # 3. test them in a throwaway stack (project yaver-e2e-release, ports 8092/8003/5435):
-#      pytest (no live LLM tests) -> smoke checks -> Playwright e2e without LLM
+#      every app module imported on its own in the prod image (+ the materials CLI)
+#      -> pytest (no live LLM tests) -> smoke checks -> Playwright e2e without LLM
 # 4. back up the live database (backups\predeploy\), rehearse the migrations on that copy
 # 5. switch: stop the old api, alembic upgrade head, start the new images
 # 6. health check (container healthy + smoke checks through the web port)
@@ -123,6 +124,14 @@ try {
     Invoke-Native "api restart" { docker @candidateCompose restart api }
     Wait-HttpOk "http://127.0.0.1:$($Candidate.ApiPort)/api/health/ready" 120
     Write-Ok "test stack ready"
+
+    # A circular import that only breaks when another module is imported first passes the
+    # API and pytest (one process, one order) but stops a CLI: `python -m app.materials.bundle`
+    # on live, 2026-11-22. In the prod image (runtime dependencies only), each module alone.
+    Write-Step "imports (prod image, each module in a fresh process)"
+    Invoke-Native "import each module" { docker run --rm $apiImage python scripts/import_each.py }
+    Invoke-Native "import app.materials.bundle" { docker run --rm $apiImage python -c "import app.materials.bundle" }
+    Write-Ok "every module imports on its own"
 
     Write-Step "pytest"
     $network = "$($Candidate.Project)_default"
