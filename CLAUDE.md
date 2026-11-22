@@ -209,7 +209,7 @@ Kurallar:
 - Her TASKS.md maddesi bitince küçük bir commit at, **ASLA push yapma** (push'u Görkem yapar).
 - Commit öncesi `git status` kontrol et; `.env`, `config/agents.yaml`, `config/providers.yaml`, `data/`, `uploads/` asla stage edilmez.
 - ORM modellerinde (`app/db/`) `datetime` modülü her zaman `import datetime as dt` ile alınır, tipler `Mapped[dt.date]`, `Mapped[dt.datetime]`, `Mapped[dt.time]` diye yazılır. `from datetime import date` yasak: `date` adlı bir kolon (ör. `tasks.date`, `attendance.date`) class gövdesinde tipi gölgeler ve SQLAlchemy `MappedAnnotationError` verir.
-- Config yükleyici önce `config/<ad>.yaml`, yoksa `config/<ad>.example.yaml` okur. Yeni config alanı eklenirse example dosyası da güncellenir.
+- Config yükleyici önce `config/<ad>.yaml`, yoksa `config/<ad>.example.yaml` okur. Yeni config alanı eklenirse example dosyası da güncellenir. `agents.yaml` ve `providers.yaml` **overlay**: taban her zaman example (araç listeleri, mesai işi türleri, tier/model, haftalık plan, routing purposes); yerel `agents.yaml` yalnız `MEMBER_OWN` alanlarını (isim, rol, renk, kişilik, mesai metni, masa, alan, günlük bütçe), mesai işinin saat/gün/başlık/konularını, `office` ve `briefing_style`'ı değiştirir (`team.overlay_agents`); yerel `providers.yaml` anahtar anahtar biner, tier/provider girdisi bütün olarak değişir (`llm.config.overlay_providers`). Bilinmeyen / yok sayılan / eksik alanlar açılışta bir kez WARNING loglanır.
 
 ## Canlı ve geliştirme (iki ayrı stack)
 **Kural: canlıya YALNIZCA `scripts/deploy-live.ps1` ile çıkılır (Görkem çalıştırır). Ajanlar

@@ -1,4 +1,6 @@
-# ÖRNEK dosya. Kendi kurulumun için config/providers.yaml olarak kopyala (o dosya .gitignore'da).
+# ÖRNEK dosya, ve her zaman TABAN: config/providers.yaml (.gitignore'da) bunun üstüne anahtar
+# anahtar biner (yazmadığın anahtar - ör. yeni bir routing purpose - buradan gelir; bir tier ya da
+# provider girdisi yerel dosyada varsa bütün olarak onunki). Farklar açılışta uyarı olarak loglanır.
 # Model IDs change often — check each provider's console and update here, never in code.
 # Verify the models exist with:  docker compose exec api python -m app.llm.check_models
 #

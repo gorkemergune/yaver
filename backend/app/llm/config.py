@@ -1,5 +1,6 @@
 """Typed views of config/providers(.example).yaml and app/llm/pricing.yaml."""
 
+import re
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
@@ -8,7 +9,7 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.core.yaml_config import load_validated
+from app.core.yaml_config import load_validated, merge_tree
 
 PRICING_FILE = Path(__file__).with_name("pricing.yaml")
 
@@ -128,9 +129,23 @@ class ProvidersConfig(_Strict):
         return self.routing.purposes.get(purpose, self.routing.default)
 
 
+# A tier, a provider, a tier limit is one unit: the personal file's entry replaces the
+# example's whole (a Groq tier must not inherit the Claude tier's thinking options).
+_ATOMIC = re.compile(r"^(tiers|providers|budget\.tier_limits)\.[^.]+$")
+
+
+def overlay_providers(
+    base: dict[str, Any], local: dict[str, Any], notes: list[str]
+) -> dict[str, Any]:
+    """providers.yaml laid over providers.example.yaml: what is not set personally - a new
+    routing purpose (material_map), a new tier - comes from the example."""
+    merged: dict[str, Any] = merge_tree(base, local, notes, atomic=lambda w: bool(_ATOMIC.match(w)))
+    return merged
+
+
 @lru_cache
 def load_providers_config() -> ProvidersConfig:
-    return load_validated("providers", ProvidersConfig)
+    return load_validated("providers", ProvidersConfig, overlay=overlay_providers)
 
 
 # --- pricing ---------------------------------------------------------------------------

@@ -1,5 +1,8 @@
-# Yaver ofisi — ÖRNEK dosya. Kendi kurulumun için config/agents.yaml olarak kopyala
-# (o dosya .gitignore'da) ve isimleri, kişiliği, alanları istediğin gibi değiştir.
+# Yaver ofisi — ÖRNEK dosya, ve her zaman TABAN: config/agents.yaml (.gitignore'da) bunun
+# üstüne biner. Yerel dosyada yalnız görünen alanlar geçerli: name, role, color, persona, shift,
+# desk, domain, daily_budget_usd; mesai işinin at / weekday / title / topics'i; office ve
+# briefing_style. Araç listeleri, mesai işi türleri, tier / model buradan gelir (yerel dosyada
+# yazılsa da yok sayılır, açılışta uyarı loglanır) - eski bir yerel kopya yeni araçları gizlemez.
 # Her ajan ofiste bir çalışan (docs/OFFICE.md): id'ler sabit kalsın (kayıtlar onlara bağlı),
 # isim / rol / renk / masa serbest.
 # Tool listeleri kod tarafındaki tool registry adlarıyla eşleşmeli (bilinmeyen ad -> açılışta hata).

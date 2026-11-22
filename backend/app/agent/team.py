@@ -1,5 +1,6 @@
 """The Yaver team from config/agents(.example).yaml, validated at load time."""
 
+import copy
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -365,8 +366,105 @@ def model_overrides(config: TeamConfig, providers: ProvidersConfig) -> list[tupl
     ]
 
 
+# What a personal agents.yaml may change: how an employee looks and talks, its desk, its
+# area text and budget; office hours and the briefing style. Capabilities - tools, which
+# shift jobs run, tier / model, the weekly plan - always come from agents.example.yaml, so
+# an old personal copy never hides a new tool (live: Venture without its GitHub tools).
+MEMBER_OWN = ("name", "role", "color", "persona", "shift", "desk", "domain", "daily_budget_usd")
+SHIFT_JOB_OWN = ("at", "weekday", "title", "topics")  # of a shift job the example has
+TOP_OWN = ("office", "briefing_style")
+
+
+def overlay_agents(base: dict[str, Any], local: dict[str, Any], notes: list[str]) -> dict[str, Any]:
+    """agents.yaml laid over agents.example.yaml (load_validated overlay)."""
+    merged = copy.deepcopy(base)
+    for key, value in local.items():
+        if key in ("coordinator", "agents"):
+            continue
+        if key in TOP_OWN:
+            if isinstance(value, dict) and isinstance(base.get(key), dict):
+                merged[key] = {**base[key], **value}
+            else:
+                merged[key] = value
+        elif key not in TeamConfig.model_fields:
+            notes.append(f"{key}: unknown, ignored")
+        elif value != base.get(key):
+            notes.append(f"{key}: ignored, it comes from the example")
+    if isinstance(local.get("coordinator"), dict):
+        merged["coordinator"] = _overlay_member(
+            base["coordinator"], local["coordinator"], notes, "coordinator"
+        )
+    mine = {a.get("id"): a for a in local.get("agents") or [] if isinstance(a, dict)}
+    if "agents" in local:
+        known = {a["id"] for a in base.get("agents", [])}
+        for agent_id in mine:
+            if agent_id not in known:
+                notes.append(f"agents: {agent_id} is not in the example, ignored")
+        merged["agents"] = []
+        for agent in base.get("agents", []):
+            if agent["id"] in mine:
+                merged["agents"].append(
+                    _overlay_member(agent, mine[agent["id"]], notes, agent["id"])
+                )
+            else:
+                notes.append(f"agents: {agent['id']} not in the personal file, from the example")
+                merged["agents"].append(copy.deepcopy(agent))
+    return merged
+
+
+def _overlay_member(
+    base: dict[str, Any], local: dict[str, Any], notes: list[str], who: str
+) -> dict[str, Any]:
+    merged = copy.deepcopy(base)
+    fields = AgentConfig.model_fields.keys() | CoordinatorConfig.model_fields.keys()
+    ignored = []
+    for key, value in local.items():
+        if key == "id":
+            continue
+        if key in MEMBER_OWN:
+            merged[key] = value
+        elif key == "shift_jobs":
+            merged[key] = _overlay_jobs(base.get(key) or [], value or [], notes, who)
+        elif key not in fields:
+            notes.append(f"{who}.{key}: unknown, ignored")
+        elif value != base.get(key):
+            ignored.append(key)
+    if ignored:
+        notes.append(f"{who}: {', '.join(ignored)} ignored, from the example")
+    missing = [key for key in MEMBER_OWN if key in base and key not in local]
+    if base.get("shift_jobs") and "shift_jobs" not in local:
+        missing.append("shift_jobs")
+    if missing:
+        notes.append(f"{who}: {', '.join(missing)} not set, from the example")
+    return merged
+
+
+def _overlay_jobs(
+    base: list[dict[str, Any]], local: list[Any], notes: list[str], who: str
+) -> list[dict[str, Any]]:
+    """The example's shift jobs; a personal entry of the same kind (the n-th web_scan to the
+    n-th web_scan) changes its time, day, title and topics."""
+    mine: dict[str, list[dict[str, Any]]] = {}
+    for job in local:
+        if isinstance(job, dict):
+            mine.setdefault(str(job.get("job")), []).append(job)
+    merged = []
+    for job in base:
+        own = mine.get(job["job"]) or []
+        if own:
+            change = own.pop(0)
+            merged.append({**job, **{k: v for k, v in change.items() if k in SHIFT_JOB_OWN}})
+        else:
+            notes.append(f"{who}: shift job {job['job']} not set, from the example")
+            merged.append(dict(job))
+    for kind, extra in mine.items():
+        if extra:
+            notes.append(f"{who}: shift job {kind} is not in the example, ignored")
+    return merged
+
+
 def load_team_config() -> TeamConfig:
-    return load_validated("agents", TeamConfig)
+    return load_validated("agents", TeamConfig, overlay=overlay_agents)
 
 
 @lru_cache
