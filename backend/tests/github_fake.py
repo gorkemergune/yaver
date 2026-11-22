@@ -56,7 +56,7 @@ MEMBERS = {"ali": "Ali", "zeynep": "Zeynep", "mert": "Mert", "deniz": "Deniz"}
 WEEK3_FACTS = {  # what an answer about week 3 must say per member (any of the words)
     "ali": ("öneri", "recommend", "api"),
     "zeynep": ("landing", "tanıtım", "bekleme"),
-    "mert": ("rakip",),
+    "mert": ("rakip", "rakib", "eventbrite"),  # "rakibi": p -> b before a vowel
     "deniz": ("segment",),
 }
 
