@@ -8,6 +8,16 @@ export const tr = {
     close: "Kapat",
     back: "Sohbete dön",
   },
+  bugs: {
+    button: "Hatalı",
+    buttonHint: "Bu cevap yanlış: kısa bir not yaz, ne olduğu kaydedilsin",
+    placeholder: "Ne yanlıştı? (kısa, isteğe bağlı)",
+    send: "Kaydet",
+    sending: "Kaydediliyor…",
+    cancel: "Vazgeç",
+    sent: (id: number) => `Kaydedildi, teşekkürler (hata #${String(id)}).`,
+    failed: "Kaydedilemedi",
+  },
   chat: {
     placeholder: "Yaver'e yaz…",
     send: "Gönder",

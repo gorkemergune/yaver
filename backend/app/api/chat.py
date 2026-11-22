@@ -105,6 +105,7 @@ class ChatResponse(BaseModel):
     actions: list[dict[str, Any]]
     changes: list[dict[str, Any]]
     cost_usd: Decimal
+    message_id: int | None = None  # the stored answer: 👎 "Hatalı" reports point at it
 
 
 def response_of(reply: ChatReply) -> ChatResponse:
@@ -117,6 +118,7 @@ def response_of(reply: ChatReply) -> ChatResponse:
         actions=reply.actions,
         changes=reply.changes,
         cost_usd=reply.cost_usd,
+        message_id=reply.message_id,
     )
 
 

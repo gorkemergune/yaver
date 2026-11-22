@@ -12,7 +12,8 @@ import { Greeting } from "./Greeting";
 import { MAX_IMAGES, attachableFiles } from "../api/uploads";
 import { Composer } from "./Composer";
 import { Thumb, type PendingImage } from "./ImageStrip";
-import type { AssistantItem } from "./model";
+import type { AssistantItem, ChatItem } from "./model";
+import { ReportBug } from "./ReportBug";
 import { Steps } from "./Steps";
 import { useChat, type UndoState } from "./useChat";
 
@@ -108,7 +109,7 @@ export function ChatView() {
             <li className="pb-1 pt-2">
               <Greeting team={chat.team} />
             </li>
-            {chat.items.map((item) =>
+            {chat.items.map((item, index) =>
               item.kind === "user" ? (
                 <li key={item.id} className="yv-rise flex flex-col items-end gap-1">
                   {item.images.length > 0 && (
@@ -130,6 +131,7 @@ export function ChatView() {
                 <Answer
                   key={item.id}
                   item={item}
+                  userText={askedBefore(chat.items, index)}
                   members={members}
                   undo={chat.undo}
                   onUndo={(changeSetId) => void chat.undoChange(item.id, changeSetId)}
@@ -193,8 +195,18 @@ export function ChatView() {
   );
 }
 
+/** The user's words the answer at `index` replied to (a bug report of a failed answer). */
+function askedBefore(items: readonly ChatItem[], index: number): string {
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const prior = items[i];
+    if (prior?.kind === "user") return prior.text;
+  }
+  return "";
+}
+
 export function Answer({
   item,
+  userText = "",
   members,
   undo,
   onUndo,
@@ -202,6 +214,7 @@ export function Answer({
   quickReplies,
 }: {
   item: AssistantItem;
+  userText?: string;
   members: Record<string, Member>;
   undo: UndoState;
   onUndo: (changeSetId: string) => void;
@@ -288,6 +301,7 @@ export function Answer({
             }}
           />
         )}
+        <ReportBug item={item} userText={userText} />
       </div>
     </li>
   );

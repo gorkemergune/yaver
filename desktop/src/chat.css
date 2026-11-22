@@ -492,3 +492,10 @@ button {
   margin-top: 14px;
   opacity: 0.7;
 }
+
+/* 👎 "Hatalı" under an answer */
+.report-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; }
+.report-btn { opacity: 0.6; }
+.report-btn:hover { opacity: 1; }
+.report-note { width: 100%; resize: none; font: inherit; font-size: 12px; padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(127, 127, 127, 0.35); background: transparent; color: inherit; }
+.report-done { opacity: 0.7; }

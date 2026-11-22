@@ -57,6 +57,10 @@ class Message(CreatedAtMixin, Base):
     context: Mapped[str | None] = mapped_column(Text)
     # Messages Yaver writes on its own: "briefing", "checkin", "followup" (NULL = an answer).
     kind: Mapped[str | None] = mapped_column(String(20))
+    # The answer's own record (final assistant message only): routing [[intent, owner]],
+    # the tools run [{agent_id, tool, error, ...}], handoffs, cost. For bug reports and the
+    # reports tab; never sent back to the model.
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
 
 
 class Attachment(CreatedAtMixin, Base):

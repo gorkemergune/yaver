@@ -160,7 +160,46 @@ function undoLine(reply: ChatResponse): HTMLElement | null {
   return line;
 }
 
-function fillReply(item: HTMLLIElement, reply: ChatResponse): void {
+/** 👎 "Hatalı" under an answer: a short note, then POST /api/bug-reports (via Rust). */
+function reportLine(report: { messageId: number | null; userText: string; replyText: string; error: string | null }): HTMLElement {
+  const line = el("div", "report-line");
+  const open = el("button", "link-btn report-btn", `👎 ${tr.bugs.button}`);
+  open.type = "button";
+  open.title = tr.bugs.buttonHint;
+  open.addEventListener("click", () => {
+    const note = el("textarea", "report-note");
+    note.rows = 2;
+    note.maxLength = 2000;
+    note.placeholder = tr.bugs.placeholder;
+    const save = el("button", "link-btn", tr.bugs.send);
+    save.type = "button";
+    const cancel = el("button", "link-btn", tr.bugs.cancel);
+    cancel.type = "button";
+    cancel.addEventListener("click", () => {
+      line.replaceChildren(open);
+    });
+    save.addEventListener("click", () => {
+      save.disabled = true;
+      save.textContent = tr.bugs.sending;
+      api.reportBug({ ...report, note: note.value.trim() }).then(
+        (saved) => {
+          line.replaceChildren(el("span", "report-done", tr.bugs.sent(saved.id)));
+        },
+        (error: unknown) => {
+          save.disabled = false;
+          save.textContent = tr.bugs.send;
+          save.title = `${tr.bugs.failed}: ${errorMessage(error)}`;
+        },
+      );
+    });
+    line.replaceChildren(note, save, cancel);
+    note.focus();
+  });
+  line.append(open);
+  return line;
+}
+
+function fillReply(item: HTMLLIElement, reply: ChatResponse, asked: string): void {
   item.className = "msg assistant";
   const speaker = speakerOf(team, reply);
   const who = el("div", "who");
@@ -169,13 +208,15 @@ function fillReply(item: HTMLLIElement, reply: ChatResponse): void {
   const children: HTMLElement[] = [who, el("div", "bubble", reply.reply)];
   const undo = undoLine(reply);
   if (undo) children.push(undo);
+  children.push(reportLine({ messageId: reply.message_id ?? null, userText: asked, replyText: reply.reply, error: null }));
   item.replaceChildren(...children);
   scrollToEnd();
 }
 
-function fillError(item: HTMLLIElement, error: unknown): void {
+function fillError(item: HTMLLIElement, error: unknown, asked: string): void {
   item.className = "msg error";
-  item.replaceChildren(el("div", "bubble", errorMessage(error)));
+  const text = errorMessage(error);
+  item.replaceChildren(el("div", "bubble", text), reportLine({ messageId: null, userText: asked, replyText: "", error: text }));
   scrollToEnd();
 }
 
@@ -198,7 +239,7 @@ async function submit(): Promise<void> {
   try {
     const reply = await api.chat(text, conversation.get());
     conversation.set(reply.conversation_id);
-    fillReply(pending, reply);
+    fillReply(pending, reply, text);
   } catch (error) {
     if (needsKey(error)) {
       // not a red error: the message goes back to the input, the key screen says what to do
@@ -210,7 +251,7 @@ async function submit(): Promise<void> {
       unsent = text;
       askForKey(error);
     } else {
-      fillError(pending, error);
+      fillError(pending, error, text);
     }
   } finally {
     setBusy(false);

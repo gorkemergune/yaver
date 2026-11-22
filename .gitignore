@@ -43,3 +43,6 @@ desktop/src-tauri/target/
 Thumbs.db
 .vscode/
 .idea/
+
+# bug reports exported from live (scripts/export-bugs.ps1): chat messages, never committed
+/docs/bugs/

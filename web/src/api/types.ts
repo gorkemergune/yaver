@@ -221,6 +221,7 @@ export interface DoneEvent {
   agents: { agent_id: string; name: string; reply: string }[];
   changes: Change[];
   cost_usd: string;
+  message_id?: number | null; // the stored answer (👎 "Hatalı" points at it)
 }
 
 export type ChatEvent =

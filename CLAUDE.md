@@ -10,7 +10,7 @@ Ana ekran izometrik bir **ofis** (`docs/OFFICE.md`, prototip `design/office-prot
 Sahibi: Görkem (Yeditepe Bilgisayar Müh.). Geliştirme Windows 11 + Docker Desktop (WSL2) üzerinde. Kullanım: Windows, Mac, iPhone (PWA).
 
 ## Temel ilkeler
-1. **Chat-first.** UI sadece okumak içindir; her yazma işlemi ajan araçlarından geçer. (UI'de olabilecek tek "buton": Geri al.)
+1. **Chat-first.** UI sadece okumak içindir; her yazma işlemi ajan araçlarından geçer. (UI'de olabilecek "butonlar": Geri al ve cevabın altındaki 👎 "Hatalı" - uygulama hakkında bir hata raporu, kullanıcı verisi değil.)
 2. **Her mutasyon geri alınabilir.** Tüm yazma araçları `change_log`'a before/after JSON yazar; her asistan cevabı bir `change_set_id` taşır.
 3. **Tarih hesabını model yapmaz.** "Yarın", "gelecek perşembe" gibi ifadeler `core/time_resolver.py` ile kodda çözülür. Modele her istekte bugünün tarihi + önümüzdeki 14 günün listesi verilir; araçlar sadece ISO tarih kabul eder.
 4. **Tek kullanıcı / instance.** Her kişi kendi Docker'ını çalıştırır. Kodda `user_id` yok; çoklu kullanıcı hedef değil.
@@ -124,6 +124,8 @@ yaver/
 - `employee_notes` — defter: kısa tarihli notlar (`add_note`, mesai işleri); change_log'a girer, geri alınır
 - `employee_tasks` — gelen kutusu: source (user|yaver|shift), requested_by, instruction, status (running|done|failed), result, conversation_id, change_set_id
 - `change_log` — change_set_id, entity, entity_id, op, before_json, after_json
+- `messages.meta` (son asistan mesajında): yönlendirme `[[niyet, sahip]]`, araç izi (hata, handoff alanı/nedeni, delegate hedefi), maliyet - bug raporu ve Raporlar sekmesi için; modele geri gitmez
+- `bug_reports` — 👎 "Hatalı" (web sohbeti, ofis paneli, masaüstü mini sohbet): mesaj, cevap, cevaplayan, araçlar + hatalar, yönlendirme, o saniyelerin log satırları (`core/recent_logs`, bellekte), not, kaynak, durum. `POST/GET /api/bug-reports`; canlıdan salt okunur dışa aktarma `scripts/export-bugs.ps1` → `docs/bugs/` (gitignore)
 - `llm_usage` — provider, model, tier, purpose, in/out/cached tokens, cost_usd
 - `ad_reports` (dosya başına: kaynak csv|image, dönem, para birimi, `file_sha256`, özet + 3 öneri) + `ad_metrics` (kampanya / reklam seti / reklam başına harcama, gösterim, erişim, tıklama, CTR, CPC, sonuç, sonuç başı maliyet)
 - `push_subscriptions` — Web Push

@@ -373,6 +373,22 @@ async fn undo_changes(
 }
 
 #[tauri::command]
+async fn report_bug(
+    state: State<'_, AppState>,
+    message_id: Option<i64>,
+    note: String,
+    user_text: String,
+    reply_text: String,
+    error: Option<String>,
+) -> Result<Value, api::ApiError> {
+    let base = state.api_url();
+    state
+        .api
+        .report_bug(&base, message_id, &note, &user_text, &reply_text, error.as_deref())
+        .await
+}
+
+#[tauri::command]
 async fn get_team(state: State<'_, AppState>) -> Result<Value, api::ApiError> {
     let base = state.api_url();
     state.api.team(&base).await
@@ -435,6 +451,7 @@ pub fn run() {
             set_autostart,
             send_chat,
             undo_changes,
+            report_bug,
             get_team,
             login,
             use_device_key,

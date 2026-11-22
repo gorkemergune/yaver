@@ -163,6 +163,28 @@ impl Client {
         }
     }
 
+    /// `POST /api/bug-reports`: 👎 "Hatalı" on an answer (the server fills in the rest).
+    pub async fn report_bug(
+        &self,
+        base: &str,
+        message_id: Option<i64>,
+        note: &str,
+        user_text: &str,
+        reply_text: &str,
+        error: Option<&str>,
+    ) -> Result<Value, ApiError> {
+        let body = json!({
+            "message_id": message_id,
+            "note": note,
+            "source": "desktop",
+            "user_text": user_text,
+            "reply_text": reply_text,
+            "error": error,
+        });
+        let request = self.http.post(format!("{base}/api/bug-reports")).json(&body);
+        self.send(request, SHORT_TIMEOUT).await
+    }
+
     /// `POST /api/screen-time`: whole days, replaced on the backend (idempotent).
     pub async fn screen_time(&self, base: &str, body: &Value) -> Result<Value, ApiError> {
         let request = self.http.post(format!("{base}/api/screen-time")).json(body);

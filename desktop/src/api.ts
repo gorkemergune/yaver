@@ -41,6 +41,7 @@ export interface ChatResponse {
   change_set_id: string | null;
   agents: { agent_id: string; name: string; reply: string }[];
   changes: Change[];
+  message_id?: number | null; // the stored answer (👎 "Hatalı")
 }
 
 export interface TeamMember {
@@ -64,6 +65,9 @@ export const api = {
   chat: (message: string, conversationId: number | null) =>
     invoke<ChatResponse>("send_chat", { message, conversationId }),
   undo: (changeSetId: string) => invoke<unknown>("undo_changes", { changeSetId }),
+  /** 👎 "Hatalı": a failed answer (no message id) sends what the panel shows. */
+  reportBug: (report: { messageId: number | null; note: string; userText: string; replyText: string; error: string | null }) =>
+    invoke<{ id: number }>("report_bug", report),
   team: () => invoke<Team>("get_team"),
   /** false: the server has no password (nothing to log in to). */
   login: (password: string) => invoke<boolean>("login", { password }),

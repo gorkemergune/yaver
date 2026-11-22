@@ -89,6 +89,7 @@ class ChatReply:
     llm_calls: list[LLMCall] = field(default_factory=list)
     # (intent, owner) per part, as the code routed it (empty: not classified)
     intents: list[tuple[str, str | None]] = field(default_factory=list)
+    message_id: int | None = None  # the stored answer (bug reports point at it)
 
     @property
     def cost_usd(self) -> Decimal:
@@ -171,6 +172,42 @@ YOURS_REPO = (
     "çalışmaları sende. Geri verme; github_week_summary (ya da github_list / github_read) ile "
     "depoya bak ve istenen taslağı yaz. Bir ayar eksikse aracın söylediği adıyla söyle."
 )
+
+
+def answer_meta(
+    trace: list[dict[str, Any]],
+    intents: list[tuple[str, str | None]],
+    speaker: str,
+    helpers: list[str],
+    cost: Decimal,
+) -> dict[str, Any]:
+    """What the answer's message keeps about how it came about (messages.meta): routing,
+    tools with errors, handoffs - no tool arguments besides where a request went."""
+    steps = []
+    for step in trace:
+        item: dict[str, Any] = {"agent_id": step.get("agent_id"), "tool": step.get("tool")}
+        arguments = step.get("arguments") or {}
+        if step.get("error"):
+            item["error"] = str(step["error"])[:300]
+        if step.get("tool") == "delegate":
+            item["to"] = arguments.get("agent_id")
+            if step.get("routed"):
+                item["routed"] = True
+        if step.get("tool") == "handoff":
+            item["area"] = arguments.get("area") or ""
+            item["reason"] = str(arguments.get("reason") or "")[:200]
+            if step.get("in_words"):
+                item["in_words"] = True
+        steps.append(item)
+    return {
+        "speaker": speaker,
+        "helpers": helpers,
+        "intents": [[intent, owner] for intent, owner in intents],
+        "trace": steps,
+        "handoffs": [s for s in steps if s["tool"] == "handoff"],
+        "errors": sum(1 for s in steps if s.get("error")),
+        "cost_usd": str(cost),
+    }
 
 
 def own_parts_note(classified: "list[intent_routing.Routed] | None") -> str:
@@ -440,6 +477,15 @@ class Coordinator:
                 # same as a handoff, with no area named
                 logger.info("%s declined %r in words: %r", agent.id, instruction, sub.reply)
                 sub.handoff = {"reason": sub.reply[:200], "area": ""}
+                ctx.trace.append(
+                    {
+                        "agent_id": agent.id,
+                        "tool": "handoff",
+                        "arguments": sub.handoff,
+                        "error": None,
+                        "in_words": True,
+                    }
+                )
             if (
                 sub.handoff is not None
                 and agent.id == intent_routing.owner_of("startup", self._team_ids())
@@ -707,20 +753,39 @@ class Coordinator:
                     change_set_id=stored_set,
                 )
             )
-        session.add(
-            Message(
-                conversation_id=conversation.id,
-                role=MessageRole.ASSISTANT,
-                agent_id=final.agent_id,
-                content=reply_text,
-                change_set_id=stored_set,
+        llm_calls = [
+            LLMCall(
+                run.agent_id,
+                resp.tier,
+                resp.provider,
+                resp.model,
+                resp.cost_usd,
+                len(resp.tool_calls),
             )
+            for run in [*runs, final]
+            for resp in run.responses
+        ]
+        answer = Message(
+            conversation_id=conversation.id,
+            role=MessageRole.ASSISTANT,
+            agent_id=final.agent_id,
+            content=reply_text,
+            change_set_id=stored_set,
+            meta=answer_meta(
+                ctx.trace,
+                ctx.intents,
+                final.agent_id,
+                [r.agent_id for r in runs],
+                sum((c.cost_usd for c in llm_calls), Decimal(0)),
+            ),
         )
+        session.add(answer)
         conversation.updated_at = ctx.now
         await session.flush()
         changes = await describe_changes(session, ctx.recorder.entries)
 
         return ChatReply(
+            message_id=answer.id,
             intents=ctx.intents,
             conversation_id=conversation.id,
             reply=reply_text,
@@ -730,18 +795,7 @@ class Coordinator:
             actions=ctx.actions,
             changes=changes,
             trace=ctx.trace,
-            llm_calls=[
-                LLMCall(
-                    run.agent_id,
-                    resp.tier,
-                    resp.provider,
-                    resp.model,
-                    resp.cost_usd,
-                    len(resp.tool_calls),
-                )
-                for run in [*runs, final]
-                for resp in run.responses
-            ],
+            llm_calls=llm_calls,
         )
 
     def _ad_analyst(self) -> Member | None:

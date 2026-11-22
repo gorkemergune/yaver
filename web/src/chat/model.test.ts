@@ -63,10 +63,11 @@ describe("applyEvent", () => {
         agents: [],
         changes: [{ entity: "events", op: "create", agent_id: "agenda", data: {}, undone: false }],
         cost_usd: "0.001",
+        message_id: 42,
       },
     ]);
 
-    expect(item).toMatchObject({ text: "Tamamlandı.", streaming: false, changeSetId: "cs-1" });
+    expect(item).toMatchObject({ text: "Tamamlandı.", streaming: false, changeSetId: "cs-1", messageId: 42 });
     expect(item.changes).toHaveLength(1);
   });
 
@@ -142,6 +143,8 @@ describe("historyToItems", () => {
     const first = items[1];
     expect(first?.kind === "assistant" && first.steps.map((s) => s.name)).toEqual(["Friday"]);
     expect(first?.kind === "assistant" && first.undone).toBe(true);
+    // 👎 "Hatalı" points at the final answer, not a yaver's step
+    expect(first?.kind === "assistant" && first.messageId).toBe(3);
   });
 
   it("keeps a scheduler message apart from the answer before it", () => {

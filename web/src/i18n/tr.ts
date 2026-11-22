@@ -128,6 +128,16 @@ export const tr = {
     online: "Bağlı",
     offline: "Sunucuya ulaşılamıyor",
   },
+  bugs: {
+    button: "Hatalı",
+    buttonHint: "Bu cevap yanlış: kısa bir not yaz, ne olduğu kaydedilsin",
+    placeholder: "Ne yanlıştı? (kısa, isteğe bağlı)",
+    send: "Kaydet",
+    sending: "Kaydediliyor…",
+    cancel: "Vazgeç",
+    sent: (id: number) => `Kaydedildi, teşekkürler (hata #${String(id)}).`,
+    failed: "Kaydedilemedi, tekrar dene.",
+  },
   chat: {
     emptyTitle: "Bugün ne değişti?",
     emptyHint: "Ders iptali, yeni sınav, toplantı, spor… Söylemen yeterli; gerisini ekip halleder.",

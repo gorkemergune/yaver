@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI
 from app import __version__
 from app.api import (
     auth,
+    bugs,
     calendar,
     chat,
     devices,
@@ -26,7 +27,7 @@ from app.api import (
 )
 from app.api.auth import require_auth
 from app.config import get_settings
-from app.core import log_filters
+from app.core import log_filters, recent_logs
 from app.db.session import dispose_engine
 from app.jobs.scheduler import catch_up, start_scheduler
 from app.llm.check_models import log_startup_check
@@ -82,6 +83,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     settings = get_settings()
     log_filters.install()  # the calendar token stays out of the access log (QA O3)
+    recent_logs.install()  # the last log lines, for a bug report's log summary
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
 
     # `/health` for container healthchecks, `/api/health` for the web app (proxied under /api).
@@ -106,6 +108,7 @@ def create_app() -> FastAPI:
         office,
         employees,
         devices,
+        bugs,
     ):
         app.include_router(module.router, prefix="/api", dependencies=guarded)
     return app

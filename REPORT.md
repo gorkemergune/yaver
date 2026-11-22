@@ -13,3 +13,14 @@
   - Nexa ile ilgili olanlar: `nexa-lab-ai/nexa-bench` ve `nexa-tr/website`; ikisinde de week klasörü yok.
   - weekN klasörü olanlar yalnız ders depoları (`cpp-foundations/doc/week01-12`, `c-foundations/lecture/week01-12`).
   - Sonuç: NEXA startup deposu ya başka bir adda, ya da token'ın kapsamı dışında (ör. bir organizasyon deposu, fine-grained token'a eklenmemiş).
+
+## 2. Hata bildirimi (👎 "Hatalı")
+
+- Web sohbetinde, ofis panelinde (doğrudan sohbet) ve masaüstü mini sohbette her cevabın altında 👎 Hatalı → kısa not → Kaydet → "Kaydedildi (hata #N)".
+- `bug_reports`: mesaj, cevap, cevaplayan çalışan, araçlar (hataları, handoff alanı/nedeni), yönlendirme, o cevabın log satırları, not, kaynak (web/desktop), durum.
+- `scripts/export-bugs.ps1`: canlıdaki açık raporları `docs\bugs\bugs-<zaman>.md` tek dosyasına yazar (`-All`, `-Since`). Salt okunur oturumda çalışıyor; dev'de denedim, yazma "read-only transaction" hatasıyla reddedildi.
+- karar: CLAUDE.md'deki "UI'de tek buton Geri al" kuralına ikinci istisna ekledim (👎 kullanıcı verisi değil, uygulama hakkında rapor); change_log'a girmez, geri alınmaz.
+- karar: araç izi artık her cevabın `messages.meta` alanında (yönlendirme, araçlar, hatalar, handoff'lar, maliyet). Hem rapor hem Raporlar sekmesi buradan okuyor. Eski mesajlarda yok.
+- karar: log özeti bellekteki son 400 satırdan (WARNING+ ve app.agent INFO: yönlendirme / handoff satırları); diske yazılmıyor, API yeniden başlayınca boşalır. Pencere: kullanıcının mesajından bir sonraki mesaja kadar (en çok 10 dk).
+- karar: `docs/bugs/` gitignore'da (sohbet içeriği).
+- karar: cevabı hiç kaydedilmemiş (akış hatası) bir mesaj da raporlanabilir; o zaman istemci ekrandakini gönderir.

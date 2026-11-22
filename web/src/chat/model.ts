@@ -37,6 +37,7 @@ export interface AssistantItem {
   error: string | null;
   status: StatusLine | null; // waiting on Groq, reading images
   origin: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | "day_report" | null; // a message Yaver wrote on its own
+  messageId: number | null; // the stored answer; null while streaming or when it failed
 }
 
 export type ChatItem = UserItem | AssistantItem;
@@ -55,6 +56,7 @@ export function pendingAssistant(id: string): AssistantItem {
     error: null,
     status: null,
     origin: null,
+    messageId: null,
   };
 }
 
@@ -115,6 +117,7 @@ export function applyEvent(
         streaming: false,
         changeSetId: event.change_set_id,
         changes: event.changes,
+        messageId: event.message_id ?? null,
       };
     case "error":
       return { ...item, streaming: false, error: event.code };
@@ -160,6 +163,7 @@ export function historyToItems(history: HistoryResponse, names: Record<string, s
       changeSetId: final.change_set_id,
       changes: set?.changes ?? [],
       undone: set?.undone ?? false,
+      messageId: final.id,
     });
     group = [];
   };
@@ -174,6 +178,7 @@ export function historyToItems(history: HistoryResponse, names: Record<string, s
         text: message.content,
         streaming: false,
         origin: message.kind,
+        messageId: message.id,
       });
     } else if (message.role === "user") {
       flush();
