@@ -61,9 +61,9 @@ WEEK3_FACTS = {  # what an answer about week 3 must say per member (any of the w
 }
 
 
-def _dirs() -> set[str]:
+def _dirs(files: dict[str, str]) -> set[str]:
     found = set()
-    for path in FILES:
+    for path in files:
         parts = path.split("/")[:-1]
         for i in range(1, len(parts) + 1):
             found.add("/".join(parts[:i]))
@@ -90,8 +90,15 @@ def _commit(login: str, name: str, date: str, message: str) -> dict[str, Any]:
 class FakeGitHub:
     """api.github.com for any owner/name; `status` makes every request fail with it."""
 
-    def __init__(self, status: int | None = None, *, one_author: str | None = None) -> None:
+    def __init__(
+        self,
+        status: int | None = None,
+        *,
+        one_author: str | None = None,
+        extra: dict[str, str] | None = None,
+    ) -> None:
         self.status = status
+        self.files = {**FILES, **(extra or {})}  # e.g. an empty member folder (.gitkeep)
         self.one_author = one_author  # every commit by this login (a one-person repo)
         self.requests: list[tuple[str, str]] = []
 
@@ -104,23 +111,24 @@ class FakeGitHub:
             return httpx2.Response(404, json={})
         rest = "/".join(parts[3:])
         params = request.url.params
-        dirs = _dirs()
+        files = self.files
+        dirs = _dirs(files)
         if rest == "":
             return self._json({"default_branch": "main", "description": "Örnek Lab"})
         if rest == "git/trees/main":
             tree = [{"path": d, "type": "tree"} for d in sorted(dirs)]
-            tree += [{"path": f, "type": "blob"} for f in sorted(FILES)]
+            tree += [{"path": f, "type": "blob"} for f in sorted(files)]
             return self._json({"tree": tree})
         if rest == "readme":
-            return self._json(_b64(FILES["README.md"]))
+            return self._json(_b64(files["README.md"]))
         if rest == "contents" or rest.startswith("contents/"):
             path = rest.removeprefix("contents").strip("/")
-            if path in FILES:
-                return self._json(_b64(FILES[path]))
+            if path in files:
+                return self._json(_b64(files[path]))
             if path == "" or path in dirs:
                 prefix = f"{path}/" if path else ""
                 names = {
-                    p[len(prefix) :].split("/")[0] for p in [*FILES, *dirs] if p.startswith(prefix)
+                    p[len(prefix) :].split("/")[0] for p in [*files, *dirs] if p.startswith(prefix)
                 }
                 return self._json(
                     [
@@ -128,7 +136,7 @@ class FakeGitHub:
                             "name": n,
                             "path": prefix + n,
                             "type": "dir" if prefix + n in dirs else "file",
-                            "size": len(FILES.get(prefix + n, "")),
+                            "size": len(files.get(prefix + n, "")),
                         }
                         for n in sorted(names)
                         if n

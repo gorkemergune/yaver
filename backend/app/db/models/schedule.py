@@ -116,6 +116,11 @@ class Event(TimestampMixin, Base):
         ForeignKey("courses.id", ondelete="RESTRICT"), index=True
     )
     notes: Mapped[str | None] = mapped_column(Text)
+    # The employee who prepares for it (a startup meeting -> Venture: an hour before, the
+    # week's presentation draft; app.startup.meeting). NULL = nobody.
+    owner_id: Mapped[str | None] = mapped_column(String(50))
+    # when that preparation message went out (once)
+    prep_sent_at: Mapped[dt.datetime | None]
 
 
 class Attendance(TimestampMixin, Base):

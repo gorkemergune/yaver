@@ -75,15 +75,15 @@ async def _with_github(
     return {"repo": client.repo, **result}
 
 
-def _date(moment: dt.datetime | None, ctx: ToolContext) -> str | None:
-    return moment.astimezone(ctx.tz).strftime("%Y-%m-%d %H:%M") if moment else None
+def _date(moment: dt.datetime | None, tz: dt.tzinfo) -> str | None:
+    return moment.astimezone(tz).strftime("%Y-%m-%d %H:%M") if moment else None
 
 
-def _commit(commit: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+def _commit(commit: dict[str, Any], tz: dt.tzinfo) -> dict[str, Any]:
     message = str((commit.get("commit") or {}).get("message") or "").strip().splitlines()
     return {
         "sha": str(commit.get("sha") or "")[:7],
-        "date": _date(gh.commit_time(commit), ctx),
+        "date": _date(gh.commit_time(commit), tz),
         "author": gh.commit_author(commit),
         "name": gh.commit_name(commit),
         "message": message[0][:160] if message else "",
@@ -253,7 +253,7 @@ async def github_commits(args: CommitsArgs, ctx: ToolContext) -> ToolResult:
             until=start(args.until + dt.timedelta(days=1)) if args.until else None,
             path=args.path or None,
         )
-        rows = [_commit(c, ctx) for c in commits]
+        rows = [_commit(c, ctx.tz) for c in commits]
         if args.author:
             who = fold(args.author)
             rows = [r for r in rows if who in fold(r["author"]) or who in fold(r["name"])]
@@ -308,7 +308,7 @@ async def github_issues(args: IssuesArgs, ctx: ToolContext) -> ToolResult:
 
 
 class WeekArgs(BaseModel):
-    week: int = Field(ge=0, le=60, description="the N of weekN / hafta-N")
+    week: int | None = Field(None, ge=0, le=60, description="the N of weekN; omit for the latest")
     repo: str | None = REPO
 
 
@@ -361,83 +361,111 @@ def _excerpt(text: str | None, limit: int = 700) -> str | None:
 )
 async def github_week_summary(args: WeekArgs, ctx: ToolContext) -> ToolResult:
     async def work(client: gh.GitHub) -> ToolResult:
-        entries = await client.tree()
-        folders = sorted(
-            (
-                e.path
-                for e in entries
-                if e.kind == "tree"
-                and (m := WEEK_DIR.match(e.path.rsplit("/", 1)[-1]))
-                and int(m.group(1)) == args.week
-            ),
-            key=lambda p: (p.count("/"), p),
-        )
-        if not folders:
-            weeks = sorted(
-                {
-                    e.path
-                    for e in entries
-                    if e.kind == "tree" and WEEK_DIR.match(e.path.rsplit("/", 1)[-1])
-                }
-            )
-            return {"week": args.week, "error": "no folder for this week", "week_folders": weeks}
-        folder = folders[0]
-        groups: dict[str, list[str]] = {}
-        week_readme = None
-        for entry in entries:
-            if not entry.path.startswith(f"{folder}/"):
-                continue
-            rel = entry.path[len(folder) + 1 :]
-            if "/" not in rel and entry.kind == "blob" and rel.lower().startswith("readme"):
-                week_readme = entry.path
-                continue
-            files = groups.setdefault(_group(rel, entry.kind == "tree"), [])
-            if entry.kind == "blob":
-                files.append(rel)
-        contributors = await client.contributors()
-        people = {fold(c) for c in contributors}
-        members = []
-        everyone: set[str] = set()
-        for name, files in list(groups.items())[:MAX_GROUPS]:
-            target = f"{folder}/{name}" if any("/" in f for f in files) else f"{folder}/{files[0]}"
-            commits = await client.commits(path=target) if files else []
-            rows = [_commit(c, ctx) for c in commits]
-            everyone |= {r["author"] for r in rows}
-            members.append(
-                {
-                    "folder_or_file": name,
-                    # the folder / file is named like someone who commits to the repo
-                    "named_after_a_contributor": _named_after(name, people, rows),
-                    "files": files[:15],
-                    "commit_authors": dict(
-                        Counter(
-                            f"{r['author']} ({r['name']})" if r["name"] else r["author"]
-                            for r in rows
-                        ).most_common()
-                    ),
-                    "last_commit": rows[0]["date"] if rows else None,
-                    "commit_messages": [r["message"] for r in rows[:5]],
-                    "readme": await _text_of(client, folder, files),
-                }
-            )
-        result: dict[str, Any] = {
-            "week": args.week,
-            "folder": folder,
-            "week_readme": _excerpt(await client.text(week_readme)) if week_readme else None,
-            "members": members,
-            "contributors": contributors,
-            "note": "one short paragraph per member: who (folder / file name and commit "
-            "authors), what (README, files, commit messages); add nothing that is not here",
-        }
-        if len(everyone) == 1 and len(members) > 1:
-            # a real repo (a course's doc/week03): Lab03, Lecture03, examples - all by one
-            # person. These are parts of the week, not members: say so, don't invent people.
-            result["single_author"] = next(iter(everyone))
-            result["note"] = (
-                f"every file of this week is by one person ({result['single_author']}): the "
-                "folders / files are parts or topics, not team members. Say that the folder "
-                "has no per-member hand-ins and summarise the parts; invent no members"
-            )
-        return result
+        return await summarize_week(client, args.week, ctx.tz)
 
     return await _with_github(ctx, args.repo, work)
+
+
+PLACEHOLDERS = {".gitkeep", ".keep", ".gitignore"}  # an "empty" member folder has only these
+
+
+def _week_folders(entries: list[gh.RepoEntry]) -> dict[int, str]:
+    """week number -> its folder (the shallowest when two match)."""
+    found: dict[int, str] = {}
+    for path in sorted(
+        (e.path for e in entries if e.kind == "tree"), key=lambda p: (p.count("/"), p)
+    ):
+        match = WEEK_DIR.match(path.rsplit("/", 1)[-1])
+        if match:
+            found.setdefault(int(match.group(1)), path)
+    return found
+
+
+def _groups(entries: list[gh.RepoEntry], folder: str) -> tuple[dict[str, list[str]], str | None]:
+    """A week folder's member / project groups (real files only) and its own README."""
+    groups: dict[str, list[str]] = {}
+    week_readme = None
+    for entry in entries:
+        if not entry.path.startswith(f"{folder}/"):
+            continue
+        rel = entry.path[len(folder) + 1 :]
+        if "/" not in rel and entry.kind == "blob" and rel.lower().startswith("readme"):
+            week_readme = entry.path
+            continue
+        files = groups.setdefault(_group(rel, entry.kind == "tree"), [])
+        if entry.kind == "blob" and PurePosixPath(rel).name not in PLACEHOLDERS:
+            files.append(rel)
+    return groups, week_readme
+
+
+async def summarize_week(client: gh.GitHub, week: int | None, tz: dt.tzinfo) -> dict[str, Any]:
+    """Who did what in week `week` (None: the latest week folder): per member / project its
+    files, commit authors, last commit, messages, README; empty folders and the members of
+    the week before with no folder this week. Read only. Used by github_week_summary and by
+    Venture's meeting preparation (app.jobs.meeting_prep)."""
+    entries = await client.tree()
+    weeks = _week_folders(entries)
+    if week is None and weeks:
+        week = max(weeks)
+    if week is None or week not in weeks:
+        return {
+            "week": week,
+            "error": "no folder for this week",
+            "week_folders": sorted(weeks.values()),
+        }
+    folder = weeks[week]
+    groups, week_readme = _groups(entries, folder)
+    contributors = await client.contributors()
+    people = {fold(c) for c in contributors}
+    members = []
+    everyone: set[str] = set()
+    for name, files in list(groups.items())[:MAX_GROUPS]:
+        if not files:
+            members.append({"folder_or_file": name, "empty": True})
+            continue
+        target = f"{folder}/{name}" if any("/" in f for f in files) else f"{folder}/{files[0]}"
+        rows = [_commit(c, tz) for c in await client.commits(path=target)]
+        everyone |= {r["author"] for r in rows}
+        members.append(
+            {
+                "folder_or_file": name,
+                # the folder / file is named like someone who commits to the repo
+                "named_after_a_contributor": _named_after(name, people, rows),
+                "files": files[:15],
+                "commit_authors": dict(
+                    Counter(
+                        f"{r['author']} ({r['name']})" if r["name"] else r["author"] for r in rows
+                    ).most_common()
+                ),
+                "last_commit": rows[0]["date"] if rows else None,
+                "commit_messages": [r["message"] for r in rows[:5]],
+                "readme": await _text_of(client, folder, files),
+            }
+        )
+    earlier = [n for n in weeks if n < week]
+    missing: list[str] = []
+    if earlier:
+        before, _ = _groups(entries, weeks[max(earlier)])
+        missing = [name for name, files in before.items() if files and name not in groups]
+    result: dict[str, Any] = {
+        "week": week,
+        "folder": folder,
+        "week_readme": _excerpt(await client.text(week_readme)) if week_readme else None,
+        "members": members,
+        "empty_folders": [m["folder_or_file"] for m in members if m.get("empty")],
+        "no_folder_this_week": missing,  # handed in the week before, nothing this week
+        "contributors": contributors,
+        "note": "one short paragraph per member: who (folder / file name and commit "
+        "authors), what (README, files, commit messages); say whose folder is empty; add "
+        "nothing that is not here",
+    }
+    if len(everyone) == 1 and len([m for m in members if not m.get("empty")]) > 1:
+        # a real repo (a course's doc/week03): Lab03, Lecture03, examples - all by one
+        # person. These are parts of the week, not members: say so, don't invent people.
+        result["single_author"] = next(iter(everyone))
+        result["note"] = (
+            f"every file of this week is by one person ({result['single_author']}): the "
+            "folders / files are parts or topics, not team members. Say that the folder "
+            "has no per-member hand-ins and summarise the parts; invent no members"
+        )
+    return result

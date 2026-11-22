@@ -51,3 +51,19 @@
   - #48 için desen genişletildi; 2, 47, 48, 57 iki tur yeniden: 8/8. Metrics bu kez `gave_up` sonrası `get_ad_report`'u çağırdı.
 - karar: 58 ("linear quiz pazartesi", bugün pazartesi) ve 60 (salı-perşembe 19-20'de zaten spor var) test hatasıydı. Ekibin sorması doğru; testleri düzelttim, uygulamayı değil.
 - karar: `get_ad_report` "rapor yok" sonucuna "hesap ayarlarını adıyla söyle" notu (META_ACCESS_TOKEN / META_AD_ACCOUNT_ID).
+
+## 5. Bu akşamki toplantı (NEXA)
+
+- **"bugün akşam NEXA toplantısı var"** → Chrono etkinliği ekliyor (saat yoksa akşam 19:00) ve kod onu Venture'a bağlıyor (`events.owner_id`).
+  - Chrono cevabında söylüyor: "Toplantıdan bir saat önce haftanın sunum taslağını ve klasörü boş olanları sana yazacak."
+  - Dev'de gerçek modelle denendi.
+- **Hatırlatma:** her 5 dakikada bir kontrol. Toplantıya ≤1 saat kala Venture sohbete yazıyor ve push gönderiyor, bir kez. İçerik: son week klasörünün üye bazlı taslağı (klasör/dosya, commit yazarı, README başlığı, son commit), "Klasörü boş: …", "Geçen hafta teslim edip bu hafta klasörü olmayan: …". LLM yok.
+- **Testler (sahte GitHub, week3'e boş bir `ece/` klasörü eklenerek):**
+  - 3 saat önce gitmiyor, 55 dk kala gidiyor, ikinci kez gitmiyor.
+  - Iceberg toplantısı bağlanmıyor; "EE211 lab" bağlanmıyor ("Lab" tek başına ad değil).
+  - Tüm gün etkinliğe gitmiyor.
+  - GitHub ayarı yoksa ayarın adını söylüyor.
+  - "Geri al" etkinliği ve bağı geri alıyor.
+- **Dev'de iş 18:05'te çalıştırıldı.** `.env`'deki repo ayarı yüzünden mesaj: "NEXA toplantısı 19:00'de (1 saatten az kaldı). Sunum taslağını hazırlayamadım: GITHUB_STARTUP_REPO geçersiz: 'gorkemergune/<startup>' …"
+- karar: hangi toplantının startup'ın olduğunu `keywords` + Venture'ın alan metnindeki özel adlar ("Nexa Lab", ilk kelimesi "NEXA" da sayılır) + repo/weekN kelimeleri belirliyor. Senin yerel `agents.yaml`'ında keywords yok, ama alan metninde "Nexa Lab" var; bu yüzden çalışıyor.
+- karar: hangi hafta: depodaki en büyük weekN klasörü.

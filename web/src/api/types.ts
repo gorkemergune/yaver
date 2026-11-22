@@ -201,7 +201,7 @@ export interface HistoryMessage {
   created_at: string;
   change_set_id: string | null;
   attachments?: Attachment[];
-  kind?: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | "day_report" | null; // written by the scheduler
+  kind?: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | "day_report" | "meeting_prep" | null; // written by the scheduler
 }
 
 export interface HistoryResponse {

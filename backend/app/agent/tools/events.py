@@ -9,6 +9,7 @@ from app.agent.tools.matching import require_course
 from app.agent.tools.schedule import ISO_DATE
 from app.db.models import Event
 from app.db.models.enums import EventKind
+from app.startup import meeting
 
 EventKindName = Literal["exam", "quiz", "makeup", "meeting", "deadline", "hackathon", "other"]
 
@@ -99,10 +100,21 @@ async def add_event(args: AddEventArgs, ctx: ToolContext) -> ToolResult:
         location=args.location,
         course_id=course.id if course else None,
         notes=with_topics(args.notes, args.topics),
+        # a startup meeting is Venture's to prepare for (before the snapshot: undo knows it)
+        owner_id=meeting.owner_for(args.kind, args.title, args.notes, args.location),
     )
     ctx.session.add(event)
     await ctx.recorder.created(event)
     result: dict[str, Any] = {"created": describe_event(event, ctx)}
+    if event.owner_id is not None:
+        result["linked_to"] = {
+            "employee": event.owner_id,
+            "prepares": "an hour before: the latest week's presentation draft per member "
+            "and whose folder is empty, as a chat message",
+            # live: the link was made but the reply didn't mention it
+            "tell_user": f"{meeting.name_of(event.owner_id)} toplantıdan 1 saat önce haftanın "
+            "sunum taslağını ve klasörü boş olanları yazacak",
+        }
     if event.kind is EventKind.EXAM:
         from app.jobs import exam_prep
 

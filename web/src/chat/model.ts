@@ -36,7 +36,7 @@ export interface AssistantItem {
   undone: boolean;
   error: string | null;
   status: StatusLine | null; // waiting on Groq, reading images
-  origin: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | "day_report" | null; // a message Yaver wrote on its own
+  origin: "briefing" | "checkin" | "followup" | "weekly_plan" | "exam_prep" | "day_report" | "meeting_prep" | null; // a message Yaver wrote on its own
   messageId: number | null; // the stored answer; null while streaming or when it failed
 }
 

@@ -14,11 +14,13 @@ from dataclasses import dataclass
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import make_url
 
 from app.agent.team import TeamConfig, load_team_config
 from app.config import Settings, get_settings
 from app.core.localtime import local_datetime
+from app.jobs import meeting_prep
 from app.jobs.runner import JOB_IDS, JobId, parse_hhmm, run_job
 from app.office.shift_jobs import is_shift, run_shift_job, shift_plans
 from app.office.state import get_office
@@ -70,6 +72,8 @@ async def run_scheduled(job_id: str) -> None:
     try:
         if is_shift(job_id):
             await run_shift_job(job_id, office=get_office())
+        elif job_id == MEETING_PREP:
+            await meeting_prep.run_meeting_prep()
         elif job_id in JOB_IDS:
             known: JobId = job_id  # narrowed by the `in JOB_IDS` check
             await run_job(known, office=get_office())
@@ -77,6 +81,9 @@ async def run_scheduled(job_id: str) -> None:
             logger.warning("Unknown scheduled job %s", job_id)
     except Exception:  # a failing job must not stop the scheduler
         logger.exception("Scheduled job %s failed", job_id)
+
+
+MEETING_PREP = "meeting_prep"  # Venture, an hour before a startup meeting (every few minutes)
 
 
 def jobstore_url(settings: Settings) -> str:
@@ -108,6 +115,15 @@ def start_scheduler(settings: Settings | None = None) -> AsyncIOScheduler:
             replace_existing=True,  # times changed in .env take effect on restart
             misfire_grace_time=int(plan.window.total_seconds()),
         )
+    scheduler.add_job(
+        run_scheduled,
+        IntervalTrigger(minutes=meeting_prep.CHECK_MINUTES, timezone=settings.tz),
+        args=[MEETING_PREP],
+        id=MEETING_PREP,
+        name=MEETING_PREP,
+        replace_existing=True,
+        misfire_grace_time=meeting_prep.CHECK_MINUTES * 60,
+    )
     scheduler.start()
     logger.info(
         "Scheduler started: %s",

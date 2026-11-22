@@ -246,7 +246,9 @@ async def test_scheduler_keeps_its_jobs_in_postgres(settings: Settings) -> None:
         core = {"briefing", "checkin", "followups", "weekly_plan", "exam_prep", "day_report"}
         # plus every employee's shift jobs from agents.yaml (app.office.shift_jobs)
         shifts = {p.key for p in shift_plans(load_team_config())}
-        assert set(jobs) == core | shifts
+        # + Venture's meeting preparation, every few minutes (an hour before a meeting)
+        assert set(jobs) == core | shifts | {"meeting_prep"}
+        assert jobs["meeting_prep"].trigger.interval == dt.timedelta(minutes=5)
         assert all(key.startswith("shift:") for key in shifts)
         assert jobs["weekly_plan"].next_run_time.astimezone(IST).weekday() == 6  # Sunday
         assert jobs["checkin"].next_run_time.astimezone(IST).time() == dt.time(21, 0)

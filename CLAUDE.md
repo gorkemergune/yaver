@@ -110,7 +110,7 @@ yaver/
 - `courses` — `term_id`, kod, ad, hoca, `absence_limit`, renk
 - `recurring_blocks` — haftalık tekrar: `kind` (class|lab|sport|work|other), weekday (0=Pzt), start/end_time (**yerel duvar saati**, end<=start → ertesi gün biter), location, `course_id?`, valid_from/to
 - `block_overrides` — tek occurrence için iptal/taşıma: `block_id`, date (orijinal yerel tarih), action (cancel|move), new_start_at/new_end_at (UTC, başka güne taşınabilir), reason
-- `events` — tek seferlik: `kind` (exam|quiz|makeup|meeting|deadline|hackathon|other), start_at/end_at (UTC; end NULL = an), all_day, `course_id?`, notes
+- `events` — tek seferlik: `kind` (exam|quiz|makeup|meeting|deadline|hackathon|other), start_at/end_at (UTC; end NULL = an), all_day, `course_id?`, notes; `owner_id` (hazırlayan çalışan: startup toplantısı `add_event`'te Venture'a bağlanır, `app/startup/meeting.py` - keywords + Venture'ın alan metnindeki özel adlar + repo/weekN), `prep_sent_at` (`app/jobs/meeting_prep.py`: 5 dk'da bir, toplantıya ≤1 saat kala son week klasörünün üye bazlı sunum taslağı + boş klasörler sohbete ve push'a, bir kez; LLM yok)
 - `attendance` — course_id, date, status (present|absent|excused)
 - `tasks` — günlük/haftalık görevler: title, scope (day|week), date/week_start, status, source (user|agent|weekly_plan)
 - `followups` — takip: title, status (waiting|positive|negative|done), check_rule (daily|every_n_days|on_date), next_check_at, related_event_id
