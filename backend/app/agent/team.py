@@ -117,6 +117,8 @@ class MemberConfig(_Strict):
     model: dict[str, str] = Field(default_factory=dict)
     color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")  # label colour in the UI
     tools: list[str] = Field(default_factory=list)
+    # The user's own names for this area ("Nexa Lab" for the startup): routing reads them
+    keywords: list[str] = Field(default_factory=list)
 
     @field_validator("model", mode="before")
     @classmethod
@@ -231,6 +233,7 @@ class Member:
     model: Mapping[str, str] = field(default_factory=dict)  # provider -> model
     color: str = "#6366f1"
     role: str = ""  # office title ("Akademik")
+    keywords: tuple[str, ...] = ()  # the user's names for its area (routing)
 
     def tool_specs(self, delegate_spec: ToolSpec | None = None) -> list[ToolSpec]:
         specs = [tool.spec() for tool in self.tools]
@@ -341,6 +344,7 @@ def build_team(
             model=agent.model,
             color=agent.color or AGENT_COLORS[index % len(AGENT_COLORS)],
             role=agent.role or (agent.briefing_section or ""),
+            keywords=tuple(agent.keywords),
         )
         for index, agent in enumerate(config.agents)
     )
@@ -370,7 +374,17 @@ def model_overrides(config: TeamConfig, providers: ProvidersConfig) -> list[tupl
 # area text and budget; office hours and the briefing style. Capabilities - tools, which
 # shift jobs run, tier / model, the weekly plan - always come from agents.example.yaml, so
 # an old personal copy never hides a new tool (live: Venture without its GitHub tools).
-MEMBER_OWN = ("name", "role", "color", "persona", "shift", "desk", "domain", "daily_budget_usd")
+MEMBER_OWN = (
+    "name",
+    "role",
+    "color",
+    "persona",
+    "shift",
+    "desk",
+    "domain",
+    "daily_budget_usd",
+    "keywords",
+)
 SHIFT_JOB_OWN = ("at", "weekday", "title", "topics")  # of a shift job the example has
 TOP_OWN = ("office", "briefing_style")
 

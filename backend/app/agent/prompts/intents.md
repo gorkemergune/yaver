@@ -9,9 +9,9 @@ Split the message into its separate requests (usually one; "X, ayrıca Y" is two
 - task: a to-do ("görev ekle", "rapor yazmam lazım", "bitirdim").
 - followup: waiting for news and being reminded to ask ("hackathon başvurumun sonucunu bekliyorum, her gün sor"), or that news arriving - except internship / job applications, which are career.
 - sport: sport, workouts, the gym, running, screen time, games.
-- content: social media posts, content ideas, a content calendar.
+- content: social media posts, content ideas, a content calendar. "taslak" (a draft) alone is not content: a draft of a presentation, a meeting summary or a report on the startup's work is startup.
 - ads: ad reports, campaigns, ad spend and performance.
-- startup: the user's startup, its product, repo, competitors.
+- startup: the user's startup (by any name it has), its product, its team members and what they did or hand in (weekN folders, projects, presentations of their work, a meeting about them), its GitHub repository (github/owner/name, a github.com link), competitors ("üyeler week3'te ne yaptı", "toplantıda sunulacak projelerin taslağını hazırla", "repoda kim ne commit'lemiş").
 - career: internships (staj), jobs, CV, interviews (mülakat), job applications - including waiting for an application's answer and being reminded to ask ("X staj başvuruma dönüş bekliyorum, her gün sor"), and that answer arriving ("X'ten staj kabulü geldi").
 - social: friends, birthdays, gifts, social plans with people.
 - memory: a lasting fact about the user's life to remember, with no date and no hours ("cuma günleri Medipol'deyim"). With weekly hours it is a weekly block, not a memory: "her cuma 9-17 Medipol'de çalışıyorum" is an event (work), a class schedule is class.
@@ -24,4 +24,5 @@ Rules:
 - Decide by what the user wants done, never by a single word. A place (Medipol, Iceberg, a café, a campus) or a person's name does not decide the intent: "Medipol'deki kahvaltıya gideceğim" is an event, not a class or work.
 - "gidicem / gideceğim / var" for an activity that is not a class is an event; for a class it is class.
 - An exam with its topics is ONE exam part.
+- A meeting named only as the occasion ("bu akşamki toplantıda sunacaklar, taslak hazırla") is not an event: the part is what the user asks to be made or done.
 - Never add words the user did not write.

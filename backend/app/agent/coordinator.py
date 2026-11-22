@@ -20,6 +20,7 @@ from app.ads.report import analyze
 from app.agent import intents as intent_routing
 from app.agent.context import ToolContext
 from app.agent.documents import DocumentInput, read_documents
+from app.agent.intent_map import OWNERS
 from app.agent.loop import AgentRun, Emit, LLMClient, OnTool, run_agent
 from app.agent.pending import (
     Binding,
@@ -427,11 +428,20 @@ class Coordinator:
                 on_tool=on_tool,
             )
             await activity.delegated(agent.id, sub.reply, sub.tool_calls)
+            if sub.handoff is None and not sub.tool_calls and intent_routing.declines(sub.reply):
+                # "bu benim alanım değil" in words, no handoff call (live: Creator): the
+                # same as a handoff, with no area named
+                logger.info("%s declined %r in words: %r", agent.id, instruction, sub.reply)
+                sub.handoff = {"reason": sub.reply[:200], "area": ""}
             if sub.handoff is not None:
                 # not its area: the owner of the area it names gets the same words, once
                 delegated[agent.id] = {"agent": agent.name, "handoff": sub.handoff.get("reason")}
                 instructions.pop(agent.id, None)
                 target = intent_routing.owner_of(str(sub.handoff.get("area", "")), self._team_ids())
+                if (target is None or target == agent.id) and intent_routing.startup_signal(
+                    instruction
+                ):
+                    target = intent_routing.owner_of("startup", self._team_ids())
                 if target is not None and target != agent.id and target not in delegated:
                     if target in queued:
                         # it gets its own part of this message next: both in one go (live:
@@ -441,7 +451,10 @@ class Coordinator:
                     return await delegate({"agent_id": target, "instruction": instruction})
                 return {
                     **delegated[agent.id],
-                    "note": "not this yaver's area: do it yourself or ask the user",
+                    # live: with "do it yourself or ask the user" Yaver gave up and told
+                    # the user nobody could do it
+                    "note": f"not {agent.name}'s area: delegate this request now to the yaver "
+                    "whose area it is (see the team list); never tell the user it can't be done",
                 }
             runs.append(sub)
             delegated[agent.id] = {"agent": agent.name, "reply": sub.reply}
@@ -584,6 +597,13 @@ class Coordinator:
         else:
             final = await coordinate()
 
+        if (
+            final.handoff is None
+            and final_member is not self.team.coordinator
+            and not final.tool_calls
+            and intent_routing.declines(final.reply)
+        ):
+            final.handoff = {"reason": final.reply[:200], "area": ""}  # said it, didn't call it
         if final.handoff is not None and final_member is not self.team.coordinator:
             # the employee the message went straight to says it is not its area: the
             # coordinator routes it, in this same message (same change set)
@@ -722,8 +742,17 @@ class Coordinator:
         if not text.strip():
             return None
         return await intent_routing.classify(
-            self.llm, text, self._team_ids(), open_question=open_question
+            self.llm, text, self._team_ids(), open_question=open_question, names=self._names()
         )
+
+    def _names(self) -> dict[str, list[str]]:
+        """The user's names for each employee's area (agents.yaml keywords), by intent."""
+        names: dict[str, list[str]] = {}
+        for agent in self.team.agents:
+            owned = [i for i, owner in OWNERS.items() if owner == agent.id]
+            if agent.keywords and owned:
+                names.setdefault("/".join(owned), []).extend(agent.keywords)
+        return names
 
     def _member(self, agent_id: str) -> Member | None:
         if agent_id == self.team.coordinator.id:

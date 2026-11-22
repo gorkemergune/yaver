@@ -1,6 +1,6 @@
 # Yaver ofisi — ÖRNEK dosya, ve her zaman TABAN: config/agents.yaml (.gitignore'da) bunun
 # üstüne biner. Yerel dosyada yalnız görünen alanlar geçerli: name, role, color, persona, shift,
-# desk, domain, daily_budget_usd; mesai işinin at / weekday / title / topics'i; office ve
+# desk, domain, daily_budget_usd, keywords; mesai işinin at / weekday / title / topics'i; office ve
 # briefing_style. Araç listeleri, mesai işi türleri, tier / model buradan gelir (yerel dosyada
 # yazılsa da yok sayılır, açılışta uyarı loglanır) - eski bir yerel kopya yeni araçları gizlemez.
 # Her ajan ofiste bir çalışan (docs/OFFICE.md): id'ler sabit kalsın (kayıtlar onlara bağlı),
@@ -153,6 +153,8 @@ agents:
     persona: Meraklı bir girişim analisti. Rakipleri ve haberleri takip eder, bulduğunu kaynağıyla söyler.
     tier: fast
     model: {groq: openai/gpt-oss-20b}
+    # Girişime senin verdiğin adlar: "Örnek toplantısı için taslak" Venture'a gider (yönlendirme)
+    keywords: [Örnek Girişim]
     shift: >-
       Her sabah startup deposuna bakar (GitHub, salt okunur): hafta teslimleri, tarihli işler
       takvime + takibe, dosyası olmayan yaklaşan işe hatırlatma. Sektör ve rakip haberlerini tarar.

@@ -8,6 +8,8 @@ writes the answer; questions about the plan, memories and undo stay with the coo
 """
 
 import logging
+import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.agent.intent_map import AREAS, OWNERS, Intent  # noqa: F401 (re-exported)
 from app.agent.schema import json_schema
+from app.core.time_resolver import normalize
 from app.llm.types import ChatMessage, LLMRequest, ProviderError, ToolSpec
 
 logger = logging.getLogger(__name__)
@@ -41,6 +44,44 @@ TOOL = ToolSpec(
 PROMPT = (Path(__file__).with_name("prompts") / "intents.md").read_text(encoding="utf-8")
 
 
+# The startup's repository or a week folder of its team named in a part: it is Venture's,
+# whatever the model called it (live: "üyeler week3'te yaptığı projeleri sunacak, kim ne
+# yapmış bana bir taslak hazırla. github/owner/startup" was "content" -> Creator, who
+# said "alanım değil"). Only parts the model gave to nobody in particular or to content.
+STARTUP_SIGNAL = re.compile(
+    r"\bgithub\b|github\.com|\brepo(?:su|suna|sundan|sunda|ya|dan|da|nun|yu)?\b"
+    r"|\bweek[-_ ]?\d{1,2}\b"
+)
+TO_STARTUP = frozenset({"content", "other", "question"})
+# A specialist that answers "not my area" in words instead of calling handoff
+NOT_MINE = re.compile(
+    r"alanim(?:in)? (?:disinda|degil)|alanima girmiyor|benim (?:isim|alanim|gorevim) degil"
+    r"|uzmanlik alanim(?:in)? disinda|bu (?:konu|is) (?:benim )?alanim(?:da)? degil"
+)
+
+
+def startup_signal(text: str) -> bool:
+    return STARTUP_SIGNAL.search(normalize(text)) is not None
+
+
+def declines(reply: str) -> bool:
+    """The reply says the request is not this employee's area (and does nothing)."""
+    return NOT_MINE.search(normalize(reply)) is not None
+
+
+def names_note(names: Mapping[str, Sequence[str]]) -> str:
+    """The user's own names for things, by intent (agents.yaml `keywords`, e.g. the startup's
+    name): the classifier can't know that "Nexa" is the startup."""
+    lines = [f"- {', '.join(words)}: {intent}" for intent, words in names.items() if words]
+    if not lines:
+        return ""
+    return (
+        "\n\nNames this user gives their own things (a request about them, their people or "
+        "their work belongs to that intent unless it plainly asks for something else, e.g. a "
+        "calendar entry):\n" + "\n".join(lines)
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class Routed:
     intent: str
@@ -54,7 +95,12 @@ def owner_of(intent: str, team_ids: set[str]) -> str | None:
 
 
 async def classify(
-    llm: Any, text: str, team_ids: set[str], *, open_question: str | None = None
+    llm: Any,
+    text: str,
+    team_ids: set[str],
+    *,
+    open_question: str | None = None,
+    names: Mapping[str, Sequence[str]] | None = None,
 ) -> list[Routed] | None:
     """The parts of the message with their owners; None when no model answered (the
     coordinator then routes on its own, as before)."""
@@ -62,7 +108,7 @@ async def classify(
     if open_question:
         content = f"Açık soru (ekip az önce sordu): {open_question}\n\n{content}"
     request = LLMRequest(
-        system=PROMPT,
+        system=PROMPT + names_note(names or {}),
         messages=[ChatMessage("user", content)],
         tools=[TOOL],
         tool_choice="required",
@@ -82,6 +128,12 @@ async def classify(
         return None
     if not open_question:
         parts = [p if p.intent != "answer" else Part(intent="other", text=p.text) for p in parts]
+    parts = [
+        Part(intent="startup", text=p.text)
+        if p.intent in TO_STARTUP and startup_signal(p.text or text)
+        else p
+        for p in parts
+    ]
     routed = [Routed(p.intent, p.text.strip() or text, owner_of(p.intent, team_ids)) for p in parts]
     logger.info("intents for %r: %s", text, [(r.intent, r.owner) for r in routed])
     return routed
