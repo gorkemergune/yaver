@@ -149,7 +149,7 @@ agents:
     role: Startup
     desk: {row: back, col: 2}
     color: "#ffb547"
-    domain: Startup işleri - girişimin haftalık hedefleri, rakipler, sektör haberleri, yatırım ve iş geliştirme
+    domain: Startup işleri - girişimin haftalık hedefleri, ekip üyelerinin haftalık çalışmaları ve sunumları, GitHub deposu, rakipler, sektör haberleri, yatırım ve iş geliştirme
     persona: Meraklı bir girişim analisti. Rakipleri ve haberleri takip eder, bulduğunu kaynağıyla söyler.
     tier: fast
     model: {groq: openai/gpt-oss-20b}
@@ -159,7 +159,19 @@ agents:
     shift_jobs:
       - {job: github_watch, at: "08:15", title: Startup deposu kontrolü}
       - {job: web_scan, at: "08:30", title: Sabah rakip taraması, topics: [yapay zeka girişim haberleri, girişim yatırımları Türkiye]}
-    tools: [web_search, add_task, complete_task, add_followup, update_followup, remember]
+    tools:
+      - github_week_summary    # "week3'te kim ne yapmış": per member folder / file, commit authors, README
+      - github_list            # the repository, read only (GITHUB_TOKEN + GITHUB_STARTUP_REPO
+      - github_read            #   or a repo the user names); md / txt / code / PDF text
+      - github_search
+      - github_commits         # by author and date
+      - github_issues          # issues and pull requests
+      - web_search
+      - add_task
+      - complete_task
+      - add_followup
+      - update_followup
+      - remember
 
   - id: ads
     name: Metrics

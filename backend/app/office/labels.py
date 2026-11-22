@@ -3,6 +3,12 @@
 TOOL_LABELS: dict[str, str] = {
     "resolve_date": "Tarihi hesaplıyor",
     "get_ad_report": "Reklam raporlarına bakıyor",
+    "github_list": "GitHub deposuna bakıyor",
+    "github_read": "Depodan dosya okuyor",
+    "github_search": "Depoda arıyor",
+    "github_commits": "Commit'lere bakıyor",
+    "github_issues": "Issue ve PR'lara bakıyor",
+    "github_week_summary": "Haftanın teslimlerini çıkarıyor",
     "analyze_ads": "Reklam raporunu analiz ediyor",
     "draft_content_calendar": "İçerik takvimi hazırlıyor",
     "get_day_plan": "Günün planına bakıyor",

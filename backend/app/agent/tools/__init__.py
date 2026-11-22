@@ -111,6 +111,7 @@ def _load_tool_modules() -> None:
         attendance,
         dates,
         events,
+        github,
         integrations,
         materials,
         memory,
