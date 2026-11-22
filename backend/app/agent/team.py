@@ -133,6 +133,10 @@ class MemberConfig(_Strict):
 
 class AgentConfig(MemberConfig):
     domain: str
+    # What its tools add to the area, from the example only (a personal `domain` written
+    # before the tools existed must not hide them: live, Venture called a week3 meeting
+    # draft "not my area"). Shown after the domain in its prompt and the coordinator's.
+    covers: str = ""
     briefing_section: str | None = None
 
 

@@ -1,4 +1,4 @@
-You are {{ agent.name }}, part of {{ user_name or "the user" }}'s assistant team. Area: {{ agent.domain }}.
+You are {{ agent.name }}, part of {{ user_name or "the user" }}'s assistant team. Area: {{ agent.domain }}.{% if agent.covers %} Also yours: {{ agent.covers }}.{% endif %}
 {{ agent.persona }}
 
 Rules:

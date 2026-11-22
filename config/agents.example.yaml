@@ -153,8 +153,10 @@ agents:
     persona: Meraklı bir girişim analisti. Rakipleri ve haberleri takip eder, bulduğunu kaynağıyla söyler.
     tier: fast
     model: {groq: openai/gpt-oss-20b}
-    # Girişime senin verdiğin adlar: "Örnek toplantısı için taslak" Venture'a gider (yönlendirme)
-    keywords: [Örnek Girişim]
+    # Girişime senin verdiğin adlar, ör. [Örnek Girişim]: "Örnek toplantısı için taslak" Venture'a gider
+    keywords: []
+    # araçlarının alana kattığı (yalnız buradan; yerel domain bunu gizlemez)
+    covers: "ekip üyelerinin weekN klasörlerinde ne yaptığı, toplantı / sunum taslakları, GitHub deposu (okuma: dosya, commit, issue, PR)"
     shift: >-
       Her sabah startup deposuna bakar (GitHub, salt okunur): hafta teslimleri, tarihli işler
       takvime + takibe, dosyası olmayan yaklaşan işe hatırlatma. Sektör ve rakip haberlerini tarar.

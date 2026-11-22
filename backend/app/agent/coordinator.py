@@ -166,6 +166,13 @@ OWN_PART_HINTS = {
 }
 
 
+YOURS_REPO = (
+    "Bu istek senin alanın: startup'ın GitHub deposu / weekN klasörleri ve ekip üyelerinin "
+    "çalışmaları sende. Geri verme; github_week_summary (ya da github_list / github_read) ile "
+    "depoya bak ve istenen taslağı yaz. Bir ayar eksikse aracın söylediği adıyla söyle."
+)
+
+
 def own_parts_note(classified: "list[intent_routing.Routed] | None") -> str:
     """The parts the code left to the coordinator, with what to do (live: "bu dönem cuma
     günleri medipoldeyim" is a memory, the coordinator delegated it as a weekly block)."""
@@ -433,6 +440,25 @@ class Coordinator:
                 # same as a handoff, with no area named
                 logger.info("%s declined %r in words: %r", agent.id, instruction, sub.reply)
                 sub.handoff = {"reason": sub.reply[:200], "area": ""}
+            if (
+                sub.handoff is not None
+                and agent.id == intent_routing.owner_of("startup", self._team_ids())
+                and intent_routing.startup_signal(instruction)
+            ):
+                # the repo / a week folder is Venture's own (live: it called the week3
+                # meeting draft "not my area" and Yaver gave up): once more, with its tools
+                logger.info("%s handed back a repo request: %s", agent.id, sub.handoff)
+                sub = await run_agent(
+                    self.llm,
+                    agent,
+                    [ChatMessage("user", instruction)],
+                    ctx,
+                    system_suffix=f"{suffix}\n{YOURS_REPO}",
+                    max_steps=self.max_steps,
+                    emit=emit,
+                    on_tool=on_tool,
+                )
+                await activity.delegated(agent.id, sub.reply, sub.tool_calls)
             if sub.handoff is not None:
                 # not its area: the owner of the area it names gets the same words, once
                 delegated[agent.id] = {"agent": agent.name, "handoff": sub.handoff.get("reason")}

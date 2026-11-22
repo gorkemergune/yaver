@@ -23,6 +23,7 @@ from tests.agent_fakes import (
     ScriptedLLM,
     call,
     coordinator,
+    example_team,
     last_result,
     route_as,
     say,
@@ -158,5 +159,43 @@ async def test_the_users_names_reach_the_classifier(session: AsyncSession) -> No
         session, "NEXA toplantısı için taslak", now=NOW
     )
 
-    assert "- Nexa, Nexa Lab: startup" in seen[0].system
+    assert "- Nexa, Nexa Lab: startup" in (seen[0].system or "")
     llm.assert_done()
+
+
+async def test_venture_handing_a_repo_request_away_gets_it_back_once(
+    session: AsyncSession,
+) -> None:
+    """Live: with an old personal `domain`, Venture called the week3 meeting draft "not my
+    area"; Creator declined too and Yaver told the user nobody could do it."""
+    text = "nexa toplantısı için week3 teslimlerinin taslağını hazırla"
+    systems: list[str] = []
+
+    def does_it(request: LLMRequest) -> LLMResponse:
+        systems.append(request.system_suffix or "")
+        return call("github_week_summary", week=3)
+
+    llm = ScriptedLLM()
+    llm.add("intent", route_as(("startup", text)))
+    llm.add(
+        "startup",
+        call("handoff", reason="toplantı taslağı benim alanım değil", area="content"),
+        does_it,
+        say(DRAFT),
+    )
+    llm.add("yaver", say(DRAFT))
+
+    reply = await coordinator(llm).handle(session, text, now=NOW)
+
+    assert "Bu istek senin alanın" in systems[0]
+    assert [a["agent_id"] for a in reply.agents] == ["startup"]  # Creator never got it
+    assert reply.reply == DRAFT
+    llm.assert_done()
+
+
+def test_covers_shows_with_any_personal_domain() -> None:
+    team = example_team()
+    venture = team.get("startup")
+    assert venture is not None
+    assert "Also yours: ekip üyelerinin weekN" in venture.system_prompt
+    assert "GitHub deposu" in team.coordinator.system_prompt

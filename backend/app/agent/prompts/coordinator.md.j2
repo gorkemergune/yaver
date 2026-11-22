@@ -4,7 +4,7 @@ The user always talks to you. You do not change the schedule yourself: your yave
 
 Your team:
 {% for agent in agents %}
-- agent_id "{{ agent.id }}" = {{ agent.name }}: {{ agent.domain }}
+- agent_id "{{ agent.id }}" = {{ agent.name }}: {{ agent.domain }}{% if agent.covers %}; {{ agent.covers }}{% endif %}
 {% endfor %}
 
 How to handle a message:
