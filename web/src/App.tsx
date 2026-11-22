@@ -15,6 +15,7 @@ import {
   MonitorIcon,
   MoonIcon,
   OfficeIcon,
+  ReportIcon,
   SunriseIcon,
 } from "./components/icons";
 import { tr } from "./i18n/tr";
@@ -25,6 +26,7 @@ import { WeekView } from "./plan/WeekView";
 import { budgetTone, money } from "./lib/format";
 import { BoardView } from "./office/BoardView";
 import { OfficeView } from "./office/OfficeView";
+import { ReportsView } from "./reports/ReportsView";
 import { StatusView } from "./status/StatusView";
 import { SheetView } from "./study/SheetView";
 
@@ -35,6 +37,7 @@ const NAV: { route: Route; label: string; short?: string; icon: ReactNode; also?
   { route: "chat", label: tr.nav.chat, icon: <ChatIcon /> },
   { route: "today", label: tr.nav.calendar, icon: <CalendarIcon />, also: CALENDAR },
   { route: "board", label: tr.nav.board, short: tr.nav.boardShort, icon: <BoardIcon /> },
+  { route: "reports", label: tr.nav.reports, icon: <ReportIcon /> },
   { route: "status", label: tr.nav.status, icon: <GaugeIcon /> },
 ];
 const CALENDAR_TABS: { route: Route; label: string; icon: ReactNode }[] = [
@@ -72,6 +75,7 @@ export function App() {
         {route === "tomorrow" && <DayView offset={1} />}
         {route === "week" && <WeekView />}
         {route === "board" && <BoardView />}
+        {route === "reports" && <ReportsView />}
         {route === "status" && <StatusView />}
         {route === "sheet" && <SheetView />}
       </main>
@@ -161,7 +165,7 @@ function SpendPill() {
 function BottomNav({ route }: { route: Route }) {
   return (
     <nav className="px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-1 md:hidden print:hidden">
-      <ul className="yv-glass grid grid-cols-5 rounded-full p-1">
+      <ul className="yv-glass grid grid-cols-6 rounded-full p-1">
         {NAV.map((item) => (
           <li key={item.route}>
             <NavLink item={item} active={isActive(item, route)} />

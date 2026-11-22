@@ -24,3 +24,14 @@
 - karar: log özeti bellekteki son 400 satırdan (WARNING+ ve app.agent INFO: yönlendirme / handoff satırları); diske yazılmıyor, API yeniden başlayınca boşalır. Pencere: kullanıcının mesajından bir sonraki mesaja kadar (en çok 10 dk).
 - karar: `docs/bugs/` gitignore'da (sohbet içeriği).
 - karar: cevabı hiç kaydedilmemiş (akış hatası) bir mesaj da raporlanabilir; o zaman istemci ekrandakini gönderir.
+
+## 3. Raporlar sekmesi
+
+- Yeni sekme **Raporlar** (`#/reports`): Gün / Hafta seçimi, ‹ › ile önceki/sonraki dönem.
+  - Çalışan başına: senden gelen istek, Yaver'den gelen, mesai işi, başarısız, geri verdi, araç hatası, LLM maliyeti.
+  - Başarısız ve geri verilen istekler, nedenleriyle (alan; "sözle mi, araçla mı").
+  - Yönlendirme kararları: mesaj → niyet → çalışan.
+  - Açık hata raporları.
+- `GET /api/reports?period=day|week&date=YYYY-MM-DD`.
+- karar: "şu an boş Raporlar sekmesi" kodda yoktu (web'de de masaüstünde de); üst menüye yeni sekme olarak ekledim. Telefonda alt menü 6 sütun oldu.
+- karar: yönlendirme ve handoff verisi `messages.meta`'dan geliyor; bu sürümden önceki mesajlar sekmede görünmez (istek sayısı ve maliyet eski veriden de gelir).

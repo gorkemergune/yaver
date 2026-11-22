@@ -22,6 +22,14 @@ function Icon({ children, ...props }: IconProps) {
   );
 }
 
+/** A bar chart: the reports tab. */
+export const ReportIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 20h16" />
+    <path d="M7 16v-5M12 16V6M17 16v-8" />
+  </Icon>
+);
+
 export const ChatIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12Z" />

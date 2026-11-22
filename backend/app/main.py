@@ -18,6 +18,7 @@ from app.api import (
     jobs,
     office,
     push,
+    reports,
     screen_time,
     study,
     uploads,
@@ -109,6 +110,7 @@ def create_app() -> FastAPI:
         employees,
         devices,
         bugs,
+        reports,
     ):
         app.include_router(module.router, prefix="/api", dependencies=guarded)
     return app
