@@ -6,9 +6,10 @@ import io
 import zipfile
 
 from app.materials import mapping, toc
-from app.materials.ingest import compact, guess_kind
+from app.materials.ingest import guess_kind
 from app.materials.syllabus import WeekIn, check_weeks, day_month, week_of
 from app.materials.text import docx_pages
+from app.materials.weekly import compact
 
 TERM = dt.date(2026, 9, 28)
 D = chr(0x2013)  # en dash, as syllabi write ranges

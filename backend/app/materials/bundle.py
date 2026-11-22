@@ -52,8 +52,9 @@ from app.db.models import (
 from app.db.models.enums import ChangeOp
 from app.db.models.materials import EMBEDDING_DIM
 from app.db.session import get_sessionmaker
-from app.materials.ingest import MIME, Courses, compact
+from app.materials.ingest import MIME, Courses
 from app.materials.sources import export_sources
+from app.materials.weekly import compact
 
 logger = logging.getLogger("app.materials.bundle")
 

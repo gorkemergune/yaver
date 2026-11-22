@@ -265,7 +265,7 @@ async def titles_like(
 ) -> list[dict[str, Any]]:
     """Materials whose file / tab name is in the question ("labwork01 part 2" ->
     "Labwork01 - Part II.pdf") with their course and weeks: a name is not found by meaning."""
-    asked = _compact(query.replace(" ii", " 2").replace(" i ", " 1 "))
+    asked = compact(query.replace(" ii", " 2").replace(" i ", " 1 "))
     query_rows = select(CourseMaterial, Course.code).join(
         Course, Course.id == CourseMaterial.course_id
     )
@@ -274,7 +274,7 @@ async def titles_like(
     found = []
     for material, code in (await session.execute(query_rows)).all():
         stem = PurePath(material.title).stem.split(": ")[-1]
-        name = _compact(stem.replace(" II", " 2").replace(" I", " 1"))
+        name = compact(stem.replace(" II", " 2").replace(" I", " 1"))
         if len(name) < 4 or name not in asked:
             continue
         weeks = sorted(
@@ -340,7 +340,8 @@ async def sections_numbered(
     return found[:3]
 
 
-def _compact(text: str) -> str:
+def compact(text: str) -> str:
+    """ "CSE 221" / "cse-221" -> "cse221" (course codes, file names)."""
     return re.sub(r"[^a-z0-9]", "", normalize(text))
 
 

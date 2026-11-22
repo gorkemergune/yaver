@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
 
 PURPOSE = "material_map"  # smart (providers.yaml routing.purposes)

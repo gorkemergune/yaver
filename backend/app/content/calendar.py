@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.db.models import EmployeeNote, Event, Memory
 from app.integrations import web_search as websearch
 from app.llm.router import LLMUnavailableError

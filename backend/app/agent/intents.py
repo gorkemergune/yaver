@@ -15,7 +15,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 
 from app.agent.intent_map import AREAS, OWNERS, Intent  # noqa: F401 (re-exported)
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.llm.types import ChatMessage, LLMRequest, ProviderError, ToolSpec
 
 logger = logging.getLogger(__name__)

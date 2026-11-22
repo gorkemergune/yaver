@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.agent.context import ToolContext
 from app.agent.intake import pending_material
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.db.models import Proposal
 from app.db.models.enums import ProposalKind
 from app.llm.router import LLMUnavailableError

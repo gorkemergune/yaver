@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.core.localtime import local_datetime
 from app.db.models import Course, Event, Followup, Proposal, Task
 from app.db.models.enums import EventKind, FollowupStatus, ProposalKind, TaskStatus

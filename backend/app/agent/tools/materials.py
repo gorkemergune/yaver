@@ -15,8 +15,8 @@ from app.config import get_settings
 from app.core.time_resolver import MONTH_NAMES_TR, WEEKDAY_NAMES_TR
 from app.db.models import Attachment, CourseMaterial, Event, Proposal, SyllabusWeek
 from app.db.models.enums import EventKind
-from app.materials.ingest import compact
 from app.materials.weekly import (
+    compact,
     course_weeks,
     covered_weeks,
     match_topics,

@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.config import get_settings
 from app.db.models import (
     Attachment,

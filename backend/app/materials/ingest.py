@@ -45,6 +45,7 @@ from app.db.models import (
 from app.db.session import get_sessionmaker
 from app.materials import mapping, syllabus, toc
 from app.materials.text import UnreadableError, document_pages
+from app.materials.weekly import compact
 from app.rag.store import index_material
 
 logger = logging.getLogger("app.materials.ingest")
@@ -89,10 +90,6 @@ class Report:
 
 
 # ---- courses -------------------------------------------------------------------------------
-
-
-def compact(text: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", normalize(text))
 
 
 def code_pattern(code: str) -> re.Pattern[str] | None:

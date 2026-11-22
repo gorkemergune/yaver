@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from app.ads.parse import AdRow, ParsedAds
 from app.agent.context import ToolContext
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.db.models import AdMetric, AdReport
 from app.llm.router import LLMUnavailableError
 from app.llm.types import ChatMessage, LLMRequest, LLMResponse, ProviderError, ToolSpec

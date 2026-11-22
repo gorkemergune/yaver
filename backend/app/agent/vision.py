@@ -25,7 +25,7 @@ from app.ads.intake import ADS_IMAGE_PROMPT, AdsImage, import_report, parsed_fro
 from app.ads.intake import IMAGE_PURPOSE as ADS_IMAGE_PURPOSE
 from app.agent.context import ToolContext
 from app.agent.intake import pending_material
-from app.agent.tools import HHMM_PATTERN, json_schema
+from app.agent.schema import HHMM_PATTERN, json_schema
 from app.agent.tools.setup import (
     PARSER_TOOL,
     ParsedSchedule,

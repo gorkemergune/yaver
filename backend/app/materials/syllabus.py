@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.agent.tools import json_schema
+from app.agent.schema import json_schema
 from app.core.time_resolver import MONTH_NAMES_TR, normalize
 from app.llm.types import ChatMessage, LLMRequest, ToolSpec
 
