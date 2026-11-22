@@ -79,7 +79,13 @@ async def get_ad_report(args: AdReportArgs, ctx: ToolContext) -> ToolResult:
         )
     if report is None:
         status = ads_status(get_settings())
-        return {"status": "no_reports", "message": NO_REPORTS, "account": status.note}
+        return {
+            "status": "no_reports",
+            "message": NO_REPORTS,
+            "account": status.note,
+            # live set: "hesap bağlı değil" without the setting; the names are the fix
+            "note": "say how to send a report; about the account, name its settings as given",
+        }
     others = (
         await ctx.session.scalars(
             select(AdReport).where(AdReport.id != report.id).order_by(AdReport.id.desc()).limit(5)

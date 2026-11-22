@@ -60,6 +60,34 @@ NOT_MINE = re.compile(
 )
 
 
+# "I can't" without having tried (normalized text): live, Venture said "repoya erişimim
+# yok, aracım yok" without calling anything; Scholar-like answers asked the user to paste
+# what a tool can read
+GIVE_UP = re.compile(
+    r"erisim(?:im)? yok|erisemiyorum|erisimim bulunmuyor|aracim yok|aracim bulunmuyor"
+    r"|(?:bunu |bu istegi )?yapamiyorum|yapamam\b|yapamayacagim|imkanim yok|yetkim yok"
+    r"|yapistir|kopyalayip|kopyala\b|metnini (?:bana )?(?:gonder|at|yaz)"
+    # "doğrudan sorgulayamıyor / bakamıyorum / okuyamıyor" (live set: Metrics, no tool run)
+    r"|(?:bak|sorgula|oku|ulas|gor|cek|eris|getir|hesapla|bul)y?(?:a|e)m(?:iyor|am)"
+)
+# naming the setting that is missing is the right way to say it (GITHUB_STARTUP_REPO, ...)
+SETTING = re.compile(r"\b[A-Z][A-Z0-9]*_(?:[A-Z0-9]+_)*(?:KEY|TOKEN|REPO|ID|URL)\b")
+TRIED = frozenset({"resolve_date", "delegate", "handoff", "add_note", "get_notes"})
+
+
+def gives_up(reply: str) -> bool:
+    """The answer says it can't (no access, no tool, "paste it to me") and names no setting."""
+    return GIVE_UP.search(normalize(reply)) is not None and SETTING.search(reply) is None
+
+
+def tried_tools(trace: Sequence[Mapping[str, Any]], agent_id: str | None = None) -> bool:
+    """A real tool ran (not only dates / routing / the notebook), for `agent_id` if given."""
+    return any(
+        step.get("tool") not in TRIED and (agent_id is None or step.get("agent_id") == agent_id)
+        for step in trace
+    )
+
+
 def startup_signal(text: str) -> bool:
     return STARTUP_SIGNAL.search(normalize(text)) is not None
 

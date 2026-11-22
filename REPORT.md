@@ -35,3 +35,19 @@
 - `GET /api/reports?period=day|week&date=YYYY-MM-DD`.
 - karar: "şu an boş Raporlar sekmesi" kodda yoktu (web'de de masaüstünde de); üst menüye yeni sekme olarak ekledim. Telefonda alt menü 6 sütun oldu.
 - karar: yönlendirme ve handoff verisi `messages.meta`'dan geliyor; bu sürümden önceki mesajlar sekmede görünmez (istek sayısı ve maliyet eski veriden de gelir).
+
+## 4. "Pes etmeme" denetimi + 60 cümlelik gerçek konuşma
+
+- **Tarama:** prompt'larda ve araçlarda "yapıştır / erişimim yok" diyen bir kural yoktu. Canlı sette Metrics'in tek gerçek örneği: "geçen ayın harcamasını doğrudan sorgulayamıyor", `get_ad_report`'u hiç çağırmadan.
+- **Kural (agent prompt 13a):** önce aracını dene; araç bir ayarın eksik olduğunu söylerse ayarın adını söyle; kullanıcıdan okuyabileceğin şeyi yapıştırmasını isteme; alan dışıysa handoff.
+- **Kodda emniyet:** bir cevap "erişimim yok / yapamam / yapıştır / sorgulayamıyor…" diyorsa, hiç gerçek araç çalışmamışsa ve bir ayar adı (`*_KEY`, `*_TOKEN`, `GITHUB_*`) yoksa, aynı çalışan bir kez daha çalışır ("önce araçlarını dene" notuyla). Hem delege edilen çalışanda hem son cevapta.
+  - Raporlar sekmesinde `gave_up` adımı olarak görünür.
+  - Ekli görsel ya da dosyası olan mesaj hariç: kod zaten okumayı denemiş oluyor.
+- **Gerçek konuşma seti:** 41 → **60** cümle, dokuz çalışanın hepsi.
+  - Yeni: Venture (sahte GitHub ile week3, issue, readme, rakipler), Metrics, Creator, Buddy, Mentor, "bana yapıştırır mısın" denemesi, tek mesajda iki iş, Coach'a yeni haftalık spor.
+  - Her cevap ayrıca "denemeden pes etti mi" diye kontrol ediliyor.
+- **Sonuç:** 2 tur, **59/60 + 59/60 (%98)**, hedef ≥%95; maliyet $0.086.
+  - Kaçanlar: #2 (bilinen DSA açık-soru akışı, 2. turda geçti) ve #48 (Metrics pes etti).
+  - #48 için desen genişletildi; 2, 47, 48, 57 iki tur yeniden: 8/8. Metrics bu kez `gave_up` sonrası `get_ad_report`'u çağırdı.
+- karar: 58 ("linear quiz pazartesi", bugün pazartesi) ve 60 (salı-perşembe 19-20'de zaten spor var) test hatasıydı. Ekibin sorması doğru; testleri düzelttim, uygulamayı değil.
+- karar: `get_ad_report` "rapor yok" sonucuna "hesap ayarlarını adıyla söyle" notu (META_ACCESS_TOKEN / META_AD_ACCOUNT_ID).

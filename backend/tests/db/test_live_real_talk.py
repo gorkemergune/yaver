@@ -2,6 +2,9 @@
 "gidicem" / "çıkcakmış", events without an hour, Medipol / Iceberg in things that are not
 classes, two jobs in one message. Each case is checked against the database (which row, which
 date and hour), not only who got the message. Cases A and B are the two real failures.
+60 cases cover all nine employees (42-60: Venture against a fake GitHub API, Metrics,
+Creator, Buddy, Mentor, "paste it to me" probes); no answer may give up untried
+("erişimim yok / yapamam / yapıştır" without a tool run and without naming a setting).
 
     docker compose exec api pytest -m live -k real_talk -s
     REAL_TALK_ROUNDS=1 REAL_TALK_ONLY=1,2 ...
@@ -25,15 +28,18 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent import intents
 from app.agent.coordinator import ChatReply, Coordinator
 from app.agent.intent_map import followup_owner
 from app.agent.team import get_team
+from app.agent.tools import github as github_tools
 from app.agent.tools import run_tool
 from app.config import Settings
 from app.core.time_resolver import normalize
-from app.db.models import Course, Event, Followup, Memory, Task
+from app.db.models import Course, Event, Followup, Memory, RecurringBlock, Task
 from app.db.models.enums import FollowupStatus, OverrideAction, TaskStatus
 from app.llm.router import LLMRouter
+from tests.agent.test_github_tools import settings as github_settings
 from tests.db.test_agent_tools import context
 from tests.db.test_live_regression import (  # noqa: F401 (router fixture)
     NOW,
@@ -46,6 +52,7 @@ from tests.db.test_live_regression import (  # noqa: F401 (router fixture)
     rows,
     tools,
 )
+from tests.github_fake import MEMBERS, FakeGitHub
 
 pytestmark = pytest.mark.live
 PASS_FLOOR = 0.95
@@ -229,6 +236,68 @@ def either(first: Check, second: Check) -> Check:
     return check
 
 
+def used(agent_id: str, *names: str) -> Check:
+    """`agent_id` ran one of the tools `names` (any tool when none given)."""
+
+    async def check(session: AsyncSession, replies: list[ChatReply]) -> Problem:
+        ran = [
+            e["tool"]
+            for r in replies
+            for e in r.trace
+            if e["agent_id"] == agent_id and e["tool"] not in ("handoff", "gave_up")
+        ]
+        if not ran or (names and not set(names) & set(ran)):
+            got = sorted({f"{e['agent_id']}:{e['tool']}" for r in replies for e in r.trace})
+            return ("wrong_tool", f"{agent_id} did not run {names or 'a tool'}: {got}")
+        return None
+
+    return check
+
+
+def routed(agent_id: str) -> Check:
+    async def check(session: AsyncSession, replies: list[ChatReply]) -> Problem:
+        got = {a["agent_id"] for r in replies for a in r.agents} | {r.speaker for r in replies}
+        if agent_id not in got:
+            return ("wrong_agent", f"{agent_id} not in {sorted(got)}")
+        return None
+
+    return check
+
+
+def names_members(minimum: int = 3) -> Check:
+    async def check(session: AsyncSession, replies: list[ChatReply]) -> Problem:
+        text = normalize(replies[-1].reply)
+        named = [n for n in MEMBERS.values() if normalize(n) in text]
+        if len(named) < minimum:
+            return ("missing_members", f"{named}: {replies[-1].reply[:160]!r}")
+        return None
+
+    return check
+
+
+def weekly(word: str, *weekdays: int) -> Check:
+    async def check(session: AsyncSession, replies: list[ChatReply]) -> Problem:
+        found = [
+            b for b in await rows(session, RecurringBlock) if normalize(word) in normalize(b.title)
+        ]
+        if not found:
+            return ("missing_change", f"no weekly {word}; tools {tools(replies)}")
+        days = sorted({b.weekday for b in found})
+        if weekdays and days != sorted(weekdays):
+            return ("wrong_date", f"weekdays {days} != {sorted(weekdays)}")
+        return None
+
+    return check
+
+
+async def gave_up(replies: list[ChatReply]) -> Problem:
+    """Every answer: no "erişimim yok / yapamam / yapıştır" without having tried."""
+    for reply in replies:
+        if intents.gives_up(reply.reply) and not intents.tried_tools(reply.trace):
+            return ("gave_up", reply.reply[:160])
+    return None
+
+
 MORNING, NOON, AFTERNOON, EVENING = (6, 12), (11, 14), (12, 18), (17, 23)
 CANCEL, MOVE = OverrideAction.CANCEL, OverrideAction.MOVE
 MOVED_LAB = dt.datetime(2026, 11, 27, 14, 0, tzinfo=IST)
@@ -362,6 +431,85 @@ CASES = [
         "yarın medipolde 9da toplantı var sonra da ee211e gidicem",
         event_on("2026-11-24", "toplant", at="09:00"),
     ),
+    # --- 42-60: the rest of the office; no answer may give up untried ---------------------
+    # Venture (startup), the repo through the fake GitHub API (tests/github_fake.py)
+    Case(
+        42,
+        "nexa toplantısı için week3te kim ne yapmış çıkar",
+        both(used("startup", "github_week_summary"), names_members()),
+    ),
+    Case(
+        43,
+        "github/acme/startup reposunda açık issue var mı",
+        used("startup", "github_issues", "github_list", "github_search"),
+    ),
+    Case(
+        44,
+        "nexa reposundaki readme yi özetle",
+        used("startup", "github_read", "github_list", "github_search"),
+    ),
+    Case(45, "nexa nın rakiplerini araştır", used("startup", "web_search")),
+    Case(
+        46,
+        "perşembe 18de nexa toplantısı var bi de week3 özetini hazırla",
+        both(
+            event_on("2026-11-26", "nexa", "toplant", at="18:00"),
+            used("startup", "github_week_summary"),
+        ),
+    ),
+    # Metrics (ads): no report yet - it looks, then says how to send one
+    Case(47, "bu haftaki reklam performansı nasıl", used("ads", "get_ad_report")),
+    Case(48, "geçen ay reklama ne kadar harcadık", used("ads", "get_ad_report")),
+    # Creator (content)
+    Case(49, "nexa için bu hafta 3 post fikri bul", routed("content")),
+    Case(50, "bu haftanın içerik takvimini çıkar", used("content", "draft_content_calendar")),
+    # Buddy (social)
+    Case(
+        51,
+        "alinin doğum günü 28 kasım unutmayayım",
+        either(event_on("2026-11-28", "dogum", "ali"), remembered("ali")),
+    ),
+    Case(
+        52,
+        "cumartesi akşam zeynep ile sinemaya gidicem",
+        event_on("2026-11-28", "sinema", "zeynep", hours=EVENING),
+    ),
+    Case(53, "mertin doğum günü için cumaya kadar hediye almam lazım", task(None, "hediye")),
+    # Mentor (career)
+    Case(
+        54,
+        "trendyol staj mülakatım perşembe 14te",
+        event_on("2026-11-26", "mulakat", "trendyol", at="14:00"),
+    ),
+    Case(
+        55,
+        "aselsana staj başvurusu yaptım dönüş gelince haber ver her gün sor",
+        followup("aselsan", owner="career"),
+    ),
+    Case(56, "bu hafta cv mi güncellemem lazım görev ekle", task(None, "cv")),
+    # "paste it to me": Scholar looks in the uploaded materials first (none uploaded here)
+    Case(
+        57,
+        "ee211 lab föyünü bana yapıştırır mısın",
+        used("academic", "search_materials", "get_syllabus"),
+    ),
+    # two jobs in one message
+    Case(
+        58,
+        "cuma ali ile kahve içicem bi de linear quiz pazartesi",
+        both(
+            event_on("2026-11-27", "kahve"),
+            # on a Monday "pazartesi" is today or next week: asking is right too
+            either(exam("quiz", "2026-11-30", "math221"), no_event_and_asked()),
+        ),
+    ),
+    Case(
+        59,
+        "yarın 10da iceberg ile görüşme var sonra da cv güncelle görevi ekle",
+        both(event_on("2026-11-24", "iceberg", at="10:00"), task(None, "cv")),
+    ),
+    # Coach: a new weekly sport
+    Case(60, "cumartesi 10-11 yüzme ekle her hafta", weekly("yuzme", 5)),
 ]
 
 
@@ -395,10 +543,17 @@ async def run_case(
                     session, case.answer, conversation_id=conversation, now=case.now
                 )
             )
-        problem = await case.check(session, replies)
+        problem = await case.check(session, replies) or await gave_up(replies)
     except Exception as exc:  # a crash is a result too
         problem = ("exception", repr(exc)[:300])
     return replies, problem
+
+
+@pytest.fixture(autouse=True)
+def fake_github(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Venture's repo: the fake week1-week3 API, never the real GitHub."""
+    monkeypatch.setattr(github_tools, "client_factory", FakeGitHub().factory())
+    monkeypatch.setattr(github_tools, "get_settings", github_settings)
 
 
 async def test_live_real_talk(session: AsyncSession, router: LLMRouter, tmp_path: Path) -> None:  # noqa: F811

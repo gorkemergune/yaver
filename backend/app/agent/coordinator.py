@@ -167,6 +167,12 @@ OWN_PART_HINTS = {
 }
 
 
+GAVE_UP = (
+    "Önceki cevabında yapamayacağını söyledin ama hiçbir aracı denemedin. Önce araçlarını "
+    "dene (okuyabileceğin bir şeyi kullanıcıdan yapıştırmasını isteme). Bir araç bir ayarın "
+    "eksik olduğunu söylerse adını söyle (ör. GITHUB_STARTUP_REPO, TAVILY_API_KEY). İstek "
+    "alanının dışındaysa handoff çağır. Genel 'erişimim yok / yapamam' deme."
+)
 YOURS_REPO = (
     "Bu istek senin alanın: startup'ın GitHub deposu / weekN klasörleri ve ekip üyelerinin "
     "çalışmaları sende. Geri verme; github_week_summary (ya da github_list / github_read) ile "
@@ -472,6 +478,26 @@ class Coordinator:
                 on_tool=on_tool,
             )
             await activity.delegated(agent.id, sub.reply, sub.tool_calls)
+            if (
+                sub.handoff is None
+                and intent_routing.gives_up(sub.reply)
+                and not intent_routing.tried_tools(ctx.trace, agent.id)
+            ):
+                # "erişimim yok / yapamam" without trying a tool: once more, told to try
+                logger.info("%s gave up on %r untried: %r", agent.id, instruction, sub.reply)
+                ctx.trace.append(
+                    {"agent_id": agent.id, "tool": "gave_up", "arguments": {}, "error": None}
+                )
+                sub = await run_agent(
+                    self.llm,
+                    agent,
+                    [ChatMessage("user", instruction)],
+                    ctx,
+                    system_suffix=f"{suffix}\n{GAVE_UP}",
+                    max_steps=self.max_steps,
+                    emit=emit,
+                    on_tool=on_tool,
+                )
             if sub.handoff is None and not sub.tool_calls and intent_routing.declines(sub.reply):
                 # "bu benim alanım değil" in words, no handoff call (live: Creator): the
                 # same as a handoff, with no area named
@@ -706,6 +732,33 @@ class Coordinator:
                 retry_messages,
                 ctx,
                 system_suffix=f"{suffix}\n{NO_TOOL_RAN}",
+                max_steps=self.max_steps,
+                delegate=holder.get("delegate"),
+                delegate_spec=self.team.delegate_spec() if holder.get("delegate") else None,
+                emit=emit,
+                stream_text=True,
+                on_tool=on_tool,
+            )
+
+        if (
+            final.handoff is None
+            and not attachments  # the code already read them (or said why it couldn't)
+            and intent_routing.gives_up(final.reply)
+            and not intent_routing.tried_tools(ctx.trace)
+        ):
+            # the answer gives up without any tool run in this message: once more
+            logger.warning("Gave up untried on %r: %r", text, final.reply)
+            ctx.trace.append(
+                {"agent_id": final.agent_id, "tool": "gave_up", "arguments": {}, "error": None}
+            )
+            if emit is not None:
+                await emit({"type": "reset", "agent_id": final.agent_id})
+            final = await run_agent(
+                self.llm,
+                final_member,
+                final_messages,
+                ctx,
+                system_suffix=f"{suffix}\n{GAVE_UP}",
                 max_steps=self.max_steps,
                 delegate=holder.get("delegate"),
                 delegate_spec=self.team.delegate_spec() if holder.get("delegate") else None,
