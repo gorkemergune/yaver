@@ -108,6 +108,7 @@ async def github_list(args: ListArgs, ctx: ToolContext) -> ToolResult:
     async def work(client: gh.GitHub) -> ToolResult:
         data = await client.contents(args.path)
         if data is None:
+            await client.info()  # a missing / unseen repository says so (GitHubError)
             return {"path": args.path, "error": "no such folder"}
         if isinstance(data, dict):  # a file: say so, the model reads it with github_read
             return {"path": args.path, "is_file": True, "size": data.get("size")}
@@ -317,6 +318,33 @@ def _group(rel: str, is_dir: bool) -> str:
     return head if is_dir or "/" in rel else PurePosixPath(head).stem
 
 
+def _named_after(name: str, people: set[str], rows: list[dict[str, Any]]) -> bool:
+    key = fold(re.split(r"[-_ .]", name)[0])
+    names = people | {fold(r["author"]) for r in rows}
+    names |= {fold(part) for r in rows for part in r["name"].split()}
+    return len(key) >= 3 and any(key in n or n in key for n in names if len(n) >= 3)
+
+
+async def _text_of(client: gh.GitHub, folder: str, files: list[str]) -> str | None:
+    """What a member's folder says: its README, else an .md / .txt, else a PDF's first page
+    (members hand in slides and reports too)."""
+    by_suffix = [
+        next((f for f in files if PurePosixPath(f).name.lower().startswith("readme")), None),
+        next((f for f in files if PurePosixPath(f).suffix.lower() in (".md", ".txt")), None),
+    ]
+    for name in by_suffix:
+        if name:
+            return _excerpt(await client.text(f"{folder}/{name}"))
+    pdf = next((f for f in files if f.lower().endswith(".pdf")), None)
+    if pdf is None:
+        return None
+    data, _size = await client.file_bytes(f"{folder}/{pdf}")
+    if data is None:
+        return None
+    pages = await asyncio.to_thread(page_texts, data)
+    return _excerpt(f"({pdf}) " + " ".join(pages[:2]))
+
+
 def _excerpt(text: str | None, limit: int = 700) -> str | None:
     if not text:
         return None
@@ -366,20 +394,20 @@ async def github_week_summary(args: WeekArgs, ctx: ToolContext) -> ToolResult:
             files = groups.setdefault(_group(rel, entry.kind == "tree"), [])
             if entry.kind == "blob":
                 files.append(rel)
+        contributors = await client.contributors()
+        people = {fold(c) for c in contributors}
         members = []
+        everyone: set[str] = set()
         for name, files in list(groups.items())[:MAX_GROUPS]:
             target = f"{folder}/{name}" if any("/" in f for f in files) else f"{folder}/{files[0]}"
             commits = await client.commits(path=target) if files else []
             rows = [_commit(c, ctx) for c in commits]
-            readme = next(
-                (f for f in files if PurePosixPath(f).name.lower().startswith("readme")),
-                next(
-                    (f for f in files if PurePosixPath(f).suffix.lower() in (".md", ".txt")), None
-                ),
-            )
+            everyone |= {r["author"] for r in rows}
             members.append(
                 {
                     "folder_or_file": name,
+                    # the folder / file is named like someone who commits to the repo
+                    "named_after_a_contributor": _named_after(name, people, rows),
                     "files": files[:15],
                     "commit_authors": dict(
                         Counter(
@@ -389,17 +417,27 @@ async def github_week_summary(args: WeekArgs, ctx: ToolContext) -> ToolResult:
                     ),
                     "last_commit": rows[0]["date"] if rows else None,
                     "commit_messages": [r["message"] for r in rows[:5]],
-                    "readme": _excerpt(await client.text(f"{folder}/{readme}")) if readme else None,
+                    "readme": await _text_of(client, folder, files),
                 }
             )
-        return {
+        result: dict[str, Any] = {
             "week": args.week,
             "folder": folder,
             "week_readme": _excerpt(await client.text(week_readme)) if week_readme else None,
             "members": members,
-            "contributors": await client.contributors(),
+            "contributors": contributors,
             "note": "one short paragraph per member: who (folder / file name and commit "
             "authors), what (README, files, commit messages); add nothing that is not here",
         }
+        if len(everyone) == 1 and len(members) > 1:
+            # a real repo (a course's doc/week03): Lab03, Lecture03, examples - all by one
+            # person. These are parts of the week, not members: say so, don't invent people.
+            result["single_author"] = next(iter(everyone))
+            result["note"] = (
+                f"every file of this week is by one person ({result['single_author']}): the "
+                "folders / files are parts or topics, not team members. Say that the folder "
+                "has no per-member hand-ins and summarise the parts; invent no members"
+            )
+        return result
 
     return await _with_github(ctx, args.repo, work)

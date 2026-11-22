@@ -90,8 +90,9 @@ def _commit(login: str, name: str, date: str, message: str) -> dict[str, Any]:
 class FakeGitHub:
     """api.github.com for any owner/name; `status` makes every request fail with it."""
 
-    def __init__(self, status: int | None = None) -> None:
+    def __init__(self, status: int | None = None, *, one_author: str | None = None) -> None:
         self.status = status
+        self.one_author = one_author  # every commit by this login (a one-person repo)
         self.requests: list[tuple[str, str]] = []
 
     def handler(self, request: httpx2.Request) -> httpx2.Response:
@@ -138,7 +139,7 @@ class FakeGitHub:
             path = params.get("path")
             since, until = params.get("since"), params.get("until")
             rows = [
-                _commit(login, name, date, message)
+                _commit(self.one_author or login, self.one_author or name, date, message)
                 for prefix, login, name, date, message in COMMITS
                 if (not path or prefix == path or prefix.startswith(f"{path}/"))
                 and (not since or date >= since)
@@ -146,7 +147,9 @@ class FakeGitHub:
             ]
             return self._json(rows)
         if rest == "contributors":
-            logins = dict.fromkeys(c[1] for c in COMMITS)
+            logins = dict.fromkeys(
+                [self.one_author] if self.one_author else [c[1] for c in COMMITS]
+            )
             return self._json([{"login": login, "type": "User"} for login in logins])
         if rest == "issues":
             return self._json(

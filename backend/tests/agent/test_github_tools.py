@@ -92,11 +92,47 @@ async def test_week_summary_per_member(fake: FakeGitHub) -> None:
     assert all(method == "GET" for method, _ in fake.requests)
 
 
+async def test_folders_named_like_a_contributor(fake: FakeGitHub) -> None:
+    result = await call("github_week_summary", week=3)
+    named = {m["folder_or_file"]: m["named_after_a_contributor"] for m in result["members"]}
+
+    # ali -> ali-dev, zeynep -> zeynepy, mert-rapor -> mertc, deniz -> "Deniz Kaya"
+    assert named == {"ali": True, "zeynep": True, "mert-rapor": True, "deniz": True}
+    assert "single_author" not in result
+
+
+async def test_a_one_person_week_folder_is_not_split_into_members(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real repo (a course's doc/week03: Lab03, Lecture03, examples, all one author):
+    the parts are not team members."""
+    monkeypatch.setattr(github_tools, "client_factory", FakeGitHub(one_author="solo").factory())
+    monkeypatch.setattr(github_tools, "get_settings", settings)
+
+    result = await call("github_week_summary", week=3)
+
+    assert result["single_author"] == "solo"
+    assert "not team members" in result["note"]
+    assert "invent no members" in result["note"]
+
+
 async def test_week_without_a_folder_lists_the_weeks(fake: FakeGitHub) -> None:
     result = await call("github_week_summary", week=7)
 
     assert result["error"] == "no folder for this week"
     assert result["week_folders"] == ["week1", "week2", "week3"]
+
+
+async def test_listing_a_repo_the_token_cant_see_says_so(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(github_tools, "client_factory", FakeGitHub(404).factory())
+    monkeypatch.setattr(github_tools, "get_settings", settings)
+
+    result = await call("github_list", repo="github/acme/startup")
+
+    assert result["status"] == "github_error"  # not "no such folder"
+    assert "acme/startup deposu bulunamadı" in result["problem"]
 
 
 async def test_list_read_search(fake: FakeGitHub) -> None:
