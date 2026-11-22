@@ -87,6 +87,10 @@ def no_problems(monkeypatch: pytest.MonkeyPatch) -> None:
     config_problems.clear_source("providers.yaml")
 
 
+def agents_problems() -> list[dict[str, str | None]]:
+    return [p for p in config_problems.problems() if p["source"] == "agents.yaml"]
+
+
 def _team(tmp_path: Path, personal: str | None) -> TeamConfig:
     (tmp_path / "agents.example.yaml").write_text(EXAMPLE_AGENTS, encoding="utf-8")
     if personal is not None:
@@ -109,7 +113,7 @@ def test_tools_and_shift_jobs_come_from_the_example(tmp_path: Path, no_problems:
     ]
     assert content.name == "Creator"  # not in the personal file: the example's
     assert [a.id for a in team.agents] == ["academic", "startup", "content"]  # no "research"
-    assert config_problems.problems() == []
+    assert agents_problems() == []
 
 
 def test_the_personal_file_keeps_what_is_shown(tmp_path: Path, no_problems: None) -> None:
@@ -154,7 +158,7 @@ def test_a_broken_personal_file_still_falls_back(tmp_path: Path, no_problems: No
     team = _team(tmp_path, PERSONAL_AGENTS.replace('color: "#0ea5e9"', "color: blue"))
 
     assert team.agents[0].name == "Scholar"  # the example, whole
-    [problem] = config_problems.problems()
+    [problem] = agents_problems()
     assert problem["source"] == "agents.yaml"
     assert "color" in str(problem["message"])
 

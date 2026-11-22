@@ -131,7 +131,7 @@ async def ads_report(ctx: ShiftContext) -> str | None:
 async def github_watch(ctx: ShiftContext) -> str | None:
     client = ctx.github or gh.get_github(ctx.settings)
     if client is None:
-        return gh.PENDING_NOTE
+        return gh.pending_note(ctx.settings)  # names what is missing
     try:
         return await startup_repo.morning(
             ctx.session, client, ctx.employee_id, ctx.now, ctx.settings.tz

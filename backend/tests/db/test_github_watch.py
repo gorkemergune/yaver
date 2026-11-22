@@ -18,7 +18,7 @@ from app.config import Settings
 from app.core.change_log import undo_change_set
 from app.db.models import EmployeeNote, Event, Followup
 from app.db.models.enums import EventKind, FollowupCheckRule, FollowupStatus
-from app.integrations.github import PENDING_NOTE, GitHub, GitHubError, get_github
+from app.integrations.github import NO_TOKEN, PENDING_NOTE, GitHub, GitHubError, get_github
 from app.office.shift_jobs import run_shift_job
 from app.office.state import Office
 from app.startup import repo as startup
@@ -146,8 +146,9 @@ async def test_without_a_token_the_integration_is_pending(
         web=None,
     )
 
-    assert note == PENDING_NOTE
-    assert PENDING_NOTE in await notes_of(session, "startup")
+    # what is missing, by name (live: a vague "erişimim yok")
+    assert note == f"{PENDING_NOTE} Eksik: {NO_TOKEN}"
+    assert note in await notes_of(session, "startup")
 
 
 async def test_the_first_morning_maps_the_repo_and_fills_the_calendar(
@@ -321,7 +322,9 @@ async def test_a_refused_token_is_a_note_not_a_crash(
     )
     await github.aclose()
 
-    assert note == "GitHub deposuna bakılamadı: GitHub refused the token (401)"
+    assert note == (
+        "GitHub deposuna bakılamadı: GITHUB_TOKEN geçersiz ya da süresi dolmuş (GitHub 401)"
+    )
 
 
 @pytest.mark.parametrize(

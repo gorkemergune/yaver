@@ -2,8 +2,9 @@
 
 Only GET requests leave this module (`_get` is the single way out, and the transport
 refuses any other method), so a token with write rights still cannot change anything.
-Without GITHUB_TOKEN + a repository (GITHUB_STARTUP_REPO or one the user names) there is
-no client: Venture notes that the integration is pending.
+Without GITHUB_TOKEN + a repository there is no client, and `setup_problem` says exactly
+what is missing ("GITHUB_TOKEN yok", "GITHUB_STARTUP_REPO geçersiz: ...") - never a vague
+"erişimim yok" (live: a placeholder left in .env read as "I have no access").
 """
 
 import base64
@@ -16,6 +17,7 @@ from typing import Any
 import httpx2
 
 from app.config import Settings, get_settings
+from app.core import config_problems
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,16 @@ def setup_problem(settings: Settings | None = None, repo: str | None = None) -> 
         return NO_TOKEN
     if repo or settings.github_startup_repo:
         return None
+    bad = config_problems.find(".env", "GITHUB_STARTUP_REPO")
+    if bad is not None:
+        return f"GITHUB_STARTUP_REPO geçersiz: {bad.message}; owner/name olmalı (ör. acme/startup)."
     return NO_REPO
+
+
+def pending_note(settings: Settings | None = None) -> str:
+    """The shift job's notebook line while GitHub is not set up: what exactly is missing."""
+    problem = setup_problem(settings)
+    return f"{PENDING_NOTE} Eksik: {problem}" if problem else PENDING_NOTE
 
 
 class ReadOnlyTransport(httpx2.AsyncBaseTransport):
@@ -113,19 +124,31 @@ class GitHub:
         try:
             response = await self._client.get(url, params=params or None)
         except httpx2.HTTPError as exc:
-            raise GitHubError(f"GitHub unreachable: {exc}") from exc
+            raise GitHubError(f"GitHub'a ulaşılamadı ({type(exc).__name__})") from exc
         if response.status_code == 404:
             return None
-        if response.status_code in (401, 403):
-            raise GitHubError(f"GitHub refused the token ({response.status_code})")
+        if response.status_code == 401:
+            raise GitHubError("GITHUB_TOKEN geçersiz ya da süresi dolmuş (GitHub 401)")
+        if response.status_code == 429 or (
+            response.status_code == 403 and response.headers.get("x-ratelimit-remaining") == "0"
+        ):
+            raise GitHubError("GitHub istek sınırı doldu, biraz sonra tekrar denenebilir")
+        if response.status_code == 403:
+            raise GitHubError(
+                f"GITHUB_TOKEN'ın {self.repo} deposunu okuma yetkisi yok (GitHub 403): token'a "
+                "bu depo için Contents, Issues, Pull requests ve Metadata okuma izni verilmeli"
+            )
         if response.status_code >= 400:
-            raise GitHubError(f"GitHub error {response.status_code}")
+            raise GitHubError(f"GitHub hata verdi ({response.status_code})")
         return response.json()
 
     async def info(self) -> dict[str, Any]:
         data = await self._get(f"/repos/{self.repo}")
         if data is None:
-            raise GitHubError(f"repository {self.repo} not found (or the token can't see it)")
+            raise GitHubError(
+                f"{self.repo} deposu bulunamadı ya da GITHUB_TOKEN onu göremiyor (GitHub 404): "
+                "depo adını ve token'ın bu depoya erişimini kontrol et"
+            )
         self._default_branch = data.get("default_branch") or "main"
         return dict(data)
 

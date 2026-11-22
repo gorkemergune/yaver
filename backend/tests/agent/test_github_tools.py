@@ -150,6 +150,7 @@ async def test_a_repo_named_in_the_message_is_used(fake: FakeGitHub) -> None:
     [
         (None, "acme/startup", None, "GITHUB_TOKEN yok"),
         ("t", None, None, "GITHUB_STARTUP_REPO ayarlı değil"),
+        ("t", "acme/<startup>", None, "GITHUB_STARTUP_REPO geçersiz: 'acme/<startup>'"),
         (None, None, "github/acme/startup", "GITHUB_TOKEN yok"),
     ],
 )
@@ -173,9 +174,34 @@ async def test_a_missing_setting_is_named(
     config_problems.clear_source(".env")
 
 
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (401, "GITHUB_TOKEN geçersiz ya da süresi dolmuş"),
+        (403, "GITHUB_TOKEN'ın acme/startup deposunu okuma yetkisi yok"),
+        (404, "acme/startup deposu bulunamadı ya da GITHUB_TOKEN onu göremiyor"),
+    ],
+)
+async def test_github_refusing_is_named(
+    monkeypatch: pytest.MonkeyPatch, status: int, expected: str
+) -> None:
+    monkeypatch.setattr(github_tools, "get_settings", settings)
+    monkeypatch.setattr(github_tools, "client_factory", FakeGitHub(status).factory())
+
+    result = await call("github_week_summary", week=3)
+
+    assert result["status"] == "github_error"
+    assert result["problem"].startswith(expected)
+
+
 def test_parse_repo() -> None:
     assert gh.parse_repo("github/gorkemergune/startup") == "gorkemergune/startup"
     assert gh.parse_repo("https://github.com/acme/app.git") == "acme/app"
     assert gh.parse_repo("github.com/acme/app/tree/main/week3") == "acme/app"
     assert gh.parse_repo("acme/<startup>") is None
     assert gh.parse_repo("startup") is None
+
+
+def test_the_morning_note_says_what_is_missing() -> None:
+    assert "Eksik: GITHUB_TOKEN yok" in gh.pending_note(settings(token=None))
+    assert "Eksik: GITHUB_STARTUP_REPO ayarlı değil" in gh.pending_note(settings(repo=None))

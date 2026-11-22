@@ -40,6 +40,10 @@ def clear_source(source: str) -> None:
         del _problems[key]
 
 
+def find(source: str, field: str | None = None) -> ConfigProblem | None:
+    return _problems.get((source, field))
+
+
 def problems() -> list[dict[str, str | None]]:
     return [asdict(p) for p in _problems.values()]
 

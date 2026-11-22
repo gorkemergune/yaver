@@ -50,7 +50,9 @@ def test_repo_example_configs_are_loadable() -> None:
 
 
 @pytest.fixture
-def no_problems() -> Iterator[None]:
+def no_problems(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # the dev container's own .env values are process env here: only the test's count
+    monkeypatch.delenv("GITHUB_STARTUP_REPO", raising=False)
     config_problems.clear()
     yield
     config_problems.clear()

@@ -130,11 +130,10 @@ class Settings(BaseSettings):
             return None
         repo = value.strip().removeprefix("https://github.com/").removesuffix(".git").strip("/")
         if not re.fullmatch(r"[\w.-]+/[\w.-]+", repo):
-            # a placeholder left in .env must not stop the app: the integration stays pending
-            logging.getLogger(__name__).warning(
-                "GITHUB_STARTUP_REPO=%r is not owner/name: GitHub integration off", value
-            )
-            return None
+            # a placeholder left in .env must not stop the app: _bad_values_fall_back keeps
+            # it unset and reports it (UI banner; Venture names it: "GITHUB_STARTUP_REPO
+            # geçersiz: 'acme/<startup>' is not owner/name ...")
+            raise ValueError(f"{value!r} is not owner/name")
         return repo
 
     @field_validator("app_timezone")
